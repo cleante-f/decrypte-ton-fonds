@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Décrypte ton fonds</title>
+  <meta name="description" content="Comprendre en quelques minutes où est investi un fonds (OPCVM, SICAV, FCP, ETF), ses risques et ses pièges.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="index.html" class="logo">Décrypte ton fonds</a>
+    <nav class="onglets" aria-label="Pages du site">
+      <a href="index.html" data-page="index.html">Accueil</a>
+      <a href="decrypte.html" data-page="decrypte.html" data-fonds aria-current="page">Décrypte ton fonds</a>
+      <a href="performances.html" data-page="performances.html" data-fonds>Performances</a>
+    </nav>
+    <div class="entete-actions">
+      <button type="button" class="btn-link" id="btn-reglages" aria-expanded="false" aria-controls="panneau-reglages">Réglages<span class="texte-long"> des alertes</span></button>
+      <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateur du site (ouvre son profil LinkedIn)">Créateur</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="recherche" aria-label="Recherche d'un fonds">
+      <h1>Qu'y a-t-il vraiment dans ton fonds ?</h1>
+      <p class="sous-titre">Saisis un code ISIN, un ticker ou un nom de fonds.</p>
+      <form id="form-recherche" autocomplete="off">
+        <label for="champ-recherche" class="sr-only">Code ISIN, ticker ou nom du fonds</label>
+        <input id="champ-recherche" type="search" placeholder="ex. FR0010135103, CW8 ou « Carmignac »" required>
+        <button type="submit" class="btn">Analyser</button>
+      </form>
+      <div id="exemples" class="exemples"></div>
+    </section>
+
+    <section id="panneau-reglages" class="panneau" hidden aria-label="Réglages des seuils d'alerte"></section>
+
+    <div id="resultat" aria-live="polite"></div>
+  </main>
+
+  <footer class="site-footer">
+    <p><strong>Mention légale :</strong> ce site fournit une information générale et pédagogique. Il ne constitue
+      <strong>ni un conseil en investissement, ni une recommandation</strong> d'acheter ou de vendre un produit financier.
+      Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
+      prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
+  </footer>
+
+  <!-- Infobulle unique, déplacée par le JS -->
+  <div id="infobulle" role="tooltip" hidden></div>
+
+  <!-- Ordre important : données, puis configuration, puis logique -->
+  <script src="data/annuaire.js"></script>
+  <script src="js/glossaire.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/analyse.js"></script>
+  <script src="js/geco.js"></script>
+  <script src="js/inventaire.js"></script>
+  <script src="js/style.js"></script>
+  <script src="js/composition.js"></script>
+  <script src="js/affichage.js"></script>
+  <script src="js/fiche-auto.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/infobulles.js"></script>
+  <script src="js/createur.js"></script>
+</body>
+</html>
