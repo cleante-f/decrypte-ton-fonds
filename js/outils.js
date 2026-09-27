@@ -1,6 +1,9 @@
 /*
  * Outils d'analyse partagés : mise en forme des nombres, alertes de concentration, profils de risque.
  * Ce fichier ne touche pas à l'affichage : il renvoie seulement des données.
+ *
+ * Ne pas le renommer « analyse.js » : ce nom est bloqué par les bloqueurs de publicités (liste EasyPrivacy),
+ * ce qui empêchait le site de fonctionner chez les visiteurs qui en utilisent un.
  */
 
 // ---------- Outils ----------

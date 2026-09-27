@@ -126,7 +126,7 @@ function assemblerComposition(inv, st, part) {
   return c;
 }
 
-// Objet au format attendu par alertesConcentration (analyse.js)
+// Objet au format attendu par alertesConcentration (outils.js)
 function pseudoFonds(c) {
   return {
     types: c.lignesSontDesFonds ? ["fonds_de_fonds"] : [],

@@ -127,6 +127,9 @@ Une mise à jour par mois suffit.
 
 ## Organisation des fichiers
 
+⚠️ Éviter les noms de fichiers que les bloqueurs de publicités interdisent (ex. `analyse.js`, `analytics.js`, `tracking.js`) :
+le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et le site cesserait de fonctionner pour eux.
+
 | Fichier | Rôle |
 |---|---|
 | `data/annuaire.js` | Liste de tous les fonds (générée par le script) |
@@ -135,7 +138,7 @@ Une mise à jour par mois suffit.
 | `js/style.js` | Moteur 2 : analyse des rendements, recherche d'un fonds jumeau |
 | `js/composition.js` | Assemble les deux moteurs, cache, préparation des alertes |
 | `js/fiche-auto.js` | Fiche automatique : détection des pièges et affichage |
-| `js/analyse.js` / `js/affichage.js` | Outils partagés : mise en forme des nombres, alertes de concentration, graphiques en barres, liste de résultats |
+| `js/outils.js` / `js/affichage.js` | Outils partagés : mise en forme des nombres, alertes de concentration, graphiques en barres, liste de résultats |
 | `js/glossaire.js` | Explications des infobulles |
 | `js/config.js` | Seuils des alertes |
 | `js/app.js` | Page « Décrypte ton fonds » : recherche, navigation, réglages |
