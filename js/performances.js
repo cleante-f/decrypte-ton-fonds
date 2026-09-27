@@ -28,6 +28,7 @@ const cacheSeries = new Map();
 let numeroAffichage = 0;
 
 const zonePerf = document.getElementById("resultat");
+const ICONE_SIMULER = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 16l4-4 3 2 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 8l4-3M16 8l4 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="1.5 2.5"/></svg>`;
 const champPerf = document.getElementById("champ-recherche");
 
 // ---------- Chargement des séries ----------
@@ -156,16 +157,6 @@ function performancesAnnuelles(serie) {
 
 const signe = v => (v > 0 ? "+" : "") + v.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
 const dateLongue = d => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-
-function graduations(min, max, cible = 5) {
-  const etendue = max - min || 1;
-  const brut = etendue / cible;
-  const puissance = Math.pow(10, Math.floor(Math.log10(brut)));
-  const pas = [1, 2, 2.5, 5, 10].map(x => x * puissance).find(x => etendue / x <= cible + 1);
-  const res = [];
-  for (let v = Math.ceil(min / pas) * pas; v <= max + 1e-9; v += pas) res.push(Math.round(v * 1e6) / 1e6);
-  return res;
-}
 
 function graduationsDates(debut, fin, largeur) {
   const nb = Math.max(2, Math.min(7, Math.floor(largeur / 90)));
@@ -354,6 +345,7 @@ function afficherSquelette(entree, isin, principal) {
       <h1>${esc(entree.nom)}</h1>
       <p>${esc(isin || "ISIN non publié")}${part && !principal.jumeau ? ` · part « ${esc(part.parNom)} »` : ""}${entree.gestionnaire ? ` · ${esc(entree.gestionnaire)}` : ""}</p>
       <div class="actions-fiche">
+        <a class="btn btn-simuler" href="simulateur.html#${esc(cle)}">${ICONE_SIMULER} Simuler mon investissement</a>
         <a class="btn-onglet" href="decrypte.html#${esc(cle)}">Décrypter ce fonds →</a>
         ${choixParts}
       </div>

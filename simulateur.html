@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulateur · Décrypte ton fonds</title>
+  <meta name="description" content="Simule ce que pourrait devenir ton investissement dans un ETF ou un fonds : scénarios défavorable, central et favorable, Monte Carlo, frais, inflation, crises, objectif et portefeuille.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-simu">
+  <header class="site-header">
+    <a href="index.html" class="logo">Décrypte ton fonds</a>
+    <nav class="onglets" aria-label="Pages du site">
+      <a href="index.html" data-page="index.html">Accueil</a>
+      <a href="decrypte.html" data-page="decrypte.html" data-fonds>Décrypte<span class="texte-long"> ton fonds</span></a>
+      <a href="performances.html" data-page="performances.html" data-fonds>Performances</a>
+      <a href="simulateur.html" data-page="simulateur.html" data-fonds aria-current="page">Simulateur</a>
+    </nav>
+    <div class="entete-actions">
+      <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateur du site (ouvre son profil LinkedIn)">Créateur</button>
+    </div>
+  </header>
+
+  <main class="simu">
+    <section class="simu-hero recherche" aria-label="Choix du fonds">
+      <p class="surtitre">Simulateur d'investissement</p>
+      <h1>Que pourrait devenir ton investissement ?</h1>
+      <p class="sous-titre">Plusieurs scénarios, jamais une promesse : défavorable, central, favorable, crises, frais et inflation compris.
+        Choisis d'abord un fonds ou un ETF.</p>
+      <form id="form-recherche" autocomplete="off">
+        <label for="champ-recherche" class="sr-only">Code ISIN, ticker ou nom du fonds</label>
+        <input id="champ-recherche" type="search" placeholder="ex. FR0011871128, CW8 ou « S&P 500 »" required>
+        <button type="submit" class="btn">Choisir</button>
+      </form>
+      <div id="exemples" class="exemples"></div>
+    </section>
+
+    <div id="fonds-simu" aria-live="polite"></div>
+    <section id="assistant" class="assistant" aria-label="Ton plan d'investissement" hidden></section>
+    <div id="resultats-simu" aria-live="polite"></div>
+  </main>
+
+  <footer class="site-footer">
+    <p><strong>Cette simulation repose sur des hypothèses et des données historiques. Elle ne constitue pas une garantie de performance future ni un conseil en investissement.</strong></p>
+    <p><strong>Mention légale :</strong> ce site fournit une information générale et pédagogique. Il ne constitue
+      <strong>ni un conseil en investissement, ni une recommandation</strong> d'acheter ou de vendre un produit financier.
+      Les performances passées ne préjugent pas des performances futures. Vérifie toujours le DIC et le prospectus officiels.</p>
+  </footer>
+
+  <div id="infobulle" role="tooltip" hidden></div>
+
+  <!-- Ordre important : données, outils partagés, moteurs, puis la page -->
+  <script src="data/annuaire.js"></script>
+  <script src="data/references.js"></script>
+  <script src="data/contexte.js"></script>
+  <script src="js/glossaire.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/analyse.js"></script>
+  <script src="js/geco.js"></script>
+  <script src="js/inventaire.js"></script>
+  <script src="js/style.js"></script>
+  <script src="js/composition.js"></script>
+  <script src="js/affichage.js"></script>
+  <script src="js/fiche-auto.js"></script>
+  <script src="js/projection.js"></script>
+  <script src="js/contexte-fonds.js"></script>
+  <script src="js/graphiques-simu.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/simulateur.js"></script>
+  <script src="js/infobulles.js"></script>
+  <script src="js/createur.js"></script>
+</body>
+</html>

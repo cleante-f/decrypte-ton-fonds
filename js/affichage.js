@@ -55,6 +55,17 @@ function barres(items, seuil, echelle = 100) {
   return `<ul class="barres">${lignes}</ul>${legende}`;
 }
 
+// Graduations « rondes » d'un axe (0, 20, 40… ou 0, 2 500, 5 000…)
+function graduations(min, max, cible = 5) {
+  const etendue = max - min || 1;
+  const brut = etendue / cible;
+  const puissance = Math.pow(10, Math.floor(Math.log10(brut)));
+  const pas = [1, 2, 2.5, 5, 10].map(x => x * puissance).find(x => etendue / x <= cible + 1);
+  const res = [];
+  for (let v = Math.ceil(min / pas) * pas; v <= max + 1e-9; v += pas) res.push(Math.round(v * 1e6) / 1e6);
+  return res;
+}
+
 function echelleSri(sri) {
   let cases = "";
   for (let i = 1; i <= 7; i++) {

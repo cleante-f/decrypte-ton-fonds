@@ -55,5 +55,9 @@ const GLOSSAIRE = {
   r2: "Qualité de la reproduction, de 0 à 100 %. À plus de 90 %, les variations du fonds sont presque entièrement expliquées par le mélange trouvé : l'estimation est fiable.",
   inventaire: "Liste complète des placements détenus par le fonds à la date du rapport (nom, devise, montant, part de l'actif). Elle est publiée dans le rapport annuel ou semestriel, et nous la lisons ligne par ligne.",
   panier_substitution: "Titres réellement détenus par un fonds à réplication synthétique. Ils servent de garantie ; la performance de l'indice est obtenue via un swap.",
+  monte_carlo: "Méthode qui simule des milliers d'avenirs possibles, en tirant au hasard des périodes du passé (bonnes et mauvaises), au lieu d'en imaginer un seul. On regarde ensuite comment les résultats se répartissent : c'est une façon honnête de montrer l'incertitude.",
+  diversification: "Répartir son argent entre des placements qui ne montent et ne baissent pas tous en même temps. Le risque de l'ensemble devient plus faible que la moyenne des risques de chaque placement.",
+  correlation: "Mesure, de -1 à 1, à quel point deux placements évoluent ensemble. Proche de 1 : ils montent et baissent en même temps. Proche de 0 ou négatif : ils se compensent en partie.",
+  inflation: "Hausse générale des prix. Avec 2 % d'inflation par an, 100 € d'aujourd'hui n'achètent plus que l'équivalent d'environ 82 € dans 10 ans.",
   performance_annualisee: "Gain (ou perte) moyen par an sur la période. Ex. +5 % annualisé sur 3 ans ≈ +15,8 % au total."
 };

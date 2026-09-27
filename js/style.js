@@ -80,8 +80,19 @@ async function serieBce(cle) {
   return { dates, valeurs };
 }
 
+// Séries préparées chaque jour par le site (data/references.js) : évite de les relire dans GECO à chaque visite
+function serieDeReference(cle) {
+  if (typeof DONNEES_REFERENCES === "undefined" || !DONNEES_REFERENCES || !DONNEES_REFERENCES.style || !DONNEES_REFERENCES.style[cle]) return null;
+  if ((Date.now() - new Date(DONNEES_REFERENCES.maj)) / 864e5 > 4) return null;   // trop ancienne : on relit GECO
+  const s = DONNEES_REFERENCES.style[cle];
+  const [a, m, j] = s.d0.split("-").map(Number);
+  return { dates: s.j.map(k => new Date(a, m - 1, j + k)), valeurs: s.v };
+}
+
 async function chargerSerie(f) {
   if (_series[f.cle]) return _series[f.cle];
+  const pre = f.bce ? null : serieDeReference(f.cle);
+  if (pre) return (_series[f.cle] = pre);
   const cache = lireCache(f.cle);
   if (cache) return (_series[f.cle] = cache);
   const s = f.bce ? await serieBce(f.bce) : await serieGeco(f.isins);

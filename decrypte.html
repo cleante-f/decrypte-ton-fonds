@@ -12,8 +12,9 @@
     <a href="index.html" class="logo">Décrypte ton fonds</a>
     <nav class="onglets" aria-label="Pages du site">
       <a href="index.html" data-page="index.html">Accueil</a>
-      <a href="decrypte.html" data-page="decrypte.html" data-fonds aria-current="page">Décrypte ton fonds</a>
+      <a href="decrypte.html" data-page="decrypte.html" data-fonds aria-current="page">Décrypte<span class="texte-long"> ton fonds</span></a>
       <a href="performances.html" data-page="performances.html" data-fonds>Performances</a>
+      <a href="simulateur.html" data-page="simulateur.html" data-fonds>Simulateur</a>
     </nav>
     <div class="entete-actions">
       <button type="button" class="btn-link" id="btn-reglages" aria-expanded="false" aria-controls="panneau-reglages">Réglages<span class="texte-long"> des alertes</span></button>
@@ -50,6 +51,7 @@
 
   <!-- Ordre important : données, puis configuration, puis logique -->
   <script src="data/annuaire.js"></script>
+  <script src="data/references.js"></script>
   <script src="js/glossaire.js"></script>
   <script src="js/config.js"></script>
   <script src="js/analyse.js"></script>

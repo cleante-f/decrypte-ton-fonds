@@ -154,6 +154,8 @@ function detecterPiegesAuto(e, d) {
 
 // ---------- Rendu ----------
 
+const ICONE_SIMULER = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 16l4-4 3 2 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 8l4-3M16 8l4 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="1.5 2.5"/></svg>`;
+
 function badgeSource(texte) {
   return `<span class="badge-source">${esc(texte)}</span>`;
 }
@@ -366,6 +368,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       <h1>${esc(e.nom)}</h1>
       <p>${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
       <div class="actions-fiche">
+        <a class="btn btn-simuler" href="simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
         <a class="btn-onglet" href="performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
       </div>
     </header>`;
