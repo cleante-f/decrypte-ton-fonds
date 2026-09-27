@@ -406,21 +406,25 @@ def nettoyer_historique(dates, v):
 
 
 def rendements_mensuels(dates, valeurs):
-    """Dernière valeur de chaque mois (mois en cours exclu), puis rendements entre mois consécutifs ; plus longue suite récente."""
+    """Dernière valeur de chaque mois (mois en cours exclu), puis rendements entre mois consécutifs ; plus longue suite récente.
+    Comme dans js/projection.js, un trou de 1 ou 2 mois est comblé en répartissant la variation sur les mois manquants."""
     niveaux = {}
     for d, v in zip(dates, valeurs):
         niveaux[f"{d.year}-{d.month:02d}"] = v
     niveaux.pop(f"{AUJOURDHUI.year}-{AUJOURDHUI.month:02d}", None)
     mois = sorted(niveaux)
-    suivant = lambda m: f"{int(m[:4]) + (m[5:] == '12')}-{1 if m[5:] == '12' else int(m[5:]) + 1:02d}"
-    r = []
+    ecart = lambda a, b: (int(b[:4]) - int(a[:4])) * 12 + int(b[5:]) - int(a[5:])
+    r, premier = [], None
     for i in range(1, len(mois)):
-        if suivant(mois[i - 1]) != mois[i] or not niveaux[mois[i - 1]]:
-            r = []           # trou : on repart de zéro (on garde la suite la plus récente)
+        e = ecart(mois[i - 1], mois[i])
+        if e > 3 or not niveaux[mois[i - 1]] or not niveaux[mois[i]]:
+            r, premier = [], None     # trou trop long : on repart de zéro (on garde la suite la plus récente)
             continue
         if not r:
-            premier = mois[i]
-        r.append(round(niveaux[mois[i]] / niveaux[mois[i - 1]] - 1, 6))
+            a, m = int(mois[i - 1][:4]), int(mois[i - 1][5:]) + 1
+            premier = f"{a + (m > 12)}-{(m - 1) % 12 + 1:02d}"
+        par_mois = (niveaux[mois[i]] / niveaux[mois[i - 1]]) ** (1 / e) - 1
+        r.extend([round(par_mois, 6)] * e)
     return (premier, r) if r else (None, [])
 
 

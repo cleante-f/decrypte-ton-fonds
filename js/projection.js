@@ -84,14 +84,19 @@ function niveauxMensuels(h) {
   return res;
 }
 
-// Rendements mensuels (uniquement entre deux mois consécutifs)
+// Rendements mensuels. Un trou de 1 ou 2 mois dans les valeurs publiées (ça arrive dans GECO) est comblé en
+// répartissant la variation sur les mois manquants ; au-delà, la série est coupée.
 function rendementsMensuels(niveaux) {
   const mois = [...niveaux.keys()].sort();
   const r = new Map();
   for (let i = 1; i < mois.length; i++) {
-    if (ecartMois(mois[i - 1], mois[i]) !== 1) continue;
+    const ecart = ecartMois(mois[i - 1], mois[i]);
+    if (ecart < 1 || ecart > 3) continue;
     const a = niveaux.get(mois[i - 1]), b = niveaux.get(mois[i]);
-    if (a > 0 && b > 0) r.set(mois[i], b / a - 1);
+    if (!(a > 0 && b > 0)) continue;
+    const parMois = Math.pow(b / a, 1 / ecart) - 1;
+    let m = mois[i - 1];
+    for (let k = 0; k < ecart; k++) { m = moisSuivant(m); r.set(m, parMois); }
   }
   return r;
 }
