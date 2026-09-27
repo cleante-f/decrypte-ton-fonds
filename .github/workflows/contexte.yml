@@ -35,5 +35,7 @@ jobs:
             echo "Aucune donnée nouvelle."
           else
             git commit -m "Données économiques et séries de référence du $(date -u +%Y-%m-%d)"
+            # le dépôt a pu changer pendant la mise à jour : on se remet à jour avant d'envoyer
+            git pull --rebase origin main
             git push
           fi
