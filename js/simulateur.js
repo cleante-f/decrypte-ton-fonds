@@ -185,8 +185,9 @@ function calculer(A = S.fonds, plan = S.plan) {
   const ev = eventail(res);
   const resLong = appliquerPlan(marche, { ...P, mois: Math.max(240, T) }, { pas: 12 });
   const scen = { defavorable: scenario(res, 0.1, T), central: scenario(res, 0.5, T), favorable: scenario(res, 0.9, T) };
-  // Tensions : forte baisse pendant la dernière année avant l'échéance (amplitude = pire baisse historique, au moins 2 écarts-types)
-  const baisse = Math.min(0.6, Math.max(-A.statsH.perteMax.valeur, 2 * A.modele.sigma));
+  // Tensions : forte baisse pendant la dernière année avant l'échéance
+  // (amplitude = pire baisse sur 12 mois de l'historique, au moins 1,5 fois la volatilité annuelle)
+  const baisse = Math.min(0.55, Math.max(-A.statsH.pire12, 1.5 * A.modele.sigma));
   const futur = Math.max(1, T - k);
   let mt = marcheTensions(baisse, A.modele.g, futur, futur);
   if (k) mt = marcheAvecPasse(mt, passe.slice(0, k));
@@ -789,13 +790,13 @@ function comprendre(C) {
       <li><strong>Rendement attendu retenu : ${pct(m.g * 100, 2)} par an</strong> avant frais (rendement composé, qui correspond au scénario central), soit ${pct((m.g - P.frais.courants / 100) * 100, 2)} après frais courants.
         C'est un mélange entre :
         <ul><li>une estimation « de marché » de ${pct(m.gMarche * 100, 2)} (poids ${pct((1 - m.poidsHist) * 100, 0)}) : ${classes}. Actions = taux d'État à 10 ans + prime de risque de ${pct(S.plan.primeActions, 1)} (hypothèse) ;</li>
-          <li>le rendement historique de ${pct(m.gHist * 100, 2)} avant frais (poids ${pct(m.poidsHist * 100, 0)}). Sur ${m.annees.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} ans, la marge d'incertitude de cette moyenne est d'environ ± ${pct(m.erreur * 100, 1)} par an : c'est pourquoi l'historique ne pèse pas davantage.</li></ul></li>
+          <li>le rendement historique de ${pct(m.gHist * 100, 2)} avant frais (poids ${pct(m.poidsHist * 100, 0)}). Sur ${m.annees.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} ans, la marge d'incertitude de cette moyenne est d'environ ± ${pct(m.erreur * 100, 1)} par an : c'est pourquoi l'historique ne pèse pas davantage. Pour la partie obligataire et monétaire, il pèse encore moins : leur rendement futur dépend surtout des taux actuels.</li></ul></li>
       <li><strong>Volatilité utilisée : ${pct(m.sigma * 100, 1)} par an</strong>, mesurée sur tout l'historique mensuel (crises comprises).</li>
       <li><strong>Inflation utilisée : ${pct(P.inflation, 1)} par an.</strong></li>
       <li><strong>Frais utilisés :</strong> frais courants ${pct(P.frais.courants, 2)} / an${P.frais.garde ? `, frais de contrat ${pct(P.frais.garde, 2)} / an` : ""}, frais d'entrée ${pct(P.frais.entree, 1)}, courtage ${euros(P.frais.courtageFixe)} + ${pct(P.frais.courtagePct, 2)} par ordre, change ${pct(P.frais.change, 2)}.</li>
       <li>Revenus (dividendes, coupons) : environ ${pct(m.rendDividende * 100, 1)} par an, ${P.dividendes.reinvestis ? "réinvestis" : "versés et conservés sans être replacés"}.</li>
       <li>${HYPOTHESES_DEFAUT.trajectoires.toLocaleString("fr-FR")} trajectoires, blocs de ${HYPOTHESES_DEFAUT.bloc} mois consécutifs tirés dans l'historique. Tirages reproductibles : les mêmes données donnent les mêmes chiffres.</li>
-      <li>Scénarios : défavorable = 10 % des simulations font moins bien ; central = médiane ; favorable = 10 % font mieux ; tensions = baisse de ${pct(C.scen.tensions.baisse * 100, 0)} (pire baisse historique du fonds, ou au moins deux fois sa volatilité) pendant les 12 derniers mois.</li>
+      <li>Scénarios : défavorable = 10 % des simulations font moins bien ; central = médiane ; favorable = 10 % font mieux ; tensions = baisse de ${pct(C.scen.tensions.baisse * 100, 0)} pendant les 12 derniers mois (pire baisse sur 12 mois de l'historique du fonds, ou au moins 1,5 fois sa volatilité).</li>
     </ul>
     <h3>Facteurs macroéconomiques pris en compte</h3>
     <p><strong>Dans les chiffres</strong> : le niveau actuel des taux d'intérêt (qui détermine le rendement attendu des obligations, du monétaire et, avec la prime de risque, des actions) et l'inflation attendue.

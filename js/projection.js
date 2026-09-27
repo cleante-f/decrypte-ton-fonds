@@ -323,7 +323,10 @@ function modeleDeRendement({ comb, expositions, taux, ter, hyp = HYPOTHESES_DEFA
   const gHist = gHistNet + ter / 100;                         // l'historique est net de frais : on les rajoute
   const erreur = sigma / Math.sqrt(Math.max(annees, 0.5));      // précision de la moyenne historique
   const tau = hyp.incertitude / 100;
-  const poidsHist = Math.min(hyp.poidsHistoriqueMax, tau * tau / (tau * tau + erreur * erreur));
+  // Obligations et monétaire : leur rendement futur dépend surtout des taux actuels, pas de celui des années passées
+  // (un fonds monétaire rapportait 8 à 10 % en 1990) ; l'historique n'y pèse donc que 10 % au plus
+  const plafond = hyp.poidsHistoriqueMax * classes.actions + 0.1 * (1 - classes.actions);
+  const poidsHist = Math.min(plafond, tau * tau / (tau * tau + erreur * erreur));
   const g = poidsHist * gHist + (1 - poidsHist) * gMarche;
   const rendDividende = expositions.reduce((s, x) => {
     const c = CLASSE_EXPOSITION[x.cle];

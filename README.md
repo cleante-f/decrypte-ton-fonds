@@ -40,7 +40,8 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
    On retrouve ainsi le comportement probable du fonds en 2000-2003, 2008, 2011, 2020 et 2022.
 2. **Rendement attendu** : moyenne pondérée entre une estimation « de marché » (taux d'État actuels de la BCE
    + prime de risque des actions de 3,5 %, modifiable) et le rendement historique. Le poids de l'historique dépend
-   de sa précision statistique (longueur et volatilité), plafonné à 50 %.
+   de sa précision statistique (longueur et volatilité), plafonné à 50 % pour les actions et à 10 % pour les obligations
+   et le monétaire (leur rendement futur dépend surtout des taux actuels).
 3. **Monte Carlo** : 3 000 trajectoires de 40 ans, par blocs de 12 mois consécutifs tirés dans l'historique
    (bootstrap circulaire), recalés sur le rendement et la volatilité retenus. Tirages reproductibles.
 4. **Plan** appliqué à chaque trajectoire : versements (mensuels, trimestriels, annuels, avec hausse annuelle),
@@ -48,7 +49,7 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
    frais d'entrée, de courtage, de change et de contrat, dividendes réinvestis ou versés, inflation,
    fiscalité française simplifiée (compte-titres, PEA, assurance-vie ; règles 2026 de service-public.fr).
 5. **Scénarios** : défavorable (rang 10 %), central (médiane), favorable (rang 90 %) et tensions
-   (forte baisse pendant la dernière année). **Objectif** : versement, capital ou durée nécessaires pour 1 chance
+   (pire baisse sur 12 mois de l'historique, subie pendant la dernière année). **Objectif** : versement, capital ou durée nécessaires pour 1 chance
    sur 2, 3 sur 4, 9 sur 10. **Crises** : 6 crises réelles rejouées et 7 chocs hypothétiques.
    **Portefeuille** : trajectoires jointes (mêmes périodes tirées pour tous les fonds), corrélations, diversification.
 6. **Contexte** (`js/contexte-fonds.js`) : tableau de bord des risques (marché, géopolitique, change, secteur,
