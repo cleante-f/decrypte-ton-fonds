@@ -114,6 +114,8 @@ async function gecoFetch(url) {
     for (let essai = 0; ; essai++) {
       const r = await fetch(url);
       if (r.ok) return r;
+      // 418 : c'est le code que la base GECO renvoie pendant ses opérations de maintenance
+      if (r.status === 418) throw new Error("la base GECO de l'AMF est momentanément en maintenance, réessaie un peu plus tard");
       if (essai >= 1 || ![429, 502, 503].includes(r.status)) throw new Error(`GECO a répondu ${r.status}`);
       await new Promise(ok => setTimeout(ok, 2500));
     }
