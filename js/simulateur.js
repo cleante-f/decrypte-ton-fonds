@@ -1186,8 +1186,8 @@ function panneauContexte() {
       ${p.secteurs ? `<div><h3>Secteurs</h3>${barres(p.secteurs.slice(0, 8))}</div>` : ""}
       ${c && c.devises && c.devises.length ? `<div><h3>Devises</h3>${barres(c.devises)}${p.couvert ? `<p class="aide">Part couverte contre le risque de change.</p>` : ""}</div>` : ""}
       ${p.lignesDetenues ? `<div><h3>${terme("top10", p.lignesSontDesFonds ? "Principaux fonds détenus" : "10 premières lignes")} <span class="total">(${pct(p.lignesDetenues.reduce((s, l) => s + l.poids, 0))})</span></h3>
-        ${barres(p.lignesDetenues.map(l => ({ nom: l.nom, poids: l.poids, lien: ficheDuFondsDetenu(l) })), null, Math.min(100, Math.ceil(Math.max(...p.lignesDetenues.map(l => l.poids)) / 10) * 10))}
-        ${p.lignesDetenues.some(l => ficheDuFondsDetenu(l)) ? `<p class="aide">Les fonds soulignés ont leur propre fiche sur ce site : un clic l'ouvre dans une nouvelle fenêtre.</p>` : ""}</div>` : ""}
+        ${(() => { const liens = p.lignesDetenues.map(l => destinationFondsDetenu(l));
+          return barres(p.lignesDetenues.map((l, i) => ({ nom: l.nom, poids: l.poids, lien: liens[i] })), null, Math.min(100, Math.ceil(Math.max(...p.lignesDetenues.map(l => l.poids)) / 10) * 10)) + aideLiensFonds(liens); })()}</div>` : ""}
     </div>
     <p class="aide">Taille des entreprises : ${/SMALL|MID CAP|PETITES|MOYENNES/i.test(A.entree.nom) ? "petites et moyennes capitalisations (d'après le nom du fonds)" : /S&P|MSCI|STOXX|NASDAQ|CAC|TOPIX|DAX|FTSE/i.test(A.entree.nom) ? "grandes et moyennes capitalisations (indice suivi)" : "non disponible automatiquement"}.</p>
     <p class="source">${c && c.inventaire && c.inventaire.document ? `Inventaire du ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)} (AMF – GECO) et analyse` : "Analyse"} des rendements (valeurs liquidatives AMF, taux BCE). Calculs : ce site. <a href="decrypte.html#${esc(cleEntree(A.entree, A.isin))}">Voir la fiche complète →</a></p>

@@ -136,6 +136,10 @@ small, .aide, .source, .total { color: var(--texte-2); }
 .barre-lien { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .barre-lien:hover, .barre-lien:focus-visible { text-decoration-thickness: 2px; }
 .lien-nouvelle-fenetre { font-size: .85em; }
+.etiquette-officielle {
+  display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; vertical-align: 1px;
+  font-size: .7em; font-weight: 600; line-height: 1.5; color: var(--texte-2); border: 1px solid var(--bordure); text-decoration: none;
+}
 .legende-seuil { font-size: .78rem; color: var(--texte-2); margin: 4px 0 0; display: flex; align-items: center; gap: 6px; }
 .repere { display: inline-block; width: 2px; height: 12px; background: var(--texte-2); }
 .comparaison { display: grid; gap: 8px; margin-top: 8px; }

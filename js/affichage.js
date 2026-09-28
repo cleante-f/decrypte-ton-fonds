@@ -86,23 +86,63 @@ function fondsParNom(nom) {
   return [...trouves].map(i => lireEntree(ANNUAIRE[i])).filter(e => /HEDGED|COUVERT/i.test(e.nom) === couvert).sort((a, b) => rang(a) - rang(b))[0] || null;
 }
 
-// Clé (#ISIN) de la fiche d'une ligne d'inventaire qui est elle-même un fonds référencé, sinon null
-function ficheDuFondsDetenu(ligne) {
+// Fonds de l'annuaire correspondant à une ligne d'inventaire (par ISIN, sinon par nom exact), sinon null
+function fondsDetenuDansAnnuaire(ligne) {
   if (!ligne || typeof annuaireParIsin !== "function") return null;
   const isin = ligne.isin && /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(ligne.isin) ? ligne.isin : null;
   let e = isin ? annuaireParIsin(isin) : null;
   if (!e && (ligne.classe === "Fonds (OPC)" || /\b(FCP|SICAV|UCITS|ETF|FUND|FONDS|OPCVM)\b/i.test(ligne.nom))) e = fondsParNom(ligne.nom);
-  return e ? cleEntree(e, isin && e.isins.includes(isin) ? isin : null) : null;
+  return e ? { e, isin: isin && e.isins.includes(isin) ? isin : null } : null;
 }
 
-// Lien vers la fiche d'un fonds, dans une nouvelle fenêtre
-function lienFiche(cle, texte, classe = "") {
-  return `<a class="${classe}" href="decrypte.html#${esc(cle)}" target="_blank" rel="noopener" title="Ouvrir la fiche de ${esc(texte)} dans une nouvelle fenêtre">${esc(texte)}<span class="lien-nouvelle-fenetre" aria-hidden="true"> ↗</span><span class="sr-only"> (nouvelle fenêtre)</span></a>`;
+// Places de cotation Euronext (code MIC) : page officielle de l'ETF sur le site de la Bourse
+const MIC_EURONEXT = { "Paris": "XPAR", "Amsterdam": "XAMS", "Brussels": "XBRU", "ETF Plus": "ETFP", "Lisbon": "XLIS", "Dublin": "XMSM", "Oslo Børs": "XOSL" };
+
+/*
+ * Où envoyer l'utilisateur quand il clique sur un fonds détenu :
+ *   - notre fiche, si elle est bien fournie (fonds français suivi par l'AMF, ou ETF dont l'indice est reconnu) ;
+ *   - sinon la page officielle du fonds : fiche de l'AMF (GECO) pour un fonds étranger commercialisé en France,
+ *     page de la Bourse (Euronext ou Deutsche Börse) pour un ETF ;
+ *   - sinon rien (pas de lien plutôt qu'une page vide).
+ */
+function destinationFonds(e, isin) {
+  if (!e) return null;
+  if (e.source === "G" && e.isins.length) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
+  if (e.source === "E" && typeof trouverJumeau === "function" && trouverJumeau(e.nom)) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
+  if (e.source === "G" || e.source === "N") return { type: "officielle", url: `https://geco.amf-france.org/produit-d-epargne/c${e.cmpId}`, site: "AMF" };
+  if (e.source === "E" && e.isins.length) {
+    const places = (e.marches || "").split(",").map(m => m.trim());
+    const place = places.find(m => MIC_EURONEXT[m]);
+    if (place) return { type: "officielle", url: `https://live.euronext.com/fr/product/etfs/${e.isins[0]}-${MIC_EURONEXT[place]}`, site: "Euronext" };
+    if (places.includes("Xetra")) return { type: "officielle", url: `https://www.boerse-frankfurt.de/etf/${e.isins[0].toLowerCase()}`, site: "Deutsche Börse" };
+  }
+  return null;
+}
+function destinationFondsDetenu(ligne) {
+  const t = fondsDetenuDansAnnuaire(ligne);
+  return t ? destinationFonds(t.e, t.isin) : null;
+}
+
+// Lien vers un fonds (notre fiche ou sa page officielle), toujours dans un nouvel onglet
+function lienFonds(dest, texte, classe = "") {
+  const officielle = dest.type === "officielle";
+  const titre = officielle ? `Ouvrir la page officielle de ${texte} (${dest.site}) dans un nouvel onglet` : `Ouvrir la fiche de ${texte} sur ce site dans un nouvel onglet`;
+  // page officielle : petite étiquette (AMF, Euronext…) placée avant le nom, pour rester visible même si le nom est coupé
+  return `<a class="${classe}${officielle ? " lien-officiel" : ""}" href="${esc(dest.url)}" target="_blank" rel="noopener" title="${esc(titre)}">${officielle ? `<span class="etiquette-officielle" aria-hidden="true">${esc(dest.site)} ↗</span>` : ""}${esc(texte)}${officielle ? "" : `<span class="lien-nouvelle-fenetre" aria-hidden="true"> ↗</span>`}<span class="sr-only"> (${officielle ? `page officielle ${esc(dest.site)}, ` : ""}nouvel onglet)</span></a>`;
+}
+
+// Phrase d'aide sous une liste de fonds détenus, selon les liens présents
+function aideLiensFonds(destinations) {
+  const d = destinations.filter(Boolean);
+  if (!d.length) return "";
+  const fiches = d.some(x => x.type === "fiche"), officielles = d.some(x => x.type === "officielle");
+  return `<p class="aide">Les fonds soulignés s'ouvrent dans un nouvel onglet${fiches && officielles ? " : sur leur fiche de ce site, ou sur leur page officielle (AMF ou Bourse) quand nous n'avons pas assez de données publiques pour eux"
+    : officielles ? ", sur leur page officielle (AMF ou Bourse) : nous n'avons pas assez de données publiques pour leur faire une fiche complète" : ", sur leur fiche de ce site"}.</p>`;
 }
 
 // Graphique en barres horizontales. `seuil` (optionnel) dessine un repère vertical.
 // `echelle` : valeur qui correspond à une barre pleine (100 % par défaut).
-// Un élément peut avoir un `lien` (clé d'un fonds de l'annuaire) : son nom devient cliquable.
+// Un élément peut avoir un `lien` (destination : voir destinationFonds) : son nom devient cliquable.
 function barres(items, seuil, echelle = 100) {
   if (!items || !items.length) return `<p class="vide">Donnée non disponible.</p>`;
   const tries = [...sansAutres(items)].sort((a, b) => b.poids - a.poids)
@@ -110,7 +150,7 @@ function barres(items, seuil, echelle = 100) {
   const lignes = tries.map(e => {
     const depasse = seuil && !normaliser(e.nom).startsWith("autres") && e.poids > seuil;
     return `<li class="barre${depasse ? " barre-depasse" : ""}" title="${esc(e.nom)} : ${pct(e.poids)}">
-      ${e.lien ? lienFiche(e.lien, e.nom, "barre-nom barre-lien") : `<span class="barre-nom">${esc(e.nom)}</span>`}
+      ${e.lien ? lienFonds(e.lien, e.nom, "barre-nom barre-lien") : `<span class="barre-nom">${esc(e.nom)}</span>`}
       <span class="barre-piste">
         <span class="barre-remplie" style="width:${Math.min(e.poids / echelle * 100, 100)}%"></span>
         ${seuil ? `<span class="barre-seuil" style="left:${seuil}%" aria-hidden="true"></span>` : ""}

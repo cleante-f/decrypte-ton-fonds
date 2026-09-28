@@ -94,8 +94,10 @@ top 10, poids de chaque ligne, classes d'actifs, devises, secteurs (quand le rap
 devise de cotation de chaque ligne — signalé comme tel).
 Il repère aussi les swaps (réplication synthétique), les fonds de fonds et les fonds nourriciers.
 Quand une ligne est elle-même un fonds référencé dans l'annuaire (retrouvé par son ISIN, ou par son nom une fois
-abréviations et mentions de part retirées), son nom devient un lien vers sa propre fiche, ouverte dans une nouvelle fenêtre.
-Dans le doute (nom abrégé, part couverte ou non), aucun lien n'est proposé.
+abréviations et mentions de part retirées), son nom devient un lien, ouvert dans un nouvel onglet :
+vers sa fiche sur ce site si elle est bien fournie (fonds français suivi par l'AMF, ou ETF dont l'indice est reconnu),
+sinon vers sa page officielle (fiche AMF pour un fonds étranger commercialisé en France, page Euronext ou Deutsche Börse
+pour un ETF). Dans le doute (nom abrégé, part couverte ou non, fonds introuvable), aucun lien n'est proposé.
 Les rapports des SICAV à compartiments sont découpés en blocs ; on garde celui qui porte le nom du fonds.
 
 **Moteur 2 — analyse des rendements** (`js/style.js`)
