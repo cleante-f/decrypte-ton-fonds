@@ -229,7 +229,10 @@ function zonesFmiPertinentes(p) {
 
 function risquesGeopolitiques(A, p, themes) {
   const actions = p.actions;
-  const semi = themes.some(t => t.cle === "semi") || p.tech >= 15;
+  // Semi-conducteurs : exposition forte (≥ 15 % ou tech US marquée) ou simple présence (≥ 5 %, ex. une ligne ASML)
+  const poidsSemi = (themes.find(t => t.cle === "semi") || { poids: 0 }).poids;
+  const semi = poidsSemi >= 15 || p.tech >= 15;
+  const semiPresent = semi || poidsSemi >= 5;
   const r = [];
   const theme = (cle, niveau, pourquoi) => r.push({ cle, niveau, pourquoi,
     nom: (typeof CONTEXTE !== "undefined" && CONTEXTE.actualites && CONTEXTE.actualites[cle] ? CONTEXTE.actualites[cle].nom : cle),
@@ -241,11 +244,11 @@ function risquesGeopolitiques(A, p, themes) {
     "Des sanctions peuvent bloquer l'accès à certains marchés, geler des actifs ou perturber l'énergie et les matières premières.");
   if (p.usa >= 20 || p.euro + p.europe >= 20 || p.france >= 10 || p.obligLongues + p.obligCourtes >= 20) theme("elections", "Modéré",
     "Une élection peut changer la politique budgétaire, fiscale ou commerciale d'un pays. Les obligations d'État réagissent aux inquiétudes sur la dette publique.");
-  if (semi || p.chine >= 5 || p.taiwan >= 3 || p.emergents >= 15 || p.usa >= 40) theme("puissances", semi || p.taiwan >= 3 ? "Élevé" : "Modéré",
+  if (semiPresent || p.chine >= 5 || p.taiwan >= 3 || p.emergents >= 15 || p.usa >= 40) theme("puissances", semi || p.taiwan >= 3 ? "Élevé" : "Modéré",
     "Les rivalités entre les États-Unis et la Chine (Taïwan, technologies, restrictions d'exportation) touchent directement les semi-conducteurs, la tech et les marchés asiatiques.");
   if (actions >= 20 || p.emergents >= 10) theme("conflits", p.euro + p.europe >= 30 || p.emergents >= 20 ? "Modéré" : "Faible",
     "Les conflits peuvent faire flamber l'énergie et les matières premières, désorganiser le commerce et provoquer des baisses brutales des marchés.");
-  if (semi || themes.some(t => t.cle === "energie")) theme("industrie", "Modéré",
+  if (semiPresent || themes.some(t => t.cle === "energie")) theme("industrie", "Modéré",
     "Subventions et politiques industrielles (puces, énergies propres, véhicules électriques) peuvent favoriser ou pénaliser certaines entreprises selon leur pays.");
   if (p.secteurTech >= 15 || p.euro >= 30) theme("regl_europe", p.secteurTech >= 25 ? "Modéré" : "Faible",
     "Les règles européennes (concurrence, numérique, IA, finance durable) encadrent l'activité des grandes entreprises, avec des amendes possibles.");
