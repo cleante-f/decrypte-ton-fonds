@@ -283,7 +283,8 @@ function dessinerObjectif(conteneur, o) { // o = { annees, p10, p50, p90, verse,
 
 // ---------- Comparaison : médianes de plusieurs fonds ----------
 
-function dessinerMedianes(conteneur, series, T, debut, verse) { // series = [{ nom, ev, couleur }]
+// options.passe : courbes du passé (dates réelles dans l'info-bulle, « montant investi » au lieu de « total versé »)
+function dessinerMedianes(conteneur, series, T, debut, verse, options = {}) { // series = [{ nom, ev, couleur }]
   if (!conteneur) return;
   const L = Math.max(300, conteneur.clientWidth), etroit = L < 600, H = etroit ? 240 : 300;
   const m = { g: etroit ? 46 : 58, d: 12, h: 12, b: 30 };
@@ -305,15 +306,15 @@ function dessinerMedianes(conteneur, series, T, debut, verse) { // series = [{ n
       <rect class="zone-survol" x="${m.g}" y="${m.h}" width="${L - m.g - m.d}" height="${H - m.h - m.b}"/>
     </svg><div class="bulle-simu" hidden></div>`;
   const g = conteneur.querySelector(".survol"), bulle = conteneur.querySelector(".bulle-simu");
-  const points = []; for (let t = 0; t <= T; t += T <= 24 ? 1 : 12) points.push(t);
+  const points = []; for (let t = 0; t <= T; t += T <= 24 || options.passe ? 1 : 12) points.push(t);
   brancherSurvol(conteneur, conteneur.querySelector(".zone-survol"), points.map(X), i => {
     const t = points[i];
     g.setAttribute("visibility", "visible");
     g.querySelector(".curseur").setAttribute("x1", X(t)); g.querySelector(".curseur").setAttribute("x2", X(t));
     g.querySelectorAll(".point").forEach((c, k) => { c.setAttribute("cx", X(t)); c.setAttribute("cy", Y(series[k].ev.p50[t])); });
-    bulle.innerHTML = `<div class="bulle-date">${t === 0 ? "Départ" : "Dans " + dureeTexte(t)}</div>
-      ${series.map(s => `<div class="bulle-ligne"><span class="pastille-serie serie-${s.couleur}"></span><span class="bulle-nom">${esc(s.nom)}</span><strong>${eurosEstimes(s.ev.p50[t])}</strong></div>`).join("")}
-      <div class="bulle-valeur">Total versé : ${euros(verse[t])}</div>`;
+    bulle.innerHTML = `<div class="bulle-date">${options.passe ? esc(moisAnnee(dateDuMois(debut, t))) : t === 0 ? "Départ" : "Dans " + dureeTexte(t)}</div>
+      ${series.map(s => `<div class="bulle-ligne"><span class="pastille-serie serie-${s.couleur}"></span><span class="bulle-nom">${esc(s.nom)}</span><strong>${options.passe ? euros(s.ev.p50[t]) : eurosEstimes(s.ev.p50[t])}</strong></div>`).join("")}
+      <div class="bulle-valeur">${options.passe ? "Montant investi" : "Total versé"} : ${euros(verse[t])}</div>`;
     positionnerBulle(bulle, X(t), L, 0);
   }, () => { g.setAttribute("visibility", "hidden"); bulle.hidden = true; });
 }

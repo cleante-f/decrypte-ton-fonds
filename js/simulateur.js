@@ -16,6 +16,7 @@ const PLAN_DEFAUT = {
 };
 const MODES = [
   { cle: "projection", nom: "Projection", titre: "Voir l'évolution possible de mon investissement", texte: "Scénarios défavorable, central et favorable, sur 1 à 20 ans." },
+  { cle: "diversifier", nom: "Réduire le risque", titre: "Réduire mes risques", texte: "Un fonds complémentaire qui répartit mieux le risque, et ce que ça change." },
   { cle: "objectif", nom: "Objectif", titre: "Atteindre un objectif", texte: "Combien verser, et pendant combien de temps, pour viser un montant ?" },
   { cle: "crises", nom: "Crises", titre: "Et si le marché connaissait une crise ?", texte: "Rejouer 2008, le Covid, 2022… ou une baisse de 20 % ou 40 %." },
   { cle: "comparer", nom: "Comparer", titre: "Comparer plusieurs ETF", texte: "Mêmes versements, plusieurs fonds : voir les différences." },
@@ -488,7 +489,7 @@ function rendreResultats() {
 function rendrePanneau() {
   const zone = document.getElementById("panneau-simu");
   if (!zone) return;
-  const rendus = { projection: panneauProjection, objectif: panneauObjectif, crises: panneauCrises, comparer: panneauComparer, portefeuille: panneauPortefeuille, contexte: panneauContexte };
+  const rendus = { projection: panneauProjection, diversifier: panneauDiversifier, objectif: panneauObjectif, crises: panneauCrises, comparer: panneauComparer, portefeuille: panneauPortefeuille, contexte: panneauContexte };
   zone.innerHTML = rendus[S.mode]();
   apresRendu();
 }
@@ -503,6 +504,7 @@ function apresRendu() {
       { valeur: C.scen.central.total, nom: "central", classe: "p50" },
       { valeur: C.scen.favorable.total, nom: "favorable", classe: "p90" }]);
   }
+  if (S.mode === "diversifier") majDiversifier();
   if (S.mode === "objectif") majObjectif();
   if (S.mode === "crises") majCrise();
   if (S.mode === "comparer") majComparaison();
@@ -810,6 +812,135 @@ function comprendre(C) {
       <li>Les frais réels (courtier, contrat) dépendent de ton intermédiaire : vérifie-les.</li>
     </ul>
   </div>`;
+}
+
+// ---------- Panneau « Réduire le risque » ----------
+
+// Part du fonds complémentaire : celle qui réduit le plus les variations du mélange (calculée sur l'historique commun),
+// entre 20 % et 50 % pour que le fonds de départ reste majoritaire, arrondie à 5 %
+const PART_MIN = 0.2, PART_MAX = 0.5;
+function partQuiReduitLeRisque(A, B) {
+  const an = analysePortefeuille([{ comb: A.comb, modele: A.modele, poids: 0.5 }, { comb: B.comb, modele: B.modele, poids: 0.5 }]);
+  if (an.mois.length < 36) return null;
+  const [sa, sb] = an.vols, rho = an.corr[0][1];
+  const denom = sa * sa + sb * sb - 2 * rho * sa * sb;
+  const w = denom > 0 ? (sa * sa - rho * sa * sb) / denom : PART_MAX;   // mélange à variance minimale
+  return Math.round(Math.min(PART_MAX, Math.max(PART_MIN, w)) * 20) / 20;
+}
+
+function panneauDiversifier() {
+  return `<section class="carte">
+    <h2>Réduire le risque : un fonds complémentaire</h2>
+    <div id="diversif"><p class="chargement">Recherche d'un fonds complémentaire et calcul des risques…</p></div>
+  </section>`;
+}
+
+function moisPrecedent(m) { const [a, mm] = m.split("-").map(Number); return mm === 1 ? `${a - 1}-12` : `${a}-${String(mm - 1).padStart(2, "0")}`; }
+
+// Le fonds seul, et le mélange avec un fonds complémentaire, sur leur historique commun (rééquilibré chaque mois)
+function melange(A, B, w) {
+  const an = analysePortefeuille([{ comb: A.comb, modele: A.modele, poids: 1 - w }, { comb: B.comb, modele: B.modele, poids: w }]);
+  const n = an.mois.length;
+  if (n < 36) return null;
+  const stats = r => { const s = statsHistorique({ mois: an.mois, r, reel: an.mois.map(() => true) }); return { vol: s.vol, perteMax: s.perteMax, pire12: s.pire12 }; };
+  const k = Math.min(120, n);   // performance : les 10 dernières années au plus
+  const croissance = r => { const v = [10000]; for (const x of r.slice(n - k)) v.push(v[v.length - 1] * (1 + x)); return v; };
+  const bilan = v => { let sommet = v[0], pire = 0; for (const x of v) { sommet = Math.max(sommet, x); pire = Math.min(pire, x / sommet - 1); } return { finale: v[v.length - 1], annuel: Math.pow(v[v.length - 1] / v[0], 12 / k) - 1, pire }; };
+  const vSans = croissance(an.series[0]), vAvec = croissance(an.rp);
+  return { n, debut: an.mois[0], corr: an.corr[0][1], sans: stats(an.series[0]), avec: stats(an.rp),
+    perf: { debut: moisPrecedent(an.mois[n - k]), mois: k, sans: vSans, avec: vAvec, bilanSans: bilan(vSans), bilanAvec: bilan(vAvec) } };
+}
+
+async function calculerDiversification(A) {
+  const p = profilDuFonds(A);
+  const diag = diagnosticRisque(A, p);
+  if (!diag.candidats) return { diag, p };
+  const candidats = diag.candidats.map(cle => ({ cle, ...COMPLEMENTS[cle], entree: annuaireParIsin(COMPLEMENTS[cle].isin) }))
+    .filter(c => c.entree && c.entree.cmpId !== A.entree.cmpId && !(A.jumeau && A.jumeau.fonds.cmpId === c.entree.cmpId));
+  const essais = await Promise.all(candidats.map(async c => {
+    try {
+      const B = await chargerAnalyse(c.entree, c.isin, { composition: false });
+      const w = partQuiReduitLeRisque(A, B);
+      const m = w === null ? null : melange(A, B, w);
+      return m ? { c, B, m, w } : null;
+    }
+    catch (e) { return null; }
+  }));
+  const ok = essais.filter(Boolean);
+  if (!ok.length) return { diag, p, erreur: "aucun fonds complémentaire n'a pu être chargé" };
+  // On garde le fonds le plus proche (premier de la liste), sauf si un autre réduit nettement plus les variations
+  // (plus de 0,5 point de volatilité) sans aggraver la pire baisse
+  const meilleur = ok.reduce((b, x) => x.m.avec.vol < b.m.avec.vol ? x : b);
+  const choisi = meilleur.m.avec.vol < ok[0].m.avec.vol - 0.005 && meilleur.m.avec.perteMax.valeur >= ok[0].m.avec.perteMax.valeur ? meilleur : ok[0];
+  return { diag, p, choisi, autres: ok.filter(x => x !== choisi) };
+}
+
+async function majDiversifier() {
+  const zone = document.getElementById("diversif");
+  const A = S.fonds;
+  if (!zone || !A) return;
+  if (!A.diversif) A.diversif = calculerDiversification(A);
+  let d;
+  try { d = await A.diversif; } catch (e) { zone.innerHTML = `<p class="non-dispo">Calcul impossible : ${esc(e.message)}.</p>`; return; }
+  if (S.fonds !== A || S.mode !== "diversifier" || !document.getElementById("diversif")) return;
+  const cible = document.getElementById("diversif");
+  if (!d.choisi) { cible.innerHTML = `<p class="resume">${esc(d.diag.texte)}</p>${d.erreur ? `<p class="non-dispo">${esc(d.erreur)}.</p>` : ""}`; return; }
+  const { c, B, m, w } = d.choisi;
+  const q = profilDuFonds(B);
+  const moisFr = x => new Date(Number(x.slice(0, 4)), Number(x.slice(5)) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  const cle = cleEntree(c.entree, c.isin);
+  // Lignes du comparatif : [libellé, sans, avec, format, plus bas = mieux]
+  const lignes = [
+    [terme("volatilite", "Volatilité (ampleur des variations)"), m.sans.vol, m.avec.vol, x => pct(x * 100, 1) + " / an"],
+    [terme("max_drawdown", "Pire baisse"), m.sans.perteMax.valeur, m.avec.perteMax.valeur, x => pctSigne(x, 0)],
+    ["Pire période de 12 mois", m.sans.pire12, m.avec.pire12, x => pctSigne(x, 0)]
+  ];
+  if (d.diag.type === "zone") lignes.push([`Part investie ${EN_ZONE[d.diag.zone]}`, d.p[d.diag.zone] / 100, ((1 - w) * d.p[d.diag.zone] + w * q[d.diag.zone]) / 100, x => pct(x * 100, 0)]);
+  if (d.diag.type === "taux") lignes.push(["Part en obligations à long terme", d.p.obligLongues / 100, ((1 - w) * d.p.obligLongues + w * q.obligLongues) / 100, x => pct(x * 100, 0)]);
+  if (!d.p.couvert) lignes.push([terme("risque_change", "Part en devises étrangères"), d.p.horsEuro / 100, ((1 - w) * d.p.horsEuro + w * q.horsEuro) / 100, x => pct(x * 100, 0)]);
+  const effet = (sans, avec) => {
+    const moins = Math.abs(avec) < Math.abs(sans) - 0.0005, plus = Math.abs(avec) > Math.abs(sans) + 0.0005;
+    return moins ? `<span class="effet mieux">▼ moins de risque</span>` : plus ? `<span class="effet moins-bien">▲ plus de risque</span>` : `<span class="effet">≈ inchangé</span>`;
+  };
+  const b = m.perf;
+  cible.innerHTML = `
+    <p class="resume">${esc(d.diag.texte)}</p>
+    <article class="complement">
+      <p class="surtitre">Exemple de fonds complémentaire</p>
+      <h3>${esc(c.entree.nom)}</h3>
+      <p>${esc(c.libelle.charAt(0).toUpperCase() + c.libelle.slice(1))} · ${esc(c.isin)} · frais courants ${pct(B.ter, 2)}${B.terSource === "hypothese" ? " (hypothèse)" : ""}</p>
+      <p class="aide">Pourquoi celui-ci ? Parmi ${d.autres.length + 1} fonds compatibles, c'est ${d.autres.length ? "celui qui, en l'ajoutant, aurait le plus réduit les variations de l'ensemble" : "le fonds du même type disponible"} depuis ${esc(moisFr(m.debut))}${d.autres.length ? ` (autres possibilités : ${d.autres.map(x => esc(x.c.libelle)).join(", ")})` : ""}.</p>
+      <div class="actions-fiche">
+        <a class="btn-onglet" href="decrypte.html#${esc(cle)}" target="_blank" rel="noopener">Décrypter ce fonds ↗</a>
+        <a class="btn-onglet" href="simulateur.html#${esc(cle)}" target="_blank" rel="noopener">Le simuler seul ↗</a>
+      </div>
+      <p class="repartition-exemple"><span class="barre-repartition"><span style="width:${(1 - w) * 100}%">${Math.round((1 - w) * 100)} % ton fonds</span><span style="width:${w * 100}%">${Math.round(w * 100)} %</span></span>
+        La répartition qui, sur le passé, a le plus réduit les variations (ton fonds restant majoritaire), rééquilibrée chaque mois.</p>
+    </article>
+
+    <h3>Les risques : sans et avec ce fonds</h3>
+    <div class="comparatif" role="table" aria-label="Risques sans et avec le fonds complémentaire">
+      <div class="comparatif-ligne comparatif-entete" role="row"><span role="columnheader"></span><span role="columnheader">Sans</span><span role="columnheader">Avec</span><span role="columnheader">Effet</span></div>
+      ${lignes.map(([nom, sans, avec, f]) => `<div class="comparatif-ligne" role="row"><span role="rowheader">${nom}</span><span role="cell">${f(sans)}</span><span role="cell"><strong>${f(avec)}</strong></span><span role="cell">${effet(sans, avec)}</span></div>`).join("")}
+    </div>
+    <p class="aide">Calculé sur l'historique commun des deux fonds, depuis ${esc(moisFr(m.debut))}. Corrélation entre les deux : ${m.corr.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} (plus elle est basse, plus l'un amortit les chutes de l'autre).</p>
+
+    <h3>Les performances passées : sans et avec</h3>
+    <p class="aide">10 000 € investis en ${esc(moisAnnee(dateDuMois(b.debut, 0)))}, sur ${dureeTexte(b.mois)}.</p>
+    <ul class="legende-simu"><li><span class="pastille-serie serie-0"></span>Sans : ton fonds seul</li><li><span class="pastille-serie serie-1"></span>Avec : ${Math.round((1 - w) * 100)} % ton fonds + ${Math.round(w * 100)} % ce fonds</li><li><span class="cle-ligne verse"></span>Montant investi</li></ul>
+    <div class="graphique-simu" id="graphique-diversif" tabindex="0" aria-label="Évolution de 10 000 euros, sans et avec le fonds complémentaire"></div>
+    <div class="comparatif comparatif-perf" role="table" aria-label="Performances sans et avec">
+      <div class="comparatif-ligne comparatif-entete" role="row"><span role="columnheader"></span><span role="columnheader">Sans</span><span role="columnheader">Avec</span></div>
+      <div class="comparatif-ligne" role="row"><span role="rowheader">Valeur aujourd'hui</span><span role="cell">${euros(b.bilanSans.finale)}</span><span role="cell"><strong>${euros(b.bilanAvec.finale)}</strong></span></div>
+      <div class="comparatif-ligne" role="row"><span role="rowheader">${terme("performance_annualisee", "Performance par an")}</span><span role="cell">${pctSigne(b.bilanSans.annuel)}</span><span role="cell"><strong>${pctSigne(b.bilanAvec.annuel)}</strong></span></div>
+      <div class="comparatif-ligne" role="row"><span role="rowheader">Pire baisse sur la période</span><span role="cell">${pctSigne(b.bilanSans.pire, 0)}</span><span role="cell"><strong>${pctSigne(b.bilanAvec.pire, 0)}</strong></span></div>
+    </div>
+    <p class="aide">Réduire le risque réduit souvent aussi la performance : c'est un compromis. Performances passées, frais des deux fonds déduits ; elles ne préjugent pas des performances futures.
+      Exemple pédagogique, pas un conseil en investissement.</p>`;
+  dessinerMedianes(document.getElementById("graphique-diversif"), [
+    { nom: "Sans", ev: { p50: b.sans }, couleur: 0 },
+    { nom: "Avec", ev: { p50: b.avec }, couleur: 1 }
+  ], b.mois, b.debut, Array(b.mois + 1).fill(10000), { passe: true });
 }
 
 // ---------- Panneau « Objectif » ----------

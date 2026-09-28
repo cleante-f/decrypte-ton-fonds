@@ -860,3 +860,28 @@ div.carte-horizon { cursor: default; }
 .fmi-zone span { font-variant-numeric: tabular-nums; }
 .fmi-zone small { color: var(--texte-2); }
 @media (prefers-reduced-motion: reduce) { .btn-simuler, .progression-etapes .pas { transition: none; } }
+
+/* Simulateur : réduire le risque */
+.complement { background: var(--fond); border-radius: 14px; padding: 16px; margin: 12px 0 18px; border-left: 4px solid var(--serie-1); }
+.complement h3 { margin: 2px 0 4px; font-size: 1.15rem; }
+.complement p { margin: 4px 0; }
+.complement .surtitre { margin: 0; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
+.repartition-exemple { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: .82rem; color: var(--texte-2); margin-top: 10px !important; }
+.barre-repartition { display: flex; gap: 2px; width: min(320px, 100%); font-size: .78rem; font-weight: 700; color: #fff; }
+.barre-repartition span { padding: 4px 8px; white-space: nowrap; overflow: hidden; }
+.barre-repartition span:first-child { background: var(--serie-0); border-radius: 6px 0 0 6px; }
+.barre-repartition span:last-child { background: var(--serie-1); border-radius: 0 6px 6px 0; text-align: center; }
+.comparatif { display: grid; margin: 8px 0; font-size: .92rem; }
+.comparatif-ligne { display: grid; grid-template-columns: minmax(150px, 1.6fr) 1fr 1fr 1.2fr; gap: 8px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--bordure); }
+.comparatif-perf .comparatif-ligne { grid-template-columns: minmax(150px, 1.6fr) 1fr 1fr; }
+.comparatif-entete { font-size: .78rem; font-weight: 700; color: var(--texte-2); text-transform: uppercase; letter-spacing: .05em; }
+.comparatif-ligne > span:not(:first-child) { font-variant-numeric: tabular-nums; }
+.effet { font-size: .8rem; font-weight: 600; color: var(--texte-2); }
+.effet.mieux { color: #0b7a0b; }
+.effet.moins-bien { color: var(--rouge); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .effet.mieux { color: #3fcf5a; } }
+:root[data-theme="dark"] .effet.mieux { color: #3fcf5a; }
+@media (max-width: 520px) {
+  .comparatif-ligne { grid-template-columns: 1.4fr 1fr 1fr; }
+  .comparatif-ligne > span:nth-child(4) { grid-column: 2 / -1; }
+}

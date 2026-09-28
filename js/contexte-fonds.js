@@ -28,7 +28,9 @@ function profilDuFonds(A) {
   // L'inventaire (quand il décrit bien l'exposition) précise les classes, les pays et les secteurs
   if (c && (c.principale === "inventaire" || c.principale === "tableaux")) {
     const cl = nom => (c.classes || []).filter(x => new RegExp(nom, "i").test(x.nom)).reduce((s, x) => s + x.poids, 0);
-    if ((c.classes || []).length) {
+    // on ne remplace la répartition estimée que si l'inventaire identifie vraiment les classes d'actifs
+    // (pas quand il se limite à « Fonds (OPC) », sans dire ce que contiennent ces fonds)
+    if (cl("^Actions") + cl("^Obligations") + cl("Monétaire|Liquidités") >= 50) {
       p.actions = cl("^Actions");
       const oblig = cl("^Obligations");
       const partLongue = p.obligLongues + p.obligCourtes > 0 ? p.obligLongues / (p.obligLongues + p.obligCourtes) : 0.5;
@@ -347,6 +349,55 @@ function tableauDeBordRisques(A, p, themes, geo) {
         : "Pas de facteur réglementaire particulier identifié.", base: causes.length ? `${causes.length} facteur(s) identifié(s)` : "aucun facteur identifié" });
   }
   return r;
+}
+
+// ---------- Réduire le risque : diagnostic et fonds complémentaires ----------
+
+// Fonds indiciels français à long historique (données complètes dans GECO), un par grand type de placement
+const COMPLEMENTS = {
+  europe: { isin: "FR0010261198", libelle: "actions européennes", zones: { euro: 50, europe: 50 } },
+  zone_euro: { isin: "FR0012739431", libelle: "actions de la zone euro", zones: { euro: 100 } },
+  monde_hors_euro: { isin: "FR0010756114", libelle: "actions mondiales hors zone euro", zones: { usa: 76, europe: 12, japon: 7 } },
+  monde: { isin: "FR0010315770", libelle: "actions mondiales (pays développés)", zones: { usa: 70, euro: 10, europe: 10, japon: 6 } },
+  usa: { isin: "FR0011871128", libelle: "actions américaines", zones: { usa: 100 } },
+  japon: { isin: "FR0010245514", libelle: "actions japonaises", zones: { japon: 100 } },
+  emergents: { isin: "FR0010429068", libelle: "actions des pays émergents", zones: { emergents: 100 } },
+  oblig_3_5: { isin: "FR0007457114", libelle: "obligations d'État de la zone euro à 3-5 ans", zones: {} },
+  monetaire: { isin: "FR0010510800", libelle: "placement monétaire en euros", zones: {} }
+};
+// Pour une zone trop présente : des fonds du même type (actions) qui n'y investissent pas, du plus proche au plus spécialisé
+const COMPLEMENTS_PAR_ZONE = {
+  usa: ["europe", "zone_euro", "japon"],
+  euro: ["monde_hors_euro", "usa", "japon"],
+  europe: ["usa", "zone_euro", "japon"],
+  japon: ["europe", "monde_hors_euro", "usa"],
+  emergents: ["monde", "europe"]
+};
+const NOM_ZONE = { usa: "les États-Unis", euro: "la zone euro", europe: "l'Europe hors zone euro", japon: "le Japon", emergents: "les pays émergents" };
+const A_ZONE = { usa: "aux États-Unis", euro: "à la zone euro", europe: "à l'Europe hors zone euro", japon: "au Japon", emergents: "aux pays émergents" };
+const EN_ZONE = { usa: "aux États-Unis", euro: "en zone euro", europe: "en Europe hors zone euro", japon: "au Japon", emergents: "dans les pays émergents" };
+const SANS_ZONE = { usa: "sans les États-Unis", euro: "sans la zone euro", europe: "sans l'Europe hors zone euro", japon: "sans le Japon", emergents: "sans les pays émergents" };
+
+// Quelle est la principale concentration du fonds, et quels fonds « du même type » pourraient la réduire ?
+function diagnosticRisque(A, p) {
+  const zones = { usa: p.usa, euro: p.euro, europe: p.europe, japon: p.japon, emergents: p.emergents };
+  const total = Object.values(zones).reduce((s, v) => s + v, 0);
+  const obligs = p.obligLongues + p.obligCourtes;
+  if (p.monetaire >= 70) return { type: "faible", texte: "Ce fonds se comporte comme un placement monétaire : son risque est déjà très faible. Aucun fonds complémentaire ne le réduirait vraiment." };
+  // Fonds mixte : ajouter des actions augmenterait le risque ; seul un placement plus stable le réduit
+  if (p.actions >= 30 && p.actions < 60) return { type: "mixte", candidats: ["oblig_3_5", "monetaire"],
+    texte: `Ce fonds mélange déjà actions (environ ${Math.round(p.actions)} %) et placements plus stables. Pour réduire encore son risque, il faut renforcer la partie stable (obligations à court terme ou monétaire), au prix d'un rendement attendu plus faible.` };
+  if (p.actions >= 60 && total > 0) {
+    const [zone, part] = Object.entries(zones).sort((a, b) => b[1] - a[1])[0];
+    const partRel = part / total;
+    if (partRel >= 0.5) return { type: "zone", zone, part, candidats: COMPLEMENTS_PAR_ZONE[zone],
+      texte: `Environ ${Math.round(partRel * 100)} % des actions de ce fonds sont exposées ${A_ZONE[zone]}${zone === "usa" && p.tech >= 15 ? ", dont une bonne part aux grandes valeurs technologiques" : ""} : sa valeur dépend beaucoup d'une seule région. Un fonds du même type (des actions), ${SANS_ZONE[zone]}, répartit ce risque.` };
+    return { type: "diversifie", candidats: ["oblig_3_5", "monetaire"],
+      texte: "Les actions de ce fonds sont déjà réparties entre plusieurs régions. Pour réduire encore le risque, il faut ajouter un placement plus stable (obligations ou monétaire), au prix d'un rendement attendu plus faible." };
+  }
+  if (obligs >= 40 && p.obligLongues >= 20) return { type: "taux", candidats: ["oblig_3_5", "monetaire"],
+    texte: "Ce fonds est surtout investi en obligations à long terme : il baisse quand les taux d'intérêt montent. Des obligations à échéance plus courte, ou un placement monétaire, y sont beaucoup moins sensibles." };
+  return { type: "faible", texte: "Ce fonds est déjà peu risqué (obligations à court terme ou placements monétaires) : aucun fonds complémentaire ne réduirait nettement son risque." };
 }
 
 // ---------- Niveau de risque accepté par l'utilisateur ----------

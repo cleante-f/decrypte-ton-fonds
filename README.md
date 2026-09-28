@@ -52,7 +52,13 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
    (pire baisse sur 12 mois de l'historique, subie pendant la dernière année). **Objectif** : versement, capital ou durée nécessaires pour 1 chance
    sur 2, 3 sur 4, 9 sur 10. **Crises** : 6 crises réelles rejouées et 7 chocs hypothétiques.
    **Portefeuille** : trajectoires jointes (mêmes périodes tirées pour tous les fonds), corrélations, diversification.
-6. **Contexte** (`js/contexte-fonds.js`) : tableau de bord des risques (marché, géopolitique, change, secteur,
+6. **Réduire le risque** : le site repère la principale concentration du fonds (une région pour un fonds d'actions,
+   les taux pour un fonds d'obligations longues, la part d'actions pour un fonds mixte) et propose un fonds indiciel
+   français du même type qui ne l'a pas (ex. actions européennes pour un fonds très américain). Parmi quelques fonds
+   compatibles, il garde le plus proche, sauf si un autre réduit nettement mieux les variations. La répartition est celle
+   qui a le plus réduit les variations sur le passé (entre 50 et 80 % pour le fonds de départ). Suivent un comparatif
+   des risques et des performances passées, sans et avec ce fonds. Exemple pédagogique, pas un conseil.
+7. **Contexte** (`js/contexte-fonds.js`) : tableau de bord des risques (marché, géopolitique, change, secteur,
    concentration, taux, réglementation), indicateurs économiques pertinents pour le fonds, prévisions de croissance
    du FMI, risques géopolitiques illustrés par des titres de presse récents (datés, sourcés), exposition aux
    tendances technologiques (opportunité / risque, sans recommandation).
