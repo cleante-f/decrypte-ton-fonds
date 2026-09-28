@@ -33,8 +33,76 @@ function pastille(niveau) {
   return `<span class="pastille pastille-${niveau}"><span aria-hidden="true">${p.icone}</span> ${p.texte}</span>`;
 }
 
+// ---------- Fonds détenus par un fonds : lien vers leur propre fiche ----------
+
+// Nom réduit à l'essentiel, pour comparer « AMUNDI IND EURO CORP SRI UCITS ETF DRC » (nom abrégé d'un rapport)
+// et « AMUNDI INDEX SOLUTIONS - AMUNDI INDEX EURO CORPORATE SRI » (nom de l'annuaire) : abréviations développées,
+// mentions de part et de forme juridique retirées. Renvoie les variantes (nom complet, et nom sans le compartiment parent).
+const ABREVIATIONS_FONDS = { ind: "index", idx: "index", corp: "corporate", govt: "government", gov: "government", intl: "international",
+  oblig: "obligations", oblig_: "obligations", act: "actions", eq: "equity", uci: "", icav: "" };
+const MOTS_SANS_IMPORTANCE = /^(part|parts|share|shares|class|classe|units?|acc|dis|dist|distribution|capitalisation|cap|capi|dr|drc|eur|usd|chf|gbp|hedged|sicav|fcp|ucits|etf|fund|fonds|\d?[a-z])$/;
+function variantesNomFonds(nom) {
+  const reduire = n => {
+    const mots = normaliser(n).replace(/&/g, "").replace(/[^a-z0-9 ]/g, " ").split(/\s+/)
+      .map(m => ABREVIATIONS_FONDS[m] !== undefined ? ABREVIATIONS_FONDS[m] : m)
+      .filter(m => m && !MOTS_SANS_IMPORTANCE.test(m));
+    return mots.filter((m, i) => m !== mots[i - 1]).join(" ");   // « amundi amundi msci… » → « amundi msci… »
+  };
+  const variantes = new Set([reduire(nom)]);
+  const morceaux = String(nom).split(/\s+-\s+/);
+  if (morceaux.length > 1) { variantes.add(reduire(morceaux[morceaux.length - 1])); variantes.add(reduire(morceaux[0])); }
+  return [...variantes].filter(v => v.length >= 6);
+}
+function simplifierNomFonds(nom) { return variantesNomFonds(nom)[0] || ""; }
+
+// Index des noms réduits de tout l'annuaire (construit une seule fois, à la première recherche)
+let _indexNomsFonds = null;
+function indexNomsFonds() {
+  if (_indexNomsFonds) return _indexNomsFonds;
+  _indexNomsFonds = new Map();
+  if (typeof ANNUAIRE === "undefined") return _indexNomsFonds;
+  ANNUAIRE.forEach((l, i) => {
+    for (const v of variantesNomFonds(l[3])) {
+      if (!_indexNomsFonds.has(v)) _indexNomsFonds.set(v, []);
+      _indexNomsFonds.get(v).push(i);
+    }
+  });
+  return _indexNomsFonds;
+}
+
+// Fonds de l'annuaire dont le nom correspond exactement (une fois réduit) à celui d'une ligne d'inventaire
+function fondsParNom(nom) {
+  if (typeof lireEntree !== "function") return null;
+  const index = indexNomsFonds();
+  const trouves = new Set();
+  for (const v of variantesNomFonds(nom)) for (const i of index.get(v) || []) trouves.add(i);
+  if (!trouves.size) return null;
+  // Parmi les parts d'un même fonds : de préférence celle dont le nom colle (couverte ou non, distribution ou non),
+  // avec un ISIN (fiche plus complète) et ouverte au public
+  const n = String(nom).toUpperCase();
+  const couvert = /HEDGED|COUVERT/.test(n), distrib = /\b(DIS|DIST|D)\b/.test(n);
+  const rang = e => (/\b(DIS|DIST)\b|\(D\)/i.test(e.nom) !== distrib ? 1 : 0) + (e.isins.length ? 0 : 2) + (e.public ? 0 : 1);
+  // une part couverte contre le change n'est pas la même chose qu'une part non couverte : dans le doute, pas de lien
+  return [...trouves].map(i => lireEntree(ANNUAIRE[i])).filter(e => /HEDGED|COUVERT/i.test(e.nom) === couvert).sort((a, b) => rang(a) - rang(b))[0] || null;
+}
+
+// Clé (#ISIN) de la fiche d'une ligne d'inventaire qui est elle-même un fonds référencé, sinon null
+function ficheDuFondsDetenu(ligne) {
+  if (!ligne || typeof annuaireParIsin !== "function") return null;
+  const isin = ligne.isin && /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(ligne.isin) ? ligne.isin : null;
+  let e = isin ? annuaireParIsin(isin) : null;
+  if (!e && (ligne.classe === "Fonds (OPC)" || /\b(FCP|SICAV|UCITS|ETF|FUND|FONDS|OPCVM)\b/i.test(ligne.nom))) e = fondsParNom(ligne.nom);
+  return e ? cleEntree(e, isin && e.isins.includes(isin) ? isin : null) : null;
+}
+
+// Lien vers la fiche d'un fonds, dans une nouvelle fenêtre
+function lienFiche(cle, texte, classe = "") {
+  return `<a class="${classe}" href="decrypte.html#${esc(cle)}" target="_blank" rel="noopener" title="Ouvrir la fiche de ${esc(texte)} dans une nouvelle fenêtre">${esc(texte)}<span class="lien-nouvelle-fenetre" aria-hidden="true"> ↗</span><span class="sr-only"> (nouvelle fenêtre)</span></a>`;
+}
+
 // Graphique en barres horizontales. `seuil` (optionnel) dessine un repère vertical.
 // `echelle` : valeur qui correspond à une barre pleine (100 % par défaut).
+// Un élément peut avoir un `lien` (clé d'un fonds de l'annuaire) : son nom devient cliquable.
 function barres(items, seuil, echelle = 100) {
   if (!items || !items.length) return `<p class="vide">Donnée non disponible.</p>`;
   const tries = [...sansAutres(items)].sort((a, b) => b.poids - a.poids)
@@ -42,7 +110,7 @@ function barres(items, seuil, echelle = 100) {
   const lignes = tries.map(e => {
     const depasse = seuil && !normaliser(e.nom).startsWith("autres") && e.poids > seuil;
     return `<li class="barre${depasse ? " barre-depasse" : ""}" title="${esc(e.nom)} : ${pct(e.poids)}">
-      <span class="barre-nom">${esc(e.nom)}</span>
+      ${e.lien ? lienFiche(e.lien, e.nom, "barre-nom barre-lien") : `<span class="barre-nom">${esc(e.nom)}</span>`}
       <span class="barre-piste">
         <span class="barre-remplie" style="width:${Math.min(e.poids / echelle * 100, 100)}%"></span>
         ${seuil ? `<span class="barre-seuil" style="left:${seuil}%" aria-hidden="true"></span>` : ""}

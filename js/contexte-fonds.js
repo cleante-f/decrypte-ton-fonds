@@ -61,6 +61,9 @@ function profilDuFonds(A) {
   const synth = c && c.notes && c.notes.some(n => n.type === "synthetique");
   p.top10 = c && c.top10 && c.top10.length && !synth && !c.lignesSontDesFonds ? c.top10.slice(0, 10) : null;
   p.top10Total = p.top10 ? p.top10.reduce((s, l) => s + l.poids, 0) : null;
+  // Lignes à afficher : aussi quand ce sont des fonds (un fonds de fonds), mais pas le panier d'un fonds synthétique
+  p.lignesDetenues = c && c.top10 && c.top10.length && !synth ? c.top10.slice(0, 10) : null;
+  p.lignesSontDesFonds = !!(c && c.lignesSontDesFonds);
   p.synthetique = !!(synth || A.synthetique);
   return p;
 }

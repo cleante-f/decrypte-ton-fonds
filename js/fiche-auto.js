@@ -92,7 +92,8 @@ function detecterPiegesAuto(e, d) {
   // Informations lues dans le DIC
   if (dic) {
     if (dic.nourricier) p.push({ niveau: "alerte", terme: "nourricier", titre: "Fonds nourricier : une couche de frais en plus",
-      texte: `Le DIC indique que ce fonds investit dans un fonds « maître »${dic.maitre ? ` (${dic.maitre})` : ""}. Il ajoute ses propres frais : comparez ses frais avec ceux du fonds maître, qui est parfois accessible directement.` });
+      texte: `Le DIC indique que ce fonds investit dans un fonds « maître »${dic.maitre ? ` (${dic.maitre})` : ""}. Il ajoute ses propres frais : comparez ses frais avec ceux du fonds maître, qui est parfois accessible directement.`,
+      lien: dic.maitre ? (e => e && cleEntree(e))(fondsParNom(dic.maitre)) : null, lienTexte: dic.maitre });
     if (dic.fondsDeFonds) p.push({ niveau: "attention", terme: "fonds_de_fonds", titre: "Fonds de fonds : double niveau de frais",
       texte: "Le DIC indique que ce fonds investit une grande partie de son actif dans d'autres fonds, qui prélèvent aussi leurs frais." });
     const courants = (dic.gestion || 0) + (dic.transaction || 0);
@@ -123,7 +124,8 @@ function detecterPiegesAuto(e, d) {
   if (inv && inv.partFonds >= 50 && !(dic && (dic.nourricier || dic.fondsDeFonds))) {
     const premier = (inv.top10 || [])[0];
     if (premier && premier.poids >= 80) p.push({ niveau: "alerte", terme: "nourricier", titre: "Fonds nourricier (révélé par l'inventaire)",
-      texte: `${pct(premier.poids)} de l'actif est placé dans un seul autre fonds : « ${premier.nom} ». Ce fonds ajoute ses propres frais à ceux du fonds qu'il détient. Vérifiez si ce fonds sous-jacent est accessible directement, avec moins de frais.` });
+      texte: `${pct(premier.poids)} de l'actif est placé dans un seul autre fonds : « ${premier.nom} ». Ce fonds ajoute ses propres frais à ceux du fonds qu'il détient. Vérifiez si ce fonds sous-jacent est accessible directement, avec moins de frais.`,
+      lien: ficheDuFondsDetenu(premier), lienTexte: premier.nom });
     else p.push({ niveau: "attention", terme: "fonds_de_fonds", titre: "Fonds de fonds (révélé par l'inventaire)",
       texte: `Environ ${Math.round(inv.partFonds)} % de l'actif est placé dans d'autres fonds, qui prélèvent aussi leurs propres frais : vous payez deux niveaux de frais.` });
   }
@@ -267,7 +269,8 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
         ${c.devises && c.devises.length ? `<div><h3>Par devise</h3>${barres(c.devises)}</div>` : ""}
       </div>
       ${top.length ? `<h3>${terme("top10", synth ? "Titres détenus (panier de substitution)" : c.lignesSontDesFonds ? "Principaux fonds détenus" : "Principales lignes")} <span class="total">(${pct(totalTop)} du fonds)</span></h3>
-        ${barres(top.map(l => ({ nom: l.nom, poids: l.poids })), null, Math.min(100, Math.ceil(Math.max(...top.map(l => l.poids), 1) / 10) * 10))}` : ""}
+        ${barres(top.map(l => ({ nom: l.nom, poids: l.poids, lien: synth ? null : ficheDuFondsDetenu(l) })), null, Math.min(100, Math.ceil(Math.max(...top.map(l => l.poids), 1) / 10) * 10))}
+        ${!synth && top.some(l => ficheDuFondsDetenu(l)) ? `<p class="aide">Les fonds soulignés ont leur propre fiche sur ce site : un clic l'ouvre dans une nouvelle fenêtre.</p>` : ""}` : ""}
       ${c.principale !== "style" && c.style ? blocStyle(c.style, c.qualite) : c.principale === "style" ? blocStyle(c.style, c.qualite) : ""}`;
   } else if (!chargement && compo && compo.fini) {
     corps += nonDispo(e.source === "G"
@@ -467,7 +470,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
   else {
     const pieges = detecterPiegesAuto(e, d);
     const importants = pieges.filter(p => p.niveau !== "info"), infos = pieges.filter(p => p.niveau === "info");
-    const rendu = p => `<li class="alerte alerte-${p.niveau}">${pastille(p.niveau)}<div><strong>${terme(p.terme, p.titre)}</strong>${p.texte ? `<p>${esc(p.texte)}</p>` : ""}</div></li>`;
+    const rendu = p => `<li class="alerte alerte-${p.niveau}">${pastille(p.niveau)}<div><strong>${terme(p.terme, p.titre)}</strong>${p.texte ? `<p>${esc(p.texte)}</p>` : ""}${p.lien ? `<p>Voir la fiche du fonds détenu : ${lienFiche(p.lien, p.lienTexte || "ce fonds")}</p>` : ""}</div></li>`;
     const frais = dic ? listeInfos([
       [terme("frais_courants", "Frais de gestion"), dic.gestion !== null && dic.gestion !== undefined ? pct(dic.gestion, 2) + " / an" : "non lu"],
       [terme("frais_transaction", "Frais de transaction"), dic.transaction !== null && dic.transaction !== undefined ? pct(dic.transaction, 2) + " / an" : "non lu"],

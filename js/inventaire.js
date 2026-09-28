@@ -526,7 +526,7 @@ function compositionDepuisInventaire(inv) {
   const zones = [...zonesMap.entries()].map(([nom, poids]) => ({ nom, poids: Math.round(poids * 100) / 100 })).sort((a, b) => b.poids - a.poids);
 
   const devises = sommerPar(pos, "devise");
-  const top10 = [...pos].sort((a, b) => b.poids - a.poids).slice(0, 10).map(p => ({ nom: p.nom, poids: p.poids, devise: p.devise, classe: p.classe }));
+  const top10 = [...pos].sort((a, b) => b.poids - a.poids).slice(0, 10).map(p => ({ nom: p.nom, poids: p.poids, devise: p.devise, classe: p.classe, isin: p.isin || null }));
   const partFonds = pos.filter(p => p.classe === "Fonds (OPC)").reduce((s, p) => s + p.poids, 0);
 
   return {
