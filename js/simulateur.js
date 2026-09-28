@@ -547,11 +547,20 @@ function resume(C) {
       Selon nos simulations, la valeur pourrait se situer <strong>entre ${eurosEstimes(s.defavorable.total)} et ${eurosEstimes(s.favorable.total)}</strong> (8 chances sur 10), avec un scénario central à <strong>${eurosEstimes(s.central.total)}</strong>.</p>
     <div class="chiffres-heros">
       <div class="chiffre-heros"><span>Total versé</span><strong>${euros(C.res.verse[C.T])}</strong></div>
-      <div class="chiffre-heros accent"><span>Scénario central (estimation)</span><strong>${eurosEstimes(s.central.total)}</strong><small class="${s.central.gain >= 0 ? "hausse" : "baisse"}">${eurosSigne(s.central.gain)} · ${pctSigne(s.central.perfAnnualisee)} par an</small></div>
+      <div class="chiffre-heros accent">${rappelFrais(C)}<span>Scénario central (estimation)</span><strong>${eurosEstimes(s.central.total)}</strong><small class="${s.central.gain >= 0 ? "hausse" : "baisse"}">${eurosSigne(s.central.gain)} · ${pctSigne(s.central.perfAnnualisee)} par an</small></div>
       <div class="chiffre-heros"><span>Fourchette probable (8 chances sur 10)</span><strong>${eurosCourt(s.defavorable.total)} – ${eurosCourt(s.favorable.total)}</strong></div>
     </div>
     ${C.ajuste ? `<p class="note">L'historique du fonds commence en ${esc(moisAnnee(dateDuMois(C.debut, 0)))} : la simulation démarre à cette date.</p>` : ""}
   </section>`;
+}
+
+// Petit rappel des frais utilisés dans la simulation, avec leur provenance
+function rappelFrais(C) {
+  const A = C.A, f = C.P.frais;
+  const saisi = v => v !== null && v !== undefined && v !== "";
+  const origineCourants = saisi(S.plan.fraisCourants) ? "ta valeur" : A.terSource === "dic" ? "DIC" : "hypothèse";
+  const entreeDic = A.entreeMax && !f.entree ? ` (jusqu'à ${pct(A.entreeMax, 1)} selon le DIC)` : "";
+  return `<span class="rappel-frais">Frais courants ${pct(f.courants, 2)} / an <em>(${origineCourants})</em> · Frais d'entrée ${pct(f.entree, Number.isInteger(f.entree) ? 0 : 1)}${entreeDic}</span>`;
 }
 
 // ---------- Panneau « Projection » ----------

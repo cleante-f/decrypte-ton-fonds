@@ -596,6 +596,8 @@ body.createur-actif { overflow: hidden; }
 .chiffre-heros strong { font-size: clamp(1.4rem, 3.6vw, 1.9rem); letter-spacing: -.02em; }
 .chiffre-heros small { font-size: .85rem; font-weight: 600; }
 .chiffre-heros.accent { background: linear-gradient(135deg, #184f95, #2a78d6 55%, #3987e5); border-color: transparent; color: #fff; }
+.chiffre-heros.accent .rappel-frais { font-size: .72rem; line-height: 1.35; color: rgba(255, 255, 255, .8); margin-bottom: 4px; }
+.rappel-frais em { font-style: normal; opacity: .85; }
 .chiffre-heros.accent span { color: rgba(255, 255, 255, .85); }
 .chiffre-heros.accent strong { font-size: clamp(1.7rem, 4.5vw, 2.4rem); }
 .chiffre-heros.accent small, .chiffre-heros.accent small.hausse, .chiffre-heros.accent small.baisse { color: #e6f0ff; }
