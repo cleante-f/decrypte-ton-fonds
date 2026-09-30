@@ -549,11 +549,17 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const sectionConcentration = sectionConcentrationAuto(e, d, chargement);
 
   // ----- 4. Risque -----
+  // Marchés et devises du jour pour les zones où investit le fonds (data/marches.js)
+  const compoMarches = d && d.composition && d.composition.c && d.composition.c.principale ? d.composition.c : null;
+  const marchesDuJour = !chargement && typeof blocMarchesDevises === "function"
+    ? blocMarchesDevises(poidsParZone(compoMarches), { couvert: !!(compoMarches && compoMarches.couvertureChange) || nomIdx.couvert }) : "";
+  const blocMarches = marchesDuJour ? `<h3>Les marchés et devises de ce fonds</h3>${marchesDuJour}` : "";
   let sectionRisque;
   if (e.source !== "G") {
     sectionRisque = `<section class="carte"><h2>4. Risque</h2>
       ${nonDispo("L'indicateur SRI, la volatilité et la perte maximale ne sont pas disponibles gratuitement pour ce fonds de droit étranger. Consulte son DIC sur le site de la société de gestion.")}
-      ${nomIdx.levier ? `<p class="resume">Produit à levier ou inversé : réservé à des investisseurs très avertis, sur de courtes durées.</p>` : ""}</section>`;
+      ${nomIdx.levier ? `<p class="resume">Produit à levier ou inversé : réservé à des investisseurs très avertis, sur de courtes durées.</p>` : ""}
+      ${blocMarches}</section>`;
   } else if (chargement) {
     sectionRisque = `<section class="carte"><h2>4. Risque</h2><p class="chargement">Calcul à partir de l'historique des valeurs liquidatives…</p></section>`;
   } else {
@@ -605,6 +611,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
         ${ligne("risque_liquidite", "Risque de liquidité", liquidite)}
         ${ligne("risque_credit", "Risque de crédit", credit)}
       </dl>
+      ${blocMarches}
       ${source(srcGeco)}${srcDic ? source(srcDic) : ""}
     </section>`;
   }

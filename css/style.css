@@ -488,6 +488,14 @@ body.createur-actif { overflow: hidden; }
 .tuile strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 .details-annuel { margin: 12px 0; }
 .details-annuel summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.cadre-tableau { overflow-x: auto; }
+.tableau-marches { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.tableau-marches th, .tableau-marches td { padding: 6px 8px; border-bottom: 1px solid var(--bordure); text-align: right; white-space: nowrap; }
+.tableau-marches th[scope="row"] { text-align: left; font-weight: 600; white-space: normal; }
+.tableau-marches th[scope="row"] small { display: block; font-weight: 400; }
+.tableau-marches thead th { font-size: .78rem; color: var(--texte-2); font-weight: 600; white-space: normal; }
+.tableau-marches thead th:first-child { text-align: left; }
+@media (max-width: 560px) { .tableau-marches { font-size: .8rem; } .tableau-marches th, .tableau-marches td { padding: 5px 4px; } }
 .details-annuel table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .88rem; font-variant-numeric: tabular-nums; }
 .details-annuel th, .details-annuel td { padding: 6px 8px; border-bottom: 1px solid var(--bordure); text-align: right; }
 .details-annuel th:first-child { text-align: left; }

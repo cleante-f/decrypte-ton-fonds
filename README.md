@@ -85,6 +85,27 @@ onglet **Actions** du dépôt GitHub → « Mise à jour des données du simulat
 python3 scripts/actualiser_contexte.py
 ```
 
+### Marchés et devises du jour (API, avec sources de secours)
+
+`scripts/actualiser_marches.py`, lancé juste après par la même tâche, écrit `data/marches.js`. Il est affiché dans
+la fiche (section « 4. Risque ») et dans l'onglet « Contexte & risques » du simulateur (`js/marches.js`). Le navigateur
+n'appelle aucune API : il lit ce fichier du site. Un module par source dans `scripts/sources/` (délai maximum 8 s) :
+
+| Bloc | Principale | Secours | Dernier recours | Cache |
+|---|---|---|---|---|
+| Taux de change (USD, GBP, CHF, JPY, CNY) | BCE, sans clé | Frankfurter (taux BCE), sans clé | Currency-api (fawazahmed0), sans clé | 20 h |
+| Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | Alpha Vantage, clé `ALPHAVANTAGE_KEY` | — | 20 h |
+
+Si toutes les sources d'un bloc tombent, la dernière valeur connue est gardée avec sa date et un message ; la page
+n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jour.
+
+- Clés : jamais dans le code. Sur GitHub : Settings → Secrets and variables → Actions (noms dans `.env.example`) ;
+  pour un essai local, copier `.env.example` en `.env` (ignoré par Git). Une clé absente fait simplement sauter la source.
+- Tests (appellent les vraies API et vérifient les champs utilisés) : `python3 scripts/tests_sources.py`
+- Avant d'écrire le module d'une API à clé : `python3 scripts/sonder_api.py` affiche la structure réelle de sa réponse
+  (sans jamais afficher la clé).
+- Forcer un nouvel appel malgré le cache : `python3 scripts/actualiser_marches.py --forcer`
+
 ## Ce que contient la base
 
 | Type de fonds | Nombre | Source | Données disponibles |
@@ -164,8 +185,12 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `js/contexte-fonds.js` | Simulateur : profil d'exposition, sensibilités, tendances technologiques, facteurs économiques, géopolitique, tableau de bord des risques |
 | `js/graphiques-simu.js` | Simulateur : graphiques interactifs (éventail, répartition, crise, objectif, comparaison, corrélations) |
 | `js/simulateur.js` | Page « Simulateur » : assistant en 4 étapes, chargement des données, calculs et affichage |
-| `data/contexte.js` / `data/references.js` | Données du simulateur mises à jour chaque jour (voir plus haut) |
+| `data/contexte.js` / `data/references.js` / `data/marches.js` | Données mises à jour chaque jour (voir plus haut) |
 | `scripts/actualiser_contexte.py` | Script de mise à jour quotidienne (bibliothèque standard Python uniquement) |
+| `scripts/actualiser_marches.py` | Marchés et devises du jour : sources par ordre de préférence, repli, cache |
+| `scripts/sources/` | Un module par API (format commun dans `commun.py`) |
+| `scripts/tests_sources.py` / `scripts/sonder_api.py` | Tests des sources ; sonde de la structure des API à clé |
+| `js/marches.js` | Tableau « marchés et devises » de la fiche et du simulateur |
 | `js/nav.js` | Onglets communs (le fonds suit d'une page à l'autre) |
 | `js/infobulles.js` | Infobulles des termes techniques (toutes les pages) |
 | `js/createur.js` | Bouton « Créateur » et son animation |

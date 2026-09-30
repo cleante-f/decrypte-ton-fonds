@@ -1,6 +1,8 @@
 # Mise à jour quotidienne des données du simulateur :
-# contexte économique (BCE, FMI, États-Unis), actualités par thème et séries de référence (AMF).
-# Le résultat (data/contexte.js, data/references.js) est enregistré dans le dépôt, ce qui republie le site.
+# contexte économique (BCE, FMI, États-Unis), actualités par thème et séries de référence (AMF),
+# puis taux de change et marchés du jour avec leurs sources de secours (scripts/actualiser_marches.py).
+# Le résultat (data/contexte.js, data/references.js, data/marches.js) est enregistré dans le dépôt, ce qui republie le site.
+# Clés d'API : Settings → Secrets and variables → Actions (voir .env.example). Sans clé, la source est sautée.
 name: Mise à jour des données du simulateur
 
 on:
@@ -26,11 +28,18 @@ jobs:
           python-version: "3.12"
       - name: Télécharger les nouvelles données
         run: python3 scripts/actualiser_contexte.py
+      - name: Taux de change et marchés du jour
+        continue-on-error: true   # une panne ici ne doit pas empêcher d'enregistrer les autres données
+        env:
+          ALPHAVANTAGE_KEY: ${{ secrets.ALPHAVANTAGE_KEY }}
+          NEWSDATA_KEY: ${{ secrets.NEWSDATA_KEY }}
+          MARKETAUX_KEY: ${{ secrets.MARKETAUX_KEY }}
+        run: python3 scripts/actualiser_marches.py
       - name: Enregistrer les fichiers modifiés
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/contexte.js data/references.js
+          git add data/contexte.js data/references.js data/marches.js
           if git diff --cached --quiet; then
             echo "Aucune donnée nouvelle."
           else

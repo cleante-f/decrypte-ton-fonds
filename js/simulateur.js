@@ -1364,6 +1364,9 @@ function panneauContexte() {
     </article>`).join("")}</div>
   </section>` : ""}
 
+  ${(() => { const b = blocMarchesDevises({ usa: p.usa, tech: p.tech, euro: p.euro, europe: p.europe, japon: p.japon, emergents: p.emergents }, { couvert: p.couvert });
+    return b ? `<section class="carte"><h2>Marchés et devises du jour</h2><p class="aide">Évolution récente des marchés et des devises auxquels ce fonds est exposé. C'est un constat, pas une prévision.</p>${b}</section>` : ""; })()}
+
   <section class="carte">
     <h2>Contexte économique mondial</h2>
     <p>Voici les facteurs actuellement susceptibles d'influencer ce fonds. <strong>Ils ne permettent pas de prédire son évolution</strong> : ils aident à comprendre ce qui peut le faire bouger.</p>
