@@ -93,9 +93,9 @@ n'appelle aucune API : il lit ce fichier du site. Un module par source dans `scr
 
 | Bloc | Principale | Secours | Dernier recours | Cache |
 |---|---|---|---|---|
-| Taux de change (USD, GBP, CHF, JPY, CNY) | BCE, sans clé | Frankfurter (taux BCE), sans clé | Currency-api (fawazahmed0), sans clé | 20 h |
-| Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | Alpha Vantage, clé `ALPHAVANTAGE_KEY` (12 requêtes sur 25 par jour, en dollars) | — | 20 h |
-| Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | MarketAux, clé `MARKETAUX_KEY` (23 requêtes sur 100 par jour ; usage non commercial) | — | 20 h |
+| Taux de change (USD, GBP, CHF, JPY, CNY) | BCE, sans clé | Frankfurter (taux BCE), sans clé | Currency-api (fawazahmed0), sans clé | 6 h |
+| Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | Alpha Vantage, clé `ALPHAVANTAGE_KEY` (12 requêtes sur 25 par jour, en dollars) | — | 6 h |
+| Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | MarketAux, clé `MARKETAUX_KEY` (23 requêtes sur 100 par jour ; usage non commercial) | — | 6 h |
 
 Les actualités s'affichent sous les principales lignes d'un fonds (fiche, section 2) et dans « Contexte & risques », pour
 les entreprises reconnues parmi ses lignes. Filtres : titres générés automatiquement (déclarations de positions,
@@ -110,7 +110,8 @@ n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jou
 - Tests (appellent les vraies API et vérifient les champs utilisés) : `python3 scripts/tests_sources.py`
 - Avant d'écrire le module d'une API à clé : `python3 scripts/sonder_api.py` affiche la structure réelle de sa réponse
   (sans jamais afficher la clé).
-- Forcer un nouvel appel malgré le cache : `python3 scripts/actualiser_marches.py --forcer`
+- Forcer un nouvel appel malgré le cache : `python3 scripts/actualiser_marches.py --forcer`, ou sur GitHub :
+  Actions → « Mise à jour des données du simulateur » → Run workflow → cocher « Rappeler toutes les API ».
 
 ## Ce que contient la base
 

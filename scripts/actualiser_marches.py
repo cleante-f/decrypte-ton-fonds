@@ -4,7 +4,7 @@ Met à jour data/marches.js : taux de change, marchés du jour et actualités de
 lus par la fiche Décryptage et le simulateur.
 
 Lancé chaque jour par GitHub Actions (.github/workflows/contexte.yml), ou à la main :
-    python3 scripts/actualiser_marches.py            respecte le cache (une source n'est pas rappelée avant 20 h)
+    python3 scripts/actualiser_marches.py            respecte le cache (une source n'est pas rappelée avant 6 h)
     python3 scripts/actualiser_marches.py --forcer   rappelle toutes les sources
 
 Pour chaque bloc, les sources sont essayées dans l'ordre (un module par source dans scripts/sources/) :
@@ -27,11 +27,12 @@ SORTIE = RACINE / "data" / "marches.js"
 FORMAT = "%Y-%m-%dT%H:%MZ"
 
 # bloc : (sources par ordre de préférence, durée du cache en heures, contrôle minimal des données)
+# Cache de 6 h : évite de rappeler les API lors d'un lancement manuel, sans bloquer la mise à jour quotidienne suivante.
 BLOCS = {
-    "change": ([change_bce, change_frankfurter, change_currencyapi], 20, lambda d: "USD" in d["taux"] and len(d["taux"]) >= 3),
-    "marches": ([marches_amf, marches_alphavantage], 20, lambda d: len(d["indices"]) >= 4),
+    "change": ([change_bce, change_frankfurter, change_currencyapi], 6, lambda d: "USD" in d["taux"] and len(d["taux"]) >= 3),
+    "marches": ([marches_amf, marches_alphavantage], 6, lambda d: len(d["indices"]) >= 4),
     # actualités : au moins une entreprise sur deux avec un article (sinon la source est jugée défaillante)
-    "actus": ([actus_newsdata, actus_marketaux], 20,
+    "actus": ([actus_newsdata, actus_marketaux], 6,
               lambda d: sum(1 for e in d["entreprises"].values() if e["articles"]) >= len(d["entreprises"]) / 2),
 }
 

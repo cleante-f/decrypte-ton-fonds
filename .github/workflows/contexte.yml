@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: "23 5 * * *"   # chaque jour vers 7 h 23, heure de Paris (5 h 23 UTC)
   workflow_dispatch:         # bouton « Run workflow » pour lancer une mise à jour à la main
+    inputs:
+      forcer:
+        description: "Rappeler toutes les API (marchés, change, actualités) malgré le cache de 6 h"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -34,7 +39,7 @@ jobs:
           ALPHAVANTAGE_KEY: ${{ secrets.ALPHAVANTAGE_KEY }}
           NEWSDATA_KEY: ${{ secrets.NEWSDATA_KEY }}
           MARKETAUX_KEY: ${{ secrets.MARKETAUX_KEY }}
-        run: python3 scripts/actualiser_marches.py
+        run: python3 scripts/actualiser_marches.py ${{ inputs.forcer && '--forcer' || '' }}
       - name: Enregistrer les fichiers modifiés
         run: |
           git config user.name "github-actions[bot]"
