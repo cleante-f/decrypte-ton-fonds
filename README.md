@@ -17,6 +17,7 @@ qui sont chargées en direct depuis la base GECO de l'AMF.
 | `index.html` | Accueil : présentation du site, recherche rapide, accès aux trois espaces |
 | `decrypte.html` | **Décrypte ton fonds** : phrase « En bref », puis fiche complète (composition, concentration, risque, pièges, frais) |
 | `performances.html` | **Performances** : graphique interactif (périodes, comparaison avec les marchés ou un autre fonds, performances par année) |
+| `confidentialite.html` | **Confidentialité et mentions légales** : éditeurs, hébergeur, données transmises à des tiers, stockage dans le navigateur, droits (RGPD), bouton d'effacement |
 | `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques) |
 
 Le fonds consulté est dans l'adresse (`#ISIN`) : les onglets et les boutons « Voir le graphique des performances » /
@@ -170,6 +171,17 @@ python3 scripts/construire_annuaire.py
 Ce script régénère `data/annuaire.js` (environ 3,5 Mo) et `data/resume.js`. Il n'utilise que Python, sans rien à installer.
 Une mise à jour par mois suffit.
 
+## Données personnelles (RGPD)
+
+Pas de compte, pas de cookie, pas de mesure d'audience. Le navigateur des visiteurs ne contacte que GitHub (hébergeur),
+l'AMF (GECO) et la BCE ; tout le reste est récupéré par la tâche quotidienne. Stockage local (`localStorage`) :
+- plan du simulateur **seulement si** la case « Mémoriser mon plan sur cet appareil » est cochée ;
+- réglages des alertes enregistrés par l'utilisateur ;
+- caches de données publiques, effacés automatiquement une fois périmés (`nettoyerStockage` dans `js/outils.js`).
+
+Toute nouvelle clé de stockage doit être ajoutée à `CLES_STOCKAGE_SITE` (`js/outils.js`) et décrite sur `confidentialite.html`.
+Tout nouveau service contacté par le navigateur doit aussi y être décrit.
+
 ## Organisation des fichiers
 
 ⚠️ Éviter les noms de fichiers que les bloqueurs de publicités interdisent (ex. `analyse.js`, `analytics.js`, `tracking.js`) :
@@ -198,6 +210,8 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `scripts/sources/` | Un module par API (format commun dans `commun.py`) |
 | `scripts/tests_sources.py` / `scripts/sonder_api.py` | Tests des sources ; sonde de la structure des API à clé |
 | `js/marches.js` | Tableau « marchés et devises » de la fiche et du simulateur |
+| `js/confidentialite.js` | Page de confidentialité : données du site dans ce navigateur et bouton d'effacement |
+| `js/vendor/pdfjs/` | pdf.js 3.11.174 (Mozilla, licence Apache 2.0), hébergé avec le site : aucun appel à un service tiers |
 | `js/nav.js` | Onglets communs (le fonds suit d'une page à l'autre) |
 | `js/infobulles.js` | Infobulles des termes techniques (toutes les pages) |
 | `js/createur.js` | Bouton « Créateur » et son animation |

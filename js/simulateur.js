@@ -14,6 +14,9 @@ const PLAN_DEFAUT = {
   reinvestir: true, risque: "equilibre", inflation: null, fraisCourants: null, garde: 0, entree: 0, change: 0,
   courtageFixe: 0, courtagePct: 0, pays: "FR", enveloppe: "aucune", couple: false, primeActions: HYPOTHESES_DEFAUT.primeActions
 };
+// Le plan n'est gardé d'une visite à l'autre que si l'utilisateur coche « Mémoriser mon plan sur cet appareil »
+// (loi Informatique et Libertés, art. 82 ; RGPD, art. 25 : rien n'est enregistré par défaut)
+const CLE_PLAN = "simulateur-plan-v1", CLE_MEMORISER = "simulateur-memoriser";
 const MODES = [
   { cle: "projection", nom: "Projection", titre: "Voir l'évolution possible de mon investissement", texte: "Scénarios défavorable, central et favorable, sur 1 à 20 ans." },
   { cle: "objectif", nom: "Objectif", titre: "Atteindre un objectif", texte: "Combien verser, et pendant combien de temps, pour viser un montant ?" },
@@ -39,13 +42,26 @@ const zoneFonds = document.getElementById("fonds-simu");
 const zoneAssistant = document.getElementById("assistant");
 const zoneResultats = document.getElementById("resultats-simu");
 
-// ---------- Mémoire du plan (dans ce navigateur uniquement) ----------
+// ---------- Mémoire du plan (dans ce navigateur uniquement, et seulement si l'utilisateur le demande) ----------
 
+function memoriserPlan() {
+  try { return localStorage.getItem(CLE_MEMORISER) === "oui"; } catch (e) { return false; }
+}
 function chargerPlan() {
-  try { return { ...PLAN_DEFAUT, ...JSON.parse(localStorage.getItem("simulateur-plan-v1") || "{}"), debut: MOIS_COURANT }; } catch (e) { return { ...PLAN_DEFAUT }; }
+  try {
+    if (!memoriserPlan()) { localStorage.removeItem(CLE_PLAN); return { ...PLAN_DEFAUT }; }   // efface aussi un plan enregistré avant cette règle
+    return { ...PLAN_DEFAUT, ...JSON.parse(localStorage.getItem(CLE_PLAN) || "{}"), debut: MOIS_COURANT };
+  } catch (e) { return { ...PLAN_DEFAUT }; }
 }
 function sauverPlan() {
-  try { localStorage.setItem("simulateur-plan-v1", JSON.stringify({ ...S.plan, debut: undefined })); } catch (e) { /* ignoré */ }
+  if (!memoriserPlan()) return;
+  try { localStorage.setItem(CLE_PLAN, JSON.stringify({ ...S.plan, debut: undefined })); } catch (e) { /* ignoré */ }
+}
+function basculerMemorisation(oui) {
+  try {
+    if (oui) { localStorage.setItem(CLE_MEMORISER, "oui"); sauverPlan(); }
+    else { localStorage.removeItem(CLE_MEMORISER); localStorage.removeItem(CLE_PLAN); }
+  } catch (e) { /* stockage indisponible : rien n'est gardé */ }
 }
 
 // ---------- Chargement et analyse d'un fonds ----------
@@ -339,7 +355,7 @@ function optionsAvancees() {
   const p = S.plan;
   const infl = inflationParDefaut();
   return `<details class="options-avancees"${S.optionsOuvertes ? " open" : ""}>
-    <summary>Options avancées : inflation, frais, fiscalité</summary>
+    <summary>Options avancées : inflation, frais, fiscalité, mémorisation</summary>
     <div class="grille-options">
       <label>Inflation (% par an) ${champNombre("inflation", p.inflation ?? "", `step="0.1" placeholder="${String(infl).replace(".", ",")}"`)}
         <small>Par défaut : ${pct(infl)} = inflation attendue à long terme par les prévisionnistes de la BCE${indicateurCtx("anticipations_inflation") ? ` (enquête ${esc(indicateurCtx("anticipations_inflation").date.replace("-Q", " T"))})` : ""}.</small></label>
@@ -368,6 +384,8 @@ function optionsAvancees() {
           <a href="${FISCALITE_FR.liens.pfu}" target="_blank" rel="noopener">Source</a></p>`
         : `<p class="aide">La fiscalité n'est calculée que pour la France : les règles des autres pays ne sont pas intégrées de façon fiable.</p>`}
     </fieldset>
+    <label class="case memoriser-plan"><input type="checkbox" id="memoriser-plan"${memoriserPlan() ? " checked" : ""}> Mémoriser mon plan sur cet appareil
+      <small>Montants, durée et options restent dans ce navigateur pour ta prochaine visite. Rien n'est envoyé. Décocher efface le plan enregistré. <a href="confidentialite.html">En savoir plus</a></small></label>
   </details>`;
 }
 
@@ -453,6 +471,7 @@ zoneAssistant.addEventListener("change", e => {
   S.plan[el.dataset.champ] = lireChamp(el);
   planModifie(["frequence", "pays", "enveloppe", "debut"].includes(el.dataset.champ));
 });
+zoneAssistant.addEventListener("change", e => { if (e.target.id === "memoriser-plan") basculerMemorisation(e.target.checked); });
 zoneAssistant.addEventListener("toggle", e => { if (e.target.matches(".options-avancees")) S.optionsOuvertes = e.target.open; }, true);
 zoneAssistant.addEventListener("click", e => {
   if (e.target.closest("#modifier-plan")) {

@@ -7,7 +7,7 @@
  * fonds de fonds, pas de rapport) on s'appuie sur l'analyse des rendements.
  */
 
-const CLE_CACHE_COMPO = "composition-v8-";   // v8 : les lignes gardent leur ISIN (liens vers les fonds détenus)
+// CLE_CACHE_COMPO est défini dans js/outils.js (partagé avec le nettoyage du stockage)
 
 function lireCacheComposition(cle) {
   try {

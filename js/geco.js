@@ -9,7 +9,7 @@
  *   - les documents officiels (DIC, prospectus, rapports) → le DIC est lu pour extraire SRI, frais, durée, objectif
  */
 const GECO_API = "https://geco.amf-france.org/back-office";
-const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+const PDFJS = "js/vendor/pdfjs/";   // pdf.js 3.11.174 (Mozilla, licence Apache 2.0) hébergé avec le site : aucun appel à un service tiers
 
 // ---------- Annuaire (data/annuaire.js) ----------
 

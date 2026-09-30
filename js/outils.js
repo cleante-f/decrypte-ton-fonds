@@ -138,3 +138,28 @@ const PROFILS_SRI = {
 function valeurFinale(capital, tauxAnnuel, annees) {
   return capital * Math.pow(1 + tauxAnnuel / 100, annees);
 }
+
+// ---------- Données du site dans ce navigateur (localStorage) ----------
+// Toutes les clés que le site peut écrire. L'adresse cleante-f.github.io est partagée avec d'autres sites
+// du même compte GitHub : on ne touche jamais aux autres clés.
+const CLE_CACHE_COMPO = "composition-v8-";   // v8 : les lignes gardent leur ISIN (liens vers les fonds détenus)
+const CLES_STOCKAGE_SITE = [/^composition-v\d+-/, /^serie-/, /^longue-v1-/, /^simulateur-plan-v1$/, /^simulateur-memoriser$/, /^seuils-alertes-v1$/];
+
+function clesStockageSite() {
+  try { return Object.keys(localStorage).filter(k => CLES_STOCKAGE_SITE.some(re => re.test(k))); } catch (e) { return []; }
+}
+
+// Copies de données publiques périmées (plus lues, mais jamais effacées jusqu'ici) : supprimées à chaque visite
+function nettoyerStockage() {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  for (const k of clesStockageSite()) {
+    try {
+      if (/^composition-v\d+-/.test(k) && !k.startsWith(CLE_CACHE_COMPO)) { localStorage.removeItem(k); continue; }   // anciennes versions
+      if (!/^(composition-|serie-|longue-)/.test(k)) continue;                                                              // plan et réglages : choisis par l'utilisateur
+      const v = JSON.parse(localStorage.getItem(k) || "null");
+      const perime = !v || (k.startsWith("serie-") ? v.jour !== aujourdHui : Date.now() - v.quand > 7 * 864e5);
+      if (perime) localStorage.removeItem(k);
+    } catch (e) { try { localStorage.removeItem(k); } catch (e2) { /* stockage indisponible */ } }
+  }
+}
+nettoyerStockage();
