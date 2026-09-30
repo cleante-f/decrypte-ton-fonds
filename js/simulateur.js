@@ -16,12 +16,12 @@ const PLAN_DEFAUT = {
 };
 const MODES = [
   { cle: "projection", nom: "Projection", titre: "Voir l'évolution possible de mon investissement", texte: "Scénarios défavorable, central et favorable, sur 1 à 20 ans." },
-  { cle: "diversifier", nom: "Réduire le risque", titre: "Réduire mes risques", texte: "Un fonds complémentaire qui répartit mieux le risque, et ce que ça change." },
   { cle: "objectif", nom: "Objectif", titre: "Atteindre un objectif", texte: "Combien verser, et pendant combien de temps, pour viser un montant ?" },
+  { cle: "contexte", nom: "Contexte & risques", titre: "Comprendre les risques de ce fonds", texte: "Risques, économie, géopolitique, technologies, composition." },
   { cle: "crises", nom: "Crises", titre: "Et si le marché connaissait une crise ?", texte: "Rejouer 2008, le Covid, 2022… ou une baisse de 20 % ou 40 %." },
   { cle: "comparer", nom: "Comparer", titre: "Comparer plusieurs ETF", texte: "Mêmes versements, plusieurs fonds : voir les différences." },
-  { cle: "portefeuille", nom: "Portefeuille", titre: "Construire mon portefeuille", texte: "Plusieurs fonds, avec des poids : diversification, corrélations." },
-  { cle: "contexte", nom: "Contexte & risques", titre: "Comprendre les risques de ce fonds", texte: "Risques, économie, géopolitique, technologies, composition." }
+  { cle: "diversifier", nom: "Réduire le risque", titre: "Réduire mes risques", texte: "Un fonds complémentaire qui répartit mieux le risque, et ce que ça change." },
+  { cle: "portefeuille", nom: "Portefeuille", titre: "Construire mon portefeuille", texte: "Plusieurs fonds, avec des poids : diversification, corrélations." }
 ];
 const EXEMPLES_SIMU = [["FR0011871128", "Amundi PEA S&P 500"], ["LU1681043599", "Amundi MSCI World (CW8)"], ["FR0012739431", "BNP Easy Euro Stoxx 50"], ["FR0010135103", "Carmignac Patrimoine"]];
 const EXEMPLE_PORTEFEUILLE = [["FR0011871128", 50], ["FR0012739431", 30], ["FR0010429068", 20]];
@@ -263,7 +263,7 @@ async function afficherDepuisAdresse() {
   if (!entree) { zoneFonds.innerHTML = afficherListe(cle, []); return; }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Simulateur`;
-  S.fonds = null; S.calc = null; S.chargement = { entree, isin };
+  S.fonds = null; S.calc = null; S.chargement = { entree, isin }; S.planOuvert = false;
   S.comparaisons = []; S.portefeuille = { lignes: [], calc: null };
   zoneFonds.innerHTML = carteFonds(null, "Préparation de la simulation…");
   zoneAssistant.hidden = false;
@@ -295,13 +295,13 @@ const LIBELLE_FREQUENCE = { 1: "par mois", 3: "par trimestre", 12: "par an" };
 
 function etapeCapital() {
   return `<h2 class="question">Combien souhaites-tu investir au départ ?</h2>
-    <label class="champ-montant"><span class="sr-only">Capital initial en euros</span>${champNombre("capital", S.plan.capital, 'min="0" step="100"')}<span>€</span></label>
+    <label class="champ-montant"><span class="sr-only">Capital initial en euros</span>${champNombre("capital", S.plan.capital, 'min="0" step="any"')}<span>€</span></label>
     ${puces("capital", [0, 1000, 5000, 10000, 50000], S.plan.capital, v => v.toLocaleString("fr-FR") + " €")}
     <p class="aide">Tu peux mettre 0 si tu préfères investir seulement de façon régulière.</p>`;
 }
 function etapeVersement() {
   return `<h2 class="question">Combien souhaites-tu investir ${S.plan.frequence == 1 ? "chaque mois" : S.plan.frequence == 3 ? "chaque trimestre" : "chaque année"} ?</h2>
-    <label class="champ-montant"><span class="sr-only">Versement régulier en euros</span>${champNombre("versement", S.plan.versement, 'min="0" step="10"')}<span>€</span></label>
+    <label class="champ-montant"><span class="sr-only">Versement régulier en euros</span>${champNombre("versement", S.plan.versement, 'min="0" step="any"')}<span>€</span></label>
     ${puces("versement", [0, 100, 300, 500, 1000], S.plan.versement, v => v.toLocaleString("fr-FR") + " €")}
     <div class="ligne-options">
       <label>Fréquence <select data-champ="frequence">${[1, 3, 12].map(f => `<option value="${f}"${Number(S.plan.frequence) === f ? " selected" : ""}>${f === 1 ? "mensuelle" : f === 3 ? "trimestrielle" : "annuelle"}</option>`).join("")}</select></label>
@@ -375,11 +375,12 @@ function rendreAssistant() {
   if (!S.chargement && !S.fonds) { zoneAssistant.hidden = true; return; }
   zoneAssistant.hidden = false;
   if (S.lance) {
-    // Après la première simulation : le plan reste modifiable en un coup d'œil
-    zoneAssistant.innerHTML = `<div class="plan-compact carte">
+    // Après la première simulation : le plan est replié derrière un bouton, pour laisser la place aux résultats
+    zoneAssistant.innerHTML = `<div class="plan-bascule"><button type="button" class="btn btn-contour" id="modifier-plan" aria-controls="plan-compact"></button></div>
+    <div class="plan-compact carte" id="plan-compact">
       <div class="plan-champs">
-        <label>Au départ <span class="champ-euros">${champNombre("capital", S.plan.capital, 'min="0" step="100"')}<span>€</span></span></label>
-        <label>Puis <span class="champ-euros">${champNombre("versement", S.plan.versement, 'min="0" step="10"')}<span>€</span></span>
+        <label>Au départ <span class="champ-euros">${champNombre("capital", S.plan.capital, 'min="0" step="any"')}<span>€</span></span></label>
+        <label>Puis <span class="champ-euros">${champNombre("versement", S.plan.versement, 'min="0" step="any"')}<span>€</span></span>
           <select data-champ="frequence" aria-label="Fréquence">${[1, 3, 12].map(f => `<option value="${f}"${Number(S.plan.frequence) === f ? " selected" : ""}>${LIBELLE_FREQUENCE[f]}</option>`).join("")}</select></label>
         <label>Pendant <span class="champ-euros">${champNombre("annees", S.plan.annees, 'min="1" max="40" step="1" class="court"')}<span>ans</span></span></label>
         <label>Dividendes <select data-champ="reinvestir"><option value="oui"${S.plan.reinvestir ? " selected" : ""}>réinvestis</option><option value="non"${!S.plan.reinvestir ? " selected" : ""}>versés</option></select></label>
@@ -388,6 +389,7 @@ function rendreAssistant() {
       </div>
       ${optionsAvancees()}
     </div>`;
+    basculerPlan(S.planOuvert);
     return;
   }
   const etapes = [etapeCapital, etapeVersement, etapeDuree, etapeChoix];
@@ -396,7 +398,7 @@ function rendreAssistant() {
       ${[1, 2, 3, 4].map(i => `<span class="pas${i <= S.etape ? " fait" : ""}"></span>`).join("")}
       <span class="pas-texte">Étape ${S.etape} sur 4</span>
     </div>
-    <form id="form-etape" autocomplete="off">
+    <form id="form-etape" autocomplete="off" novalidate>
       ${etapes[S.etape - 1]()}
       <div class="boutons-etape">
         ${S.etape > 1 ? `<button type="button" class="btn btn-secondaire" id="etape-retour">← Retour</button>` : "<span></span>"}
@@ -406,6 +408,16 @@ function rendreAssistant() {
   </div>`;
   const champ = zoneAssistant.querySelector(".champ-montant input");
   if (champ && document.activeElement === document.body) champ.focus({ preventScroll: true });
+}
+
+// Affiche ou masque les réglages du plan (bouton « Modifier l'investissement »)
+function basculerPlan(ouvert) {
+  S.planOuvert = !!ouvert;
+  const plan = document.getElementById("plan-compact"), bouton = document.getElementById("modifier-plan");
+  if (!plan || !bouton) return;
+  plan.hidden = !S.planOuvert;
+  bouton.setAttribute("aria-expanded", String(S.planOuvert));
+  bouton.innerHTML = S.planOuvert ? "Masquer les réglages <span aria-hidden=\"true\">▴</span>" : "<span aria-hidden=\"true\">✎</span> Modifier l'investissement";
 }
 
 // Tous les champs du plan : un seul écouteur
@@ -443,6 +455,11 @@ zoneAssistant.addEventListener("change", e => {
 });
 zoneAssistant.addEventListener("toggle", e => { if (e.target.matches(".options-avancees")) S.optionsOuvertes = e.target.open; }, true);
 zoneAssistant.addEventListener("click", e => {
+  if (e.target.closest("#modifier-plan")) {
+    basculerPlan(!S.planOuvert);
+    if (S.planOuvert) zoneAssistant.querySelector("#plan-compact input").focus({ preventScroll: true });
+    return;
+  }
   const puce = e.target.closest("[data-puce]");
   if (puce) { S.plan[puce.dataset.puce] = Number(puce.dataset.valeur); rendreAssistant(); planModifie(false); return; }
   const mode = e.target.closest("[data-mode]");
@@ -454,6 +471,7 @@ zoneAssistant.addEventListener("submit", e => {
   if (S.etape < 4) { S.etape++; rendreAssistant(); return; }
   if (!S.fonds) { zoneResultats.innerHTML = `<p class="chargement carte">Les données du fonds se chargent : la simulation s'affichera dans un instant…</p>`; S.lance = true; return; }
   S.lance = true;
+  S.planOuvert = false;
   rendreAssistant();
   lancer();
 });
@@ -515,6 +533,7 @@ zoneResultats.addEventListener("click", e => {
   const onglet = e.target.closest("[data-onglet]");
   if (onglet) {
     S.mode = onglet.dataset.onglet;
+    basculerPlan(false);
     zoneResultats.querySelectorAll("[data-onglet]").forEach(b => b.setAttribute("aria-selected", String(b === onglet)));
     rendrePanneau();
     return;
@@ -958,7 +977,7 @@ function panneauObjectif() {
   return `<section class="carte">
     <h2>Quel est ton objectif ?</h2>
     <form id="form-objectif" class="ligne-options" autocomplete="off">
-      <label class="champ-montant petit">Je veux atteindre <input type="number" id="objectif-montant" min="100" step="1000" value="${S.objectif.montant}"><span>€</span></label>
+      <label class="champ-montant petit">Je veux atteindre <input type="number" id="objectif-montant" min="100" step="any" value="${S.objectif.montant}"><span>€</span></label>
       <label class="case"><input type="checkbox" id="objectif-reel"${S.objectif.enEurosDuJour ? " checked" : ""}> en euros d'aujourd'hui (tenir compte de l'inflation)</label>
     </form>
     <div id="resultat-objectif"><p class="chargement">Calcul des trajectoires…</p></div>
@@ -970,6 +989,7 @@ function majObjectif() {
   const zone = document.getElementById("resultat-objectif");
   if (!zone) return;
   const form = document.getElementById("form-objectif");
+  form.onsubmit = e => e.preventDefault();
   form.oninput = () => {
     S.objectif.montant = Math.max(100, Number(document.getElementById("objectif-montant").value) || 0);
     S.objectif.enEurosDuJour = document.getElementById("objectif-reel").checked;

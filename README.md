@@ -15,7 +15,7 @@ qui sont chargées en direct depuis la base GECO de l'AMF.
 | Page | Rôle |
 |---|---|
 | `index.html` | Accueil : présentation du site, recherche rapide, accès aux trois espaces |
-| `decrypte.html` | **Décrypte ton fonds** : fiche complète (composition, concentration, risque, pièges, frais) |
+| `decrypte.html` | **Décrypte ton fonds** : phrase « En bref », puis fiche complète (composition, concentration, risque, pièges, frais) |
 | `performances.html` | **Performances** : graphique interactif (périodes, comparaison avec les marchés ou un autre fonds, performances par année) |
 | `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques) |
 
@@ -26,6 +26,11 @@ avec `?q=…`.
 **Historique des valeurs liquidatives** : les valeurs publiées ne sont pas ajustées des divisions de parts
 (ex. une part divisée par 10). Le site les repère (variation d'un jour égale à un facteur entier) et corrige
 l'historique antérieur ; les points isolés aberrants sont lissés. Chaque correction est signalée sous le graphique.
+
+**Phrase « En bref »** (en tête de fiche, `enBref` dans `js/fiche-auto.js`) : l'indice suivi quand le nom en contient
+un connu (description fixe de son contenu, variantes et versions ESG signalées) ; sinon la composition calculée (classes
+d'actifs arrondies à 5 %, région principale) ; sinon la catégorie AMF ; sinon ce que le nom laisse deviner, présenté
+comme tel (« D'après son nom… ») ; sinon la première phrase de l'objectif du DIC. Rien n'est affiché si aucune source ne suffit.
 
 ## Le simulateur (méthode)
 

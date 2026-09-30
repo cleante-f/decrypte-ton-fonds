@@ -95,6 +95,9 @@ small, .aide, .source, .total { color: var(--texte-2); }
 }
 .fiche-entete h1 { margin: 16px 0 0; font-size: 1.5rem; }
 .fiche-entete p { margin: 4px 0 0; color: var(--texte-2); }
+.fiche-entete .en-bref { margin: 12px 0 0; max-width: 860px; color: var(--texte); font-size: 1.02rem; line-height: 1.55; }
+.en-bref-titre { display: inline-block; margin-right: 6px; padding: 2px 9px; border-radius: 999px; background: var(--info-fond); color: var(--accent);
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; vertical-align: 2px; }
 .source { font-size: .8rem; margin: 16px 0 0; border-top: 1px dashed var(--bordure); padding-top: 8px; }
 .note { font-size: .9rem; background: var(--info-fond); padding: 8px 12px; border-radius: 8px; }
 .resume { font-size: 1.05rem; font-weight: 600; margin: 0 0 8px; }
@@ -582,6 +585,8 @@ body.createur-actif { overflow: hidden; }
 .fiscalite .aide { width: 100%; margin: 0; font-size: .8rem; }
 .case { cursor: pointer; }
 
+.plan-bascule { display: flex; justify-content: flex-end; margin: 4px 0 10px; }
+.plan-bascule .btn { padding: 9px 16px; font-size: .92rem; }
 .plan-compact .plan-champs { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: .9rem; }
 .champ-euros { display: inline-flex; align-items: center; gap: 4px; }
 .champ-euros input { font-weight: 700; }

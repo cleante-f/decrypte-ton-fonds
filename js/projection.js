@@ -582,7 +582,9 @@ function scenario(res, p, t) {
   const moy = cle => choisis.reduce((s, i) => s + res.parAn[cle][i * P + k], 0) / choisis.length;
   // valeur au rang exact ; dividendes, frais et valeur sans frais : moyenne des trajectoires voisines (cohérentes entre elles)
   const D = moy("D"), total = quantileTrie(idx.map(i => tot[i]), p);
-  return construireScenario(res, t, { V: res.reinvestis ? total : total - D, V0: moy("V0"), D, F: moy("F"), DI: moy("DI") });
+  const V = res.reinvestis ? total : total - D;
+  // coût des frais mesuré sur les mêmes trajectoires (V0 − V) : exactement nul quand il n'y a aucun frais
+  return construireScenario(res, t, { V, V0: V + moy("V0") - moy("V"), D, F: moy("F"), DI: moy("DI") });
 }
 
 function construireScenario(res, t, x) {

@@ -63,6 +63,150 @@ function estSynthetique(e, nom, dic) {
   return nom.synthetique || (nom.pea && nom.horsEurope) || !!(dic && dic.synthetique && (e.etf || nom.indiciel));
 }
 
+// ---------- « En bref » : une phrase pour comprendre le fonds ----------
+
+// Ce que contiennent les indices les plus suivis (description simplifiée, stable dans le temps)
+const DESCRIPTIONS_INDICES = {
+  "S&P 500": "environ 500 grandes entreprises américaines",
+  "Nasdaq-100": "les 100 plus grandes entreprises non financières cotées au Nasdaq, surtout des géants américains de la technologie",
+  "MSCI World": "plus de 1 300 grandes et moyennes entreprises de 23 pays développés (Amérique du Nord, Europe, Japon, Australie…), dont environ 70 % aux États-Unis",
+  "MSCI ACWI": "environ 2 500 grandes et moyennes entreprises des pays développés et émergents, dont près des deux tiers aux États-Unis",
+  "MSCI Emerging Markets": "plus de 1 000 grandes et moyennes entreprises des pays émergents (Chine, Inde, Taïwan, Corée du Sud, Brésil…)",
+  "Euro Stoxx 50": "les 50 plus grandes entreprises de la zone euro",
+  "Stoxx Europe 600": "600 grandes, moyennes et petites entreprises européennes, Royaume-Uni et Suisse compris",
+  "MSCI Europe": "environ 400 grandes et moyennes entreprises des pays développés d'Europe, Royaume-Uni et Suisse compris",
+  "MSCI EMU": "les grandes et moyennes entreprises des pays de la zone euro",
+  "CAC 40": "40 des plus grandes entreprises françaises cotées à Paris",
+  "Topix": "les grandes entreprises cotées à la Bourse de Tokyo (Japon)",
+  "MSCI Japan": "les grandes et moyennes entreprises japonaises",
+  "MSCI USA": "les grandes et moyennes entreprises américaines",
+  "MSCI China": "les grandes et moyennes entreprises chinoises",
+  "MSCI India": "les grandes et moyennes entreprises indiennes",
+  "DAX": "les 40 plus grandes entreprises allemandes cotées à Francfort"
+};
+// Variantes d'un indice (le nom de l'indice ne suffit plus à décrire le contenu)
+const VARIANTES_INDICE = [
+  [/SMALL\s?CAP/i, "centrée sur les petites entreprises"], [/MID\s?CAP/i, "centrée sur les entreprises de taille moyenne"],
+  [/EQUAL|EQUIPOND|EQUI-POND/i, "où chaque entreprise pèse le même poids"], [/MIN(IMUM)?\s?VOL/i, "limitée aux actions qui varient le moins"],
+  [/MOMENTUM/i, "centrée sur les actions qui ont le plus monté récemment"], [/\bVALUE\b/i, "centrée sur les entreprises jugées bon marché"],
+  [/GROWTH/i, "centrée sur les entreprises à forte croissance"], [/QUALITY/i, "centrée sur les entreprises les plus solides financièrement"],
+  [/DIVIDEND|HIGH DIV/i, "centrée sur les entreprises qui versent des dividendes élevés"],
+  [/INFORMATION TECH|\bIT\b/i, "limitée au secteur technologique"], [/HEALTH|SANT[EÉ]/i, "limitée au secteur de la santé"],
+  [/FINANCIAL|\bBANKS?\b/i, "limitée au secteur financier"], [/ENERGY|[EÉ]NERGIE/i, "limitée au secteur de l'énergie"],
+  [/REAL ESTATE|IMMOBILIER/i, "limitée à l'immobilier coté"], [/INDUSTRIAL/i, "limitée au secteur industriel"],
+  [/CONSUMER|CONSOMMATION/i, "limitée aux entreprises de biens de consommation"], [/UTILITIES/i, "limitée aux services aux collectivités (eau, électricité…)"]
+];
+const RESPONSABLE = /\bESG\b|\bSRI\b|\bISR\b|SCREENED|CLIMAT|\bPAB\b|\bCTB\b|PARIS[\s-]ALIGN|SUSTAINAB|DURABLE/i;
+
+// Ce que fait chaque catégorie AMF, en mots simples (quand la composition n'est pas connue)
+const EN_BREF_CLASSIFICATION = {
+  "Actions françaises": "Fonds qui investit surtout en actions d'entreprises françaises (au moins 60 %).",
+  "Actions de pays de la zone euro": "Fonds qui investit surtout en actions d'entreprises de la zone euro (au moins 60 %).",
+  "Actions des pays de l'Union Européenne": "Fonds qui investit surtout en actions d'entreprises de l'Union européenne (au moins 60 %).",
+  "Actions internationales": "Fonds qui investit surtout en actions (au moins 60 %), sans contrainte géographique.",
+  "Obligations et/ou titres de créances libellés en euros": "Fonds qui prête à des États ou à des entreprises en achetant leurs obligations, en euros.",
+  "Obligations et/ou titres de créances internationaux": "Fonds qui prête à des États ou à des entreprises du monde entier en achetant leurs obligations.",
+  "Fonds mixtes": "Fonds qui mélange actions, obligations et placements monétaires, dans des proportions qui peuvent varier.",
+  "Fonds à formule": "Fonds dont le résultat dépend d'une formule fixée à l'avance, avec une date d'échéance.",
+  "Garanti ou assorti d'une protection": "Fonds qui garantit ou protège le capital, en général seulement à une date précise et sous conditions.",
+  "Fonds commun à risques": "Fonds qui investit dans des entreprises non cotées en Bourse (capital-investissement) : argent bloqué plusieurs années.",
+  "Fonds commun de placement à innovation": "Fonds qui investit dans des PME innovantes non cotées : argent bloqué 7 à 10 ans.",
+  "Fonds d'investissement de proximité": "Fonds qui investit dans des PME régionales non cotées : argent bloqué 7 à 10 ans.",
+  "Investis en titres de l’entreprise": "Fonds d'épargne salariale investi en actions de l'entreprise qui t'emploie.",
+  "Fonds monétaire à valeur liquidative variable (VNAV) standard": "Placement de trésorerie qui prête à très court terme : très faible risque, rendement proche des taux de la BCE.",
+  "Fonds monétaire à valeur liquidative variable (VNAV) court terme": "Placement de trésorerie qui prête à très court terme : très faible risque, rendement proche des taux de la BCE.",
+  "Fonds Immobilier": "Fonds investi dans l'immobilier : la revente des parts peut prendre du temps.",
+  "Fonds investis en biens immobiliers": "Fonds investi dans l'immobilier : la revente des parts peut prendre du temps.",
+  "Fonds actions": "Fonds qui investit surtout en actions d'entreprises.",
+  "Fonds obligations": "Fonds qui prête à des États ou à des entreprises en achetant leurs obligations.",
+  "Fonds de prêt/de crédit": "Fonds qui prête directement de l'argent à des entreprises (dette privée, non cotée) : argent souvent bloqué plusieurs années.",
+  "Fonds d'infrastructures": "Fonds qui investit dans des infrastructures (énergie, transports, télécoms…), souvent non cotées : argent bloqué plusieurs années.",
+  "Investis à moins d’un tiers en titres de l’entreprise": "Fonds d'épargne salariale investi en partie (moins d'un tiers) en actions de l'entreprise qui t'emploie, le reste étant diversifié.",
+  "Fonds monétaire à valeur liquidative à faible volatilité (LVNAV)": "Placement de trésorerie qui prête à très court terme : très faible risque, rendement proche des taux de la BCE.",
+  "Fonds de multigestion alternative": "Fonds qui place l'argent dans d'autres fonds aux stratégies « alternatives » (complexes).",
+  "Fonds spéculatifs": "Fonds aux stratégies complexes, avec effet de levier possible, réservé aux investisseurs avertis."
+};
+const DANS_ZONE = { "Amérique du Nord": "en Amérique du Nord", "Zone euro": "dans la zone euro", "Europe hors zone euro": "en Europe hors zone euro",
+  "Asie-Pacifique développée": "en Asie-Pacifique", "Pays émergents": "dans les pays émergents" };
+const DANS_PAYS = { "France": "en France", "États-Unis": "aux États-Unis", "Japon": "au Japon", "Allemagne": "en Allemagne", "Royaume-Uni": "au Royaume-Uni",
+  "Suisse": "en Suisse", "Chine": "en Chine", "Inde": "en Inde", "Italie": "en Italie", "Espagne": "en Espagne", "Pays-Bas": "aux Pays-Bas" };
+const NOM_CLASSE = { "Actions": "en actions", "Obligations": "en obligations", "Monétaire": "en placements monétaires", "Fonds (OPC)": "dans d'autres fonds" };
+
+// Où va l'argent, en quelques mots, d'après la composition calculée
+function ouEnMots(c) {
+  const pays = (c.pays || []).filter(x => DANS_PAYS[x.nom]);
+  if (pays[0] && pays[0].poids >= 60) return `surtout ${DANS_PAYS[pays[0].nom]}`;
+  const za = c.principale === "style" && c.style && c.style.zonesActions && c.style.zonesActions.total >= 20 ? c.style.zonesActions.zones : c.zones;
+  const zones = (za || []).filter(x => DANS_ZONE[x.nom]);
+  if (!zones.length) return "";
+  if (zones[0].poids >= 60) return `surtout ${DANS_ZONE[zones[0].nom]}`;
+  if (zones.filter(x => x.poids >= 10).length >= 3) return "dans plusieurs régions du monde";
+  return zones[1] && zones[1].poids >= 15 ? `surtout ${DANS_ZONE[zones[0].nom]} et ${DANS_ZONE[zones[1].nom]}` : `surtout ${DANS_ZONE[zones[0].nom]}`;
+}
+
+// Faute de mieux : ce que le nom du fonds laisse deviner (signalé comme tel)
+const ZONES_DU_NOM = [[/EMERGING|[EÉ]MERGENT/, "des pays émergents"], [/\bUSA?\b|\bUS[\s-]|AMERICA|AM[EÉ]RIQUE/, "des États-Unis"],
+  [/JAPAN|JAPON/, "du Japon"], [/CHINA|CHINE/, "de Chine"], [/\bASIA|\bASIE/, "d'Asie"], [/FRANCE|FRAN[CÇ]AIS/, "de France"],
+  [/EUROZONE|ZONE EURO|\bEMU\b|\bEURO\b(?! ?(STOXX|OVERNIGHT|CASH|SHORT|MONEY))/, "de la zone euro"], [/EUROP/, "d'Europe"],
+  [/GLOBAL|WORLD|MONDE|INTERNATIONAL/, "du monde entier"]];
+function enBrefDuNom(e) {
+  const n = e.nom.toUpperCase();
+  const zone = (ZONES_DU_NOM.find(([re]) => re.test(n)) || [])[1];
+  const esg = RESPONSABLE.test(n) ? ", avec des critères environnementaux, sociaux et de gouvernance (ESG)" : "";
+  let quoi = null;
+  if (/MONEY MARKET|MON[EÉ]TAIRE|OVERNIGHT|TR[EÉ]SORERIE|\bCASH\b|\bESTR\b|€STR/.test(n)) quoi = "fonds monétaire : placement de trésorerie qui prête à très court terme, à très faible risque";
+  else if (/BOND|OBLIG|CREDIT|CR[EÉ]DIT|FIXED INCOME|TREASURY|GOVERNMENT|SOUVERAIN|AGGREGATE|HIGH YIELD|CORPORATE|\bTAUX\b|DURATION|SHORT TERM|COURT TERME/.test(n)) {
+    const qui = /TREASURY|GOVERNMENT|GOVT|SOUVERAIN|\bETAT/.test(n) ? "à des États" : /CORPORATE|CREDIT|CR[EÉ]DIT|HIGH YIELD|ENTREPRISE/.test(n) ? "à des entreprises" : "à des États ou à des entreprises";
+    quoi = `fonds obligataire : il prête ${qui}${zone ? " " + zone : ""} en achetant leurs obligations${/HIGH YIELD|HAUT RENDEMENT/.test(n) ? " (emprunteurs plus risqués, dits « à haut rendement »)" : ""}`;
+  } else if (/PATRIMOINE|MIXTE|BALANCED|ALLOCATION|MULTI[\s-]?ASSET|FLEXIBLE|PROFIL|DIVERSIFI|[EÉ]QUILIBR|PRUDENT|DYNAMIQUE|MOD[EÉ]R[EÉ]/.test(n))
+    quoi = "fonds mixte : il mélange actions, obligations et placements monétaires";
+  else if (/IMMOBILI|REAL ESTATE|PROPERTY|\bREIT/.test(n)) quoi = `fonds investi dans l'immobilier${zone ? " " + zone : ""}`;
+  else if (/EQUIT|ACTIONS|STOCK|SHARES|SMALL CAP|MID CAP|LARGE CAP|COMPANIES|DIVIDEND/.test(n))
+    quoi = `fonds qui investit en actions d'entreprises ${/SMALL CAP|PETITES/.test(n) ? "de petite taille " : ""}${zone || ""}`.trim();
+  return quoi ? `D'après son nom, ${quoi}${esg}.` : "";
+}
+
+function enBref(e, d) {
+  const nomIdx = indicesDuNom(e.nom);
+  const dic = d && d.dic;
+  const indice = indiceDuNom(e.nom);
+  const type = e.etf ? "ETF" : "Fonds indiciel";
+  const aFormule = /formule|Garanti/i.test(e.classification || "");   // ex. fonds à formule « Euro Stoxx 50 » : l'indice ne décrit pas le contenu
+  let phrase = "";
+  if (indice && (e.etf || nomIdx.indiciel) && !aFormule) {
+    const variante = VARIANTES_INDICE.find(([re]) => re.test(e.nom) && !(indice === "Nasdaq-100" && /TECH/.test(re.source)));
+    const responsable = RESPONSABLE.test(e.nom);
+    if (nomIdx.levier) phrase = `${type} à effet de levier ou inversé sur l'indice <strong>${esc(indice)}</strong> : il amplifie ou inverse chaque jour les variations de l'indice. Réservé aux investisseurs très avertis.`;
+    else if (variante) phrase = `${type} qui reproduit une variante de l'indice <strong>${esc(indice)}</strong>, ${variante[1]}${responsable ? ", avec des critères environnementaux, sociaux et de gouvernance (ESG)" : ""}.`;
+    else phrase = `${type} qui reproduit ${responsable ? "une version « responsable » (ESG) de " : ""}l'indice <strong>${esc(indice)}</strong> : il investit dans ${DESCRIPTIONS_INDICES[indice]}${responsable ? ", en excluant certaines entreprises selon des critères environnementaux, sociaux ou de gouvernance" : ""}.`;
+    if (!nomIdx.levier && nomIdx.pea && nomIdx.horsEurope) phrase += ` Éligible au PEA grâce à une ${terme("replication_synthetique", "réplication synthétique")}.`;
+  } else {
+    const c = d && d.composition && d.composition.c && d.composition.c.principale ? d.composition.c : null;
+    const classes = c ? (c.classes || []).filter(x => NOM_CLASSE[x.nom] && x.poids >= 5) : [];
+    if (classes.length) {
+      const genre = /mixte/i.test(e.classification) ? "Fonds mixte" : /^Actions/.test(e.classification) ? "Fonds d'actions"
+        : /^Obligations/.test(e.classification) ? "Fonds obligataire" : /monétaire/i.test(e.classification) ? "Fonds monétaire" : e.etf ? "ETF" : "Fonds";
+      // arrondi à 5 % près, sans dépasser 100 % au total
+      const arrondis = classes.slice(0, 3).map(x => Math.max(5, Math.round(x.poids / 5) * 5));
+      const exces = arrondis.reduce((t, x) => t + x, 0) - 100;
+      if (exces > 0) arrondis[0] -= exces;
+      const parts = classes.slice(0, 3).map((x, i) => `${pct(arrondis[i], 0)} ${NOM_CLASSE[x.nom]}`);
+      const liste = parts.length > 1 ? parts.slice(0, -1).join(", ") + " et " + parts[parts.length - 1] : parts[0];
+      const ou = classes.some(x => x.nom === "Actions" || x.nom === "Obligations") ? ouEnMots(c) : "";
+      phrase = `${genre} investi à environ ${liste}${ou ? ", " + ou : ""}${c.principale === "style" ? " (estimation d'après ses rendements)" : ""}.`;
+    } else if (EN_BREF_CLASSIFICATION[e.classification]) phrase = EN_BREF_CLASSIFICATION[e.classification];
+    else if (enBrefDuNom(e)) phrase = enBrefDuNom(e);
+    else if (dic && dic.objectif) {
+      const premiere = dic.objectif.split(/(?<=\.)\s/)[0];
+      phrase = `D'après son DIC : « ${esc(premiere.length > 220 ? premiere.slice(0, 217).replace(/\s\S*$/, "") + "…" : premiere)} »`;
+    }
+    if (phrase && indice && aFormule) phrase += ` Son résultat dépend de l'indice <strong>${esc(indice)}</strong>.`;
+    if (phrase && nomIdx.levier) phrase += " Produit à effet de levier ou inversé : réservé aux investisseurs très avertis.";
+  }
+  if (phrase && (nomIdx.couvert || /hedged/i.test((d && d.part && d.part.parNom) || ""))) phrase += " Le risque de change est couvert.";
+  return phrase ? `<p class="en-bref"><span class="en-bref-titre">En bref</span> ${phrase}</p>` : "";
+}
+
 // ---------- Détection des pièges (fonds automatiques) ----------
 
 function detecterPiegesAuto(e, d) {
@@ -370,6 +514,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
     <header class="fiche-entete">
       <h1>${esc(e.nom)}</h1>
       <p>${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
+      ${enBref(e, d)}
       <div class="actions-fiche">
         <a class="btn btn-simuler" href="simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
         <a class="btn-onglet" href="performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
