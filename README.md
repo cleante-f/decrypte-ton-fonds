@@ -85,7 +85,7 @@ onglet **Actions** du dépôt GitHub → « Mise à jour des données du simulat
 python3 scripts/actualiser_contexte.py
 ```
 
-### Marchés et devises du jour (API, avec sources de secours)
+### Marchés, devises et actualités d'entreprises (API, avec sources de secours)
 
 `scripts/actualiser_marches.py`, lancé juste après par la même tâche, écrit `data/marches.js`. Il est affiché dans
 la fiche (section « 4. Risque ») et dans l'onglet « Contexte & risques » du simulateur (`js/marches.js`). Le navigateur
@@ -94,7 +94,13 @@ n'appelle aucune API : il lit ce fichier du site. Un module par source dans `scr
 | Bloc | Principale | Secours | Dernier recours | Cache |
 |---|---|---|---|---|
 | Taux de change (USD, GBP, CHF, JPY, CNY) | BCE, sans clé | Frankfurter (taux BCE), sans clé | Currency-api (fawazahmed0), sans clé | 20 h |
-| Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | Alpha Vantage, clé `ALPHAVANTAGE_KEY` | — | 20 h |
+| Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | Alpha Vantage, clé `ALPHAVANTAGE_KEY` (12 requêtes sur 25 par jour, en dollars) | — | 20 h |
+| Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | MarketAux, clé `MARKETAUX_KEY` (23 requêtes sur 100 par jour ; usage non commercial) | — | 20 h |
+
+Les actualités s'affichent sous les principales lignes d'un fonds (fiche, section 2) et dans « Contexte & risques », pour
+les entreprises reconnues parmi ses lignes. Filtres : titres générés automatiquement (déclarations de positions,
+formulaires SEC, « prévisions » de cours, communiqués d'études de marché) et sites qui en publient surtout ; titres
+mal encodés réparés. Sur une réponse 429 (trop de requêtes), le script attend une fois le délai `Retry-After`.
 
 Si toutes les sources d'un bloc tombent, la dernière valeur connue est gardée avec sa date et un message ; la page
 n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jour.

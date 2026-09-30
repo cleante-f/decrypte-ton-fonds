@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Met à jour data/marches.js : taux de change et marchés du jour, lus par la fiche Décryptage et le simulateur.
+Met à jour data/marches.js : taux de change, marchés du jour et actualités des grandes entreprises détenues par les fonds,
+lus par la fiche Décryptage et le simulateur.
 
 Lancé chaque jour par GitHub Actions (.github/workflows/contexte.yml), ou à la main :
     python3 scripts/actualiser_marches.py            respecte le cache (une source n'est pas rappelée avant 20 h)
@@ -12,12 +13,14 @@ Format commun d'un bloc, quelle que soit la source :
     {"etat": "frais" | "secours" | "ancien" | "indisponible", "source", "lien", "mention", "maj", "tentative", "message", …données}
     change  : {"date", "taux": {"USD": {"valeur", "date", "unAn", "dateUnAn"}, …}}          (1 euro = valeur devise)
     marches : {"devise", "indices": {"usa": {"nom", "indice", "date", "valeur", "j1", "m1", "debutAnnee", "a1", "ref"}, …}}
+    actus   : {"entreprises": {"nvidia": {"nom", "repere", "articles": [{"titre", "lien", "source", "date", "langue"}]}, …}}
 """
 import json
 import sys
 from datetime import datetime, timedelta, timezone
 
-from sources import change_bce, change_currencyapi, change_frankfurter, marches_alphavantage, marches_amf
+from sources import (actus_marketaux, actus_newsdata, change_bce, change_currencyapi, change_frankfurter, marches_alphavantage,
+                     marches_amf)
 from sources.commun import RACINE, SourceIndisponible
 
 SORTIE = RACINE / "data" / "marches.js"
@@ -27,6 +30,9 @@ FORMAT = "%Y-%m-%dT%H:%MZ"
 BLOCS = {
     "change": ([change_bce, change_frankfurter, change_currencyapi], 20, lambda d: "USD" in d["taux"] and len(d["taux"]) >= 3),
     "marches": ([marches_amf, marches_alphavantage], 20, lambda d: len(d["indices"]) >= 4),
+    # actualités : au moins une entreprise sur deux avec un article (sinon la source est jugée défaillante)
+    "actus": ([actus_newsdata, actus_marketaux], 20,
+              lambda d: sum(1 for e in d["entreprises"].values() if e["articles"]) >= len(d["entreprises"]) / 2),
 }
 
 
@@ -86,7 +92,7 @@ def main():
         return
     SORTIE.write_text(
         "/* Généré automatiquement par scripts/actualiser_marches.py — ne pas modifier à la main.\n"
-        " * Taux de change et marchés du jour. Chaque bloc indique sa source, sa date et son état (frais, secours, ancien). */\n"
+        " * Taux de change, marchés du jour et actualités d'entreprises. Chaque bloc indique sa source, sa date et son état. */\n"
         f"const MARCHES = {json.dumps({'maj': maintenant().strftime(FORMAT), **blocs}, ensure_ascii=False, separators=(',', ':'))};\n",
         encoding="utf-8")
     print(f"OK → {SORTIE.relative_to(RACINE)}")

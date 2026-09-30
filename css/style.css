@@ -859,6 +859,9 @@ div.carte-horizon { cursor: default; }
 .opp-risque p { margin: 0; font-size: .86rem; }
 .actus { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; font-size: .86rem; }
 .actus small { display: block; color: var(--texte-2); font-size: .76rem; }
+.actus-entreprises { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px 18px; margin-top: 8px; }
+.actus-entreprises h4 { margin: 0; font-size: .95rem; }
+.actus-entreprises h4 small { font-weight: 400; color: var(--texte-2); font-size: .78rem; }
 
 .indicateurs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin: 12px 0; }
 .indicateur { background: var(--fond); border-radius: 12px; padding: 12px 14px; font-size: .86rem; display: grid; gap: 4px; align-content: start; }

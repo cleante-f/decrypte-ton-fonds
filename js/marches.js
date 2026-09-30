@@ -84,3 +84,40 @@ function blocMarchesDevises(poids, { couvert = false } = {}) {
     ${devises.length ? `${etatMarches(ch, "les taux de change")}${tableDevises}` : ""}
     <p class="source">${[sourceMarches(m), devises.length ? sourceMarches(ch) : ""].filter(Boolean).join(" · ")}.</p>`;
 }
+
+/*
+ * Actualités des grandes entreprises détenues par le fonds (bloc « actus » de data/marches.js).
+ * lignes : principales lignes du fonds [{ nom, poids }] (des actions : ni des fonds, ni un panier de substitution).
+ * Chaque entreprise suivie porte un « repère » (expression régulière) reconnu dans le nom des lignes.
+ */
+const LANGUES_ACTUS = { en: "en anglais", fr: "" };
+
+function blocActusEntreprises(lignes, { titre = "h3", max = 4 } = {}) {
+  const M = donneesMarches();
+  const a = M && M.actus;
+  if (!a || !a.entreprises || !lignes || !lignes.length) return "";
+  const trouvees = [];   // dans l'ordre des lignes ; une entreprise à plusieurs lignes (actions A et C…) additionne leurs poids
+  for (const l of lignes) {
+    const nom = String(l.nom || "").toUpperCase();
+    for (const [cle, e] of Object.entries(a.entreprises)) {
+      let repere;
+      try { repere = new RegExp(e.repere, "i"); } catch (err) { continue; }
+      if (!repere.test(nom)) continue;
+      const deja = trouvees.find(t => t.cle === cle);
+      if (deja) deja.poids += l.poids; else trouvees.push({ cle, e, poids: l.poids });
+      break;
+    }
+  }
+  const avecArticles = trouvees.filter(t => t.e.articles.length).slice(0, max);
+  if (!avecArticles.length) return "";
+  const date = iso => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+  return `<${titre}>Actualités des entreprises détenues</${titre}>
+    <p class="aide">Titres récents sur les principales entreprises de ce fonds, choisis automatiquement. Ils informent : ils ne disent pas comment le fonds va évoluer.</p>
+    ${etatMarches(a, "les actualités")}
+    <div class="actus-entreprises">${avecArticles.map(({ e, poids }) => `<article>
+      <h4>${esc(e.nom)} <small>≈ ${pct(poids, 1)} du fonds</small></h4>
+      <ul class="actus">${e.articles.slice(0, 2).map(x => `<li><a href="${esc(x.lien)}" target="_blank" rel="noopener">${esc(x.titre)}</a>
+        <small>${esc(x.source)} · ${date(x.date)}${LANGUES_ACTUS[x.langue] ? " · " + LANGUES_ACTUS[x.langue] : ""}</small></li>`).join("")}</ul>
+    </article>`).join("")}</div>
+    <p class="source">${sourceMarches(a)}.</p>`;
+}

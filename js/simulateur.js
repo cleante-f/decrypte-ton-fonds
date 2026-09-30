@@ -1366,6 +1366,8 @@ function panneauContexte() {
 
   ${(() => { const b = blocMarchesDevises({ usa: p.usa, tech: p.tech, euro: p.euro, europe: p.europe, japon: p.japon, emergents: p.emergents }, { couvert: p.couvert });
     return b ? `<section class="carte"><h2>Marchés et devises du jour</h2><p class="aide">Évolution récente des marchés et des devises auxquels ce fonds est exposé. C'est un constat, pas une prévision.</p>${b}</section>` : ""; })()}
+  ${(() => { const b = p.lignesDetenues && !p.lignesSontDesFonds ? blocActusEntreprises(p.lignesDetenues, { titre: "h2" }) : "";
+    return b ? `<section class="carte">${b}</section>` : ""; })()}
 
   <section class="carte">
     <h2>Contexte économique mondial</h2>

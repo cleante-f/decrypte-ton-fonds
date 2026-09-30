@@ -415,6 +415,7 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
       ${top.length ? `<h3>${terme("top10", synth ? "Titres détenus (panier de substitution)" : c.lignesSontDesFonds ? "Principaux fonds détenus" : "Principales lignes")} <span class="total">(${pct(totalTop)} du fonds)</span></h3>
         ${(() => { const liens = top.map(l => synth ? null : destinationFondsDetenu(l));
           return barres(top.map((l, i) => ({ nom: l.nom, poids: l.poids, lien: liens[i] })), null, Math.min(100, Math.ceil(Math.max(...top.map(l => l.poids), 1) / 10) * 10)) + aideLiensFonds(liens); })()}` : ""}
+      ${top.length && !synth && !c.lignesSontDesFonds && typeof blocActusEntreprises === "function" ? blocActusEntreprises(top) : ""}
       ${c.principale !== "style" && c.style ? blocStyle(c.style, c.qualite) : c.principale === "style" ? blocStyle(c.style, c.qualite) : ""}`;
   } else if (!chargement && compo && compo.fini) {
     corps += nonDispo(e.source === "G"

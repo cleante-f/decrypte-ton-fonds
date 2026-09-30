@@ -12,10 +12,10 @@ import urllib.request
 from sources.commun import AGENT, SourceIndisponible, cle_api
 
 APPELS = [
-    ("NewsData.io", "NEWSDATA_KEY", "https://newsdata.io/api/1/latest?apikey={cle}&q=ASML"),
-    ("MarketAux", "MARKETAUX_KEY", "https://api.marketaux.com/v1/news/all?api_token={cle}&symbols=ASML,NVDA&limit=3"),
-    ("Alpha Vantage (États-Unis)", "ALPHAVANTAGE_KEY", "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=SPY&outputsize=full&apikey={cle}"),
-    ("Alpha Vantage (Paris)", "ALPHAVANTAGE_KEY", "https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=CW8&apikey={cle}"),
+    # les appels exacts des modules (voir scripts/sources/)
+    ("NewsData.io", "NEWSDATA_KEY", "https://newsdata.io/api/1/latest?apikey={cle}&qInTitle=ASML&language=en,fr"),
+    ("MarketAux", "MARKETAUX_KEY", "https://api.marketaux.com/v1/news/all?api_token={cle}&symbols=ASML&filter_entities=true&language=en,fr&limit=3"),
+    ("Alpha Vantage (quotidien)", "ALPHAVANTAGE_KEY", "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=SPY&outputsize=compact&apikey={cle}"),
 ]
 
 

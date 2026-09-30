@@ -1,8 +1,10 @@
 """
-Alpha Vantage (secours des marchés, clé gratuite ALPHAVANTAGE_KEY, 25 requêtes par jour).
-Appel testé avec la clé de démonstration : function=TIME_SERIES_DAILY → {"Time Series (Daily)": {"AAAA-MM-JJ": {"4. close": "…"}}}.
-Sans cours dans la réponse (clé de démo, limite atteinte…), Alpha Vantage répond 200 avec un champ "Information" :
-c'est traité comme une panne.
+Alpha Vantage (secours des marchés, clé gratuite ALPHAVANTAGE_KEY : 25 requêtes par jour, appels à espacer).
+Appels testés le 30/09/2026 avec la clé :
+  TIME_SERIES_DAILY (outputsize=compact) → {"Time Series (Daily)": {"AAAA-MM-JJ": {"4. close": "…"}}}, 100 derniers jours ;
+  TIME_SERIES_WEEKLY → {"Weekly Time Series": {…}}, tout l'historique (outputsize=full est réservé aux offres payantes).
+Sans cours dans la réponse (limite atteinte, appels trop rapprochés…), Alpha Vantage répond 200 avec un champ
+"Information" : c'est traité comme une panne. 2 appels par marché, soit 12 par mise à jour (seulement si l'AMF tombe).
 Les symboles sont des fonds indiciels cotés aux États-Unis : les valeurs sont en dollars.
 """
 import time
@@ -25,15 +27,15 @@ INDICES = [
 ]
 
 
-def serie(symbole, cle):
-    message = "réponse sans cours"
-    for taille in ("full", "compact"):   # l'historique complet peut être réservé aux offres payantes
-        r = appeler_json(f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbole}&outputsize={taille}&apikey={cle}")
-        jours = r.get("Time Series (Daily)")
-        if jours:
-            return sorted((date.fromisoformat(d), float(v["4. close"])) for d, v in jours.items())
-        message = str(r.get("Information") or message).replace(cle, "***")
-    raise SourceIndisponible(message[:160])
+PAUSE = 13  # secondes entre deux appels (l'offre gratuite demande d'espacer les requêtes)
+
+
+def cours(fonction, champ, symbole, cle, options=""):
+    r = appeler_json(f"https://www.alphavantage.co/query?function={fonction}&symbol={symbole}{options}&apikey={cle}")
+    serie = r.get(champ)
+    if not serie:
+        raise SourceIndisponible(str(r.get("Information") or "réponse sans cours").replace(cle, "***")[:160])
+    return sorted((date.fromisoformat(d), float(v["4. close"])) for d, v in serie.items())
 
 
 def recuperer():
@@ -41,7 +43,11 @@ def recuperer():
     indices = {}
     for i, (code, marche, indice, symbole) in enumerate(INDICES):
         if i:
-            time.sleep(1.5)   # l'offre gratuite limite aussi le nombre d'appels par seconde
-        indices[code] = {"nom": marche, "indice": indice, **variations(serie(symbole, cle)),
+            time.sleep(PAUSE)
+        jours = cours("TIME_SERIES_DAILY", "Time Series (Daily)", symbole, cle, "&outputsize=compact")       # 100 derniers jours : 1 jour, 1 mois
+        time.sleep(PAUSE)
+        semaines = cours("TIME_SERIES_WEEKLY", "Weekly Time Series", symbole, cle)   # plus ancien : 1er janvier, 1 an
+        points = [p for p in semaines if p[0] < jours[0][0]] + jours
+        indices[code] = {"nom": marche, "indice": indice, **variations(points),
                          "ref": {"code": symbole, "nom": f"Fonds indiciel {symbole} (États-Unis)", "lien": LIEN}}
     return {"devise": "USD", "indices": indices}
