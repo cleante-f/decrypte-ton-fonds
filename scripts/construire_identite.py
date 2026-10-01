@@ -46,7 +46,8 @@ TRANCHES = ["0 - 1.000.000", "1.000.001 - 5.000.000", "5.000.001 - 50.000.000", 
 MOTS_MAJUSCULES = {"SICAV", "ICAV", "UCITS", "ETF", "MSCI", "ESG", "SRI", "USA", "US", "UK", "EUR", "USD", "AXA", "BNP", "DWS",
                    "UBS", "HSBC", "JPM", "SPDR", "ETFS", "AM", "FTSE", "SICAF", "SA", "AG", "SE", "NV", "BV", "KVG", "LU", "IE",
                    "SSGA", "PIMCO", "FIL", "KBC", "ING", "SEB", "DNB", "LGIM", "CPR", "OFI", "LFDE", "ODDO", "BHF", "GAM", "EFG",
-                   "AB", "GS", "JP", "BCV", "ABN", "AMRO", "CM", "CIC", "BPCE", "LBPAM", "LO", "SARL", "SCA", "PLC", "LLC", "LP"}
+                   "AB", "GS", "JP", "BCV", "ABN", "AMRO", "CM", "CIC", "BPCE", "LBPAM", "LO", "SARL", "SCA", "PLC", "LLC", "LP",
+                   "IMI", "REIT", "SIF", "RAIF", "UCI", "AI", "EMU", "ETC", "UBAM", "MFS", "CT", "DB", "KBI", "NN", "BL", "CS"}
 ROMAINS = re.compile(r"^(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)$")
 MARQUES = {"ISHARES": "iShares", "BLACKROCK": "BlackRock", "JPMORGAN": "JPMorgan", "WISDOMTREE": "WisdomTree", "VANECK": "VanEck",
            "HANETF": "HANetf", "GLOBALX": "Global X", "FRANKLINTEMPLETON": "Franklin Templeton"}
@@ -79,15 +80,17 @@ def joli(nom):
     """« ISHARES III PUBLIC LIMITED COMPANY » → « Ishares III Public Limited Company » (les noms GLEIF sont souvent en capitales)."""
     if not nom or not nom.isupper():
         return nom or ""
-    mots = []
-    for m in nom.split():
+    def partie(m):
         nu = re.sub(r"[^A-Z]", "", m)
         if nu in MARQUES:
-            mots.append(m.replace(nu, MARQUES[nu]))
-        elif nu in MOTS_MAJUSCULES or ROMAINS.match(nu) or "." in m:   # sigles, chiffres romains, « S.A. », « S.À R.L. »
-            mots.append(m)
-        else:   # première lettre en majuscule, même après une parenthèse : « (LUXEMBOURG) » → « (Luxembourg) »
-            mots.append(re.sub(r"[a-zà-ÿ]", lambda x: x.group(0).upper(), m.lower(), count=1))
+            return m.replace(nu, MARQUES[nu])
+        if nu in MOTS_MAJUSCULES or ROMAINS.match(nu) or "." in m or "&" in m:   # sigles, chiffres romains, « S.A. », « S&P »
+            return m
+        # première lettre en majuscule, même après une parenthèse : « (LUXEMBOURG) » → « (Luxembourg) »
+        return re.sub(r"[a-zà-ÿ]", lambda x: x.group(0).upper(), m.lower(), count=1)
+
+    # chaque partie d'un mot composé à part : « SICAV-SIF » reste en capitales, « NON-FINANCIAL » → « Non-Financial »
+    mots = ["-".join(partie(x) for x in m.split("-")) for m in nom.split()]
     return re.sub(r" (PLC|Public Limited Company)$", " plc", " ".join(mots))
 
 
@@ -149,32 +152,38 @@ def liste_bce():
 
 # ---------- 2. GLEIF : liens entre entités (parapluie, maître) et dates de création ----------
 def liens_gleif(leis):
+    """Liens actifs des LEI donnés ({LEI: {parapluie, maitre, gestion}}), date du fichier, et ensemble de tous les fonds parapluies."""
     meta = json.loads(telecharger(GLEIF_COPIES))["data"]
     url = meta["rr"]["full_file"]["csv"]["url"]
     print(f"  fichier des relations du {meta['publish_date'][:10]}…")
     archive = zipfile.ZipFile(io.BytesIO(telecharger(url)))
-    liens = {}
+    liens, parapluies = {}, set()
     with archive.open(archive.namelist()[0]) as f:
         for l in csv.DictReader(io.TextIOWrapper(f, encoding="utf-8")):
+            if l["Relationship.RelationshipStatus"] != "ACTIVE":
+                continue
+            if l["Relationship.RelationshipType"] == "IS_SUBFUND_OF":
+                parapluies.add(l["Relationship.EndNode.NodeID"])
             debut = l["Relationship.StartNode.NodeID"]
-            if debut not in leis or l["Relationship.RelationshipStatus"] != "ACTIVE":
+            if debut not in leis:
                 continue
             type_lien = {"IS_SUBFUND_OF": "parapluie", "IS_FEEDER_TO": "maitre", "IS_FUND-MANAGED_BY": "gestion"}.get(
                 l["Relationship.RelationshipType"])
             if type_lien:
                 liens.setdefault(debut, {})[type_lien] = l["Relationship.EndNode.NodeID"]
-    return liens, meta["publish_date"][:10]
+    return liens, meta["publish_date"][:10], parapluies
 
 
 def fiches_gleif(leis):
-    """Nom et date de création de chaque LEI (200 par requête)."""
+    """Nom, date de création et statut de chaque LEI (200 par requête)."""
     res, liste = {}, sorted(leis)
     for i in range(0, len(liste), 200):
         lot = liste[i:i + 200]
         params = urllib.parse.urlencode({"filter[lei]": ",".join(lot), "page[size]": 200})
         for r in json.loads(telecharger(f"{GLEIF_API}?{params}"))["data"]:
             e = r["attributes"]["entity"]
-            res[r["id"]] = {"nom": joli(e["legalName"]["name"]), "creation": (e.get("creationDate") or "")[:10]}
+            res[r["id"]] = {"nom": joli(e["legalName"]["name"]), "creation": (e.get("creationDate") or "")[:10],
+                            "statut": r["attributes"]["registration"].get("status", "")}
         time.sleep(1.2)   # l'API GLEIF accepte 60 requêtes par minute
     return res
 
@@ -201,7 +210,7 @@ def liquidite(isins):
 def main():
     annuaire = lire_js("annuaire.js", "ANNUAIRE")
     firds = lire_js("firds.js", "FIRDS")
-    isins = {i for l in annuaire if l[0] in "EN" for i in (l[7] or "").split()}
+    isins = {i for l in annuaire if l[0] in "ENU" for i in (l[7] or "").split()}
     lei_de = {i: f[0] for i, f in firds["fonds"].items() if i in isins and f[0]}
     leis = set(lei_de.values())
     print(f"{len(isins)} parts de fonds étrangers, {len(leis)} LEI distincts")
@@ -209,7 +218,7 @@ def main():
     print("1/3 BCE – liste des fonds d'investissement…")
     bce = liste_bce()
     print("2/3 GLEIF – fonds parapluies, fonds maîtres, dates de création…")
-    liens, date_gleif = liens_gleif(leis)
+    liens, date_gleif, _ = liens_gleif(leis)
     autres = {x for l in liens.values() for x in l.values()}
     fiches = fiches_gleif(leis | autres)
     print("3/3 ESMA FITRS – montants échangés en bourse…")

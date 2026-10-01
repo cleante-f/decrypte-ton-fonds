@@ -5,6 +5,7 @@ Source : Deutsche Börse, données « différées » publiées gratuitement 15 m
 sur https://mfs.deutsche-boerse.com (Xetra et Börse Frankfurt). Licence gratuite tant que les données ne sont ni revendues
 ni intégrées à un service payant (conditions d'utilisation des « Delayed Data », acceptées le 01/10/2026).
 Le fichier quotidien n'est disponible que jusqu'au lendemain : l'historique se construit donc jour après jour.
+Si l'annuaire s'agrandit, les jours encore en ligne sont relus pour les nouvelles parts (un cours enregistré n'est jamais remplacé).
 
 Cours retenu pour une journée :
   - Xetra : prix de l'enchère de clôture (vers 17 h 35), sinon dernière transaction de la séance principale,
@@ -22,6 +23,7 @@ Lancement (depuis le dossier analyse-fonds) :
 Uniquement la bibliothèque standard de Python. Lancé chaque jour par .github/workflows/cours.yml.
 """
 import gzip
+import hashlib
 import io
 import json
 import re
@@ -64,7 +66,7 @@ def fragment(isin):
 def isins_suivis():
     texte = (DATA / "annuaire.js").read_text(encoding="utf-8")
     annuaire = json.loads(re.search(r"const ANNUAIRE = (.*?);\n", texte, re.S).group(1))
-    return {i for l in annuaire if l[0] in "EN" for i in (l[7] or "").split()}
+    return {i for l in annuaire if l[0] in "ENU" for i in (l[7] or "").split()}
 
 
 def fichiers_quotidiens(prefixe):
@@ -121,6 +123,8 @@ def ecrire_annee(annee, donnees):
 
 def main():
     isins = isins_suivis()
+    # empreinte de la liste des parts suivies : si l'annuaire s'agrandit, les jours encore en ligne sont relus pour les nouvelles parts
+    empreinte = hashlib.sha1(" ".join(sorted(isins)).encode()).hexdigest()[:12]
     index_fichier = DOSSIER / "index.json"
     index = json.loads(index_fichier.read_text(encoding="utf-8")) if index_fichier.exists() else {"annees": []}
     print(f"{len(isins)} parts de fonds étrangers suivies")
@@ -128,33 +132,37 @@ def main():
     disponibles = {lieu: fichiers_quotidiens(prefixe) for lieu, prefixe in SOURCES}
     jours = sorted({j for d in disponibles.values() for j in d})
     annees_lues, nouveaux = {}, 0
+    lus = {j: e for j, e in index.get("lus", {}).items() if j in jours}   # jours encore en ligne déjà relus
     for jour in jours:
         annee = int(jour[:4])
         if annee not in annees_lues:
             annees_lues[annee] = lire_annee(annee)
         donnees = annees_lues[annee]
-        if any(jour in v for v in donnees.values()):
+        if index.get("lus", {}).get(jour) == empreinte:
             print(f"  {jour} : déjà enregistré")
             continue
+        manquants = {i for i in isins if jour not in donnees.get(i, {})}
         releves = {}
         for lieu, _ in SOURCES:
             if jour in disponibles[lieu]:
                 for isin, prix in cours_du_jour(disponibles[lieu][jour], isins, lieu).items():
                     releves.setdefault(isin, (prix, lieu))   # Xetra a la priorité sur Francfort
-        for isin, v in releves.items():
+        ajouts = {i: v for i, v in releves.items() if i in manquants}   # un cours déjà enregistré n'est jamais remplacé
+        for isin, v in ajouts.items():
             donnees.setdefault(isin, {})[jour] = v
-        nouveaux += 1
-        print(f"  {jour} : {len(releves)} cours ({sum(1 for v in releves.values() if v[1] == 'X')} Xetra, "
-              f"{sum(1 for v in releves.values() if v[1] == 'F')} Francfort)")
+        nouveaux += bool(ajouts)
+        lus[jour] = empreinte
+        print(f"  {jour} : {len(ajouts)} cours ajoutés ({sum(1 for v in ajouts.values() if v[1] == 'X')} Xetra, "
+              f"{sum(1 for v in ajouts.values() if v[1] == 'F')} Francfort)")
 
-    if not nouveaux:
+    if not nouveaux and lus == index.get("lus"):
         print("Aucun nouveau jour de cotation.")
         return
     for annee, donnees in annees_lues.items():
         ecrire_annee(annee, donnees)
     tous = {j for d in annees_lues.values() for v in d.values() for j in v}
     index = {"maj": max(tous | {index.get("maj", "")}), "annees": sorted(set(index["annees"]) | set(annees_lues)),
-             "parts": len({i for d in annees_lues.values() for i in d}), "releve": date.today().isoformat()}
+             "parts": len({i for d in annees_lues.values() for i in d}), "releve": date.today().isoformat(), "lus": lus}
     index_fichier.write_text(json.dumps(index, separators=(",", ":")), encoding="utf-8")
     print(f"✓ cours enregistrés dans data/cours/ (dernier jour : {index['maj']})")
 

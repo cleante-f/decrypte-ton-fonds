@@ -4,11 +4,13 @@ Construit l'annuaire de tous les fonds trouvables gratuitement → data/annuaire
 Sources (publiques, gratuites et réutilisables) :
   1. GECO (AMF)       : tous les fonds de droit français + fonds étrangers commercialisés en France
   2. FIRDS (ESMA)     : registre européen des instruments cotés : ETF cotés sur les places Euronext (Paris, Amsterdam,
-                        Bruxelles, Lisbonne, Milan, Dublin, Oslo), identité officielle, places de cotation et ISIN des
-                        fonds étrangers retrouvés par leur nom. Réutilisation autorisée en citant la source (avis juridique de l'ESMA).
+                        Bruxelles, Lisbonne, Milan, Dublin, Oslo), identité officielle, places de cotation, ISIN des
+                        fonds étrangers retrouvés par leur nom, et tous les autres fonds cotés dans l'Union européenne
+                        (non commercialisés en France). Réutilisation autorisée en citant la source (avis juridique de l'ESMA).
   3. Xetra            : liste des instruments négociables à Francfort (Deutsche Börse)
   4. OpenFIGI         : symboles boursiers (CW8, IWDA…) des ETF sur les places Euronext (identifiants du domaine public)
   5. ISO 10383        : noms des places de marché (codes MIC)
+  6. GLEIF            : nom officiel et fonds parapluie des fonds cotés non commercialisés en France (licence CC0)
 La liste des ETF d'Euronext n'est plus utilisée : ses conditions interdisent de compiler des répertoires sans accord écrit
 (vérifié le 01/10/2026).
 
@@ -24,6 +26,7 @@ import json
 import re
 import time
 import unicodedata
+from construire_identite import fiches_gleif, liens_gleif
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -213,6 +216,84 @@ def correspondances(fonds_n, cotations_ci):
     return {k: [i for i in v if compte[i] == 1] for k, v in trouves.items() if any(compte[i] == 1 for i in v)}
 
 
+# Fonds réservés aux investisseurs avertis, reconnaissables à leur nom (même règle dans js/fiche-auto.js)
+RESERVE_AVERTIS = re.compile(r"\bSIF\b|\bRAIF\b|Specialist Investment Fund|Spezial-?(AIF|fonds|sondervermögen)", re.I)
+
+
+def plus_lisible(noms):
+    """Nom le plus lisible parmi ceux des places de cotation : en casse mixte de préférence, sinon le plus long."""
+    return sorted(noms, key=lambda n: (n.isupper(), -len(n), n))[0]
+
+
+def ajouter_fonds_cotes(fonds, cotations_ce, cotations_ci):
+    """Ajoute à l'annuaire les fonds cotés dans l'UE qui n'y sont pas encore (hors ISIN français, que GECO couvre déjà) :
+    les ETF une part par entrée (comme les autres ETF), les autres fonds regroupés par compartiment (un LEI = un compartiment,
+    sauf si le LEI est celui d'un fonds parapluie). Une part dont le LEI est celui d'un fonds étranger déjà connu par GECO
+    est rattachée à ce fonds ; un fonds de GECO encore sans ISIN est rapproché par son nom (même règle prudente que l'étape 4).
+    Renvoie les fonds de GECO qui ont reçu des ISIN par leur nom."""
+    connus = {i for f in fonds.values() for i in f["i"]}
+    lei_de = {d["isin"]: d.get("lei") or "" for d in cotations_ce + cotations_ci}
+    noms = collections.defaultdict(set)
+    devise = {}
+    for d in cotations_ce + cotations_ci:
+        noms[d["isin"]].add(d["gnr_full_name"])
+        devise.setdefault(d["isin"], d.get("gnr_notional_curr_code", ""))
+    nouveaux = lambda docs: sorted({d["isin"] for d in docs if d["isin"] not in connus and not d["isin"].startswith("FR")})
+
+    etf = nouveaux(cotations_ce)
+    for isin in etf:
+        fonds["E" + isin] = {"s": "E", "n": plus_lisible(noms[isin]), "i": [isin], "pays": isin[:2], "tk": [], "m": [],
+                             "dev": devise[isin], "etf": True, "pub": True}
+    connus |= set(etf)
+
+    autres = [i for i in nouveaux(cotations_ci) if i not in connus]
+    gecos = {}   # LEI → fonds étranger commercialisé en France (GECO) déjà présent
+    for cle, f in fonds.items():
+        if f["s"] == "N":
+            for i in f["i"]:
+                if lei_de.get(i):
+                    gecos.setdefault(lei_de[i], cle)
+    leis = {lei_de[i] for i in autres if lei_de[i]}
+    liens, _, parapluies = liens_gleif(leis)
+    fiches = fiches_gleif(leis | {l["parapluie"] for l in liens.values() if "parapluie" in l})
+
+    def nom_officiel(lei):
+        f = fiches.get(lei)
+        if not f or f.get("statut") != "ISSUED":   # LEI non renouvelé : le nom peut être périmé
+            return ""
+        p = fiches.get(liens.get(lei, {}).get("parapluie", ""), {}).get("nom", "")
+        marque = significatifs(p)
+        # « Emerging Europe » → « Schroder International Selection Fund – Emerging Europe »
+        return f"{p} – {f['nom']}" if p and not marque & significatifs(f["nom"]) else f["nom"]
+
+    groupes, rattaches = collections.defaultdict(list), 0
+    for isin in autres:
+        lei = lei_de[isin]
+        if lei and lei in gecos:
+            fonds[gecos[lei]]["i"].append(isin)
+            rattaches += 1
+        else:
+            groupes[lei if lei and lei not in parapluies else "isin:" + isin].append(isin)
+    officiels = {cle: "" if cle.startswith("isin:") else nom_officiel(cle) for cle in groupes}
+
+    # Fonds étrangers vendus en France (GECO) encore sans ISIN : rapprochement par le nom officiel (GLEIF) ou ceux des bourses
+    candidats = [{"isin": cle, "gnr_full_name": n} for cle, isins in groupes.items()
+                 for n in {n for i in isins for n in noms[i]} | ({officiels[cle]} - {""})]
+    sans_isin = {k: f["n"] for k, f in fonds.items() if f["s"] == "N" and not f["i"]}
+    par_nom = correspondances(sans_isin, candidats)
+    for cle_n, cles in par_nom.items():
+        fonds[cle_n]["i"] = sorted((i for c in cles for i in groupes.pop(c)), key=lambda i: (devise[i] != "EUR", i))
+
+    for cle, isins in groupes.items():
+        isins.sort(key=lambda i: (devise[i] != "EUR", i))   # parts en euros d'abord
+        nom = officiels[cle] or plus_lisible(noms[isins[0]])
+        fonds["U" + isins[0]] = {"s": "U", "n": nom, "i": isins, "pays": isins[0][:2], "tk": [], "dev": devise[isins[0]],
+                                 "pub": not RESERVE_AVERTIS.search(nom)}
+    print(f"  {len(etf)} ETF et {len(groupes)} autres fonds ajoutés ; {rattaches} parts rattachées par leur LEI et "
+          f"{sum(len(fonds[k]['i']) for k in par_nom)} parts par le nom ({len(par_nom)} fonds) à des fonds étrangers vendus en France")
+    return par_nom
+
+
 def num(identifiant):
     """'c28771' → 28771 (plus compact dans le fichier)."""
     return int(identifiant[1:]) if identifiant else 0
@@ -222,7 +303,7 @@ def main():
     fonds = {}      # clé → entrée
     par_isin = {}   # ISIN → clé
 
-    print("1/5 GECO – fonds français…")
+    print("1/6 GECO – fonds français…")
     for c in geco("FR"):
         if c.get("prdSsNature") in NATURES_EXCLUES or c.get("cmpStatutCode") != "VIV":
             continue
@@ -241,11 +322,11 @@ def main():
         for i in isins:
             par_isin[i] = cle
 
-    print("2/5 FIRDS (ESMA) – ETF et autres fonds cotés dans l'Union européenne…")
+    print("2/6 FIRDS (ESMA) – ETF et autres fonds cotés dans l'Union européenne…")
     cotations_ce, cotations_ci = firds("CE"), firds("CI")
     iso = places_iso()
 
-    print("3/5 ETF des places Euronext (FIRDS) et de Xetra…")
+    print("3/6 ETF des places Euronext (FIRDS) et de Xetra…")
     etf = {}
     for d in cotations_ce:
         isin, place = d["isin"], PLACES_EURONEXT.get(d["mic"].upper())
@@ -266,7 +347,7 @@ def main():
         x["m"].add("Xetra")
     for isin, x in etf.items():
         # nom le plus lisible : en casse mixte de préférence (Paris, Amsterdam), sinon le plus long
-        nom = sorted(x["noms"], key=lambda n: (n.isupper(), -len(n)))[0]
+        nom = plus_lisible(x["noms"])
         if isin in par_isin:  # ETF de droit français déjà présent via GECO : on ajoute juste ses symboles
             f = fonds[par_isin[isin]]
             f["tk"] = sorted(set(f["tk"]) | x["tk"])
@@ -277,7 +358,7 @@ def main():
             "m": sorted(x["m"]), "dev": x["dev"], "etf": True, "pub": True,
         }
 
-    print("4/5 GECO – fonds étrangers commercialisés en France, et leurs ISIN retrouvés dans FIRDS…")
+    print("4/6 GECO – fonds étrangers commercialisés en France, et leurs ISIN retrouvés dans FIRDS…")
     for c in geco("NON_FR"):
         if c.get("cmpStatutCode") != "VIV" or c.get("prdFaml") != "OPCVM":
             continue
@@ -290,7 +371,10 @@ def main():
         fonds[cle]["i"] = isins
     print(f"  ISIN retrouvés pour {len(par_nom)} fonds étrangers ({sum(len(v) for v in par_nom.values())} parts)")
 
-    print("5/5 Écriture des fichiers…")
+    print("5/6 Fonds cotés dans l'Union européenne mais non commercialisés en France (FIRDS + GLEIF)…")
+    par_nom.update(ajouter_fonds_cotes(fonds, cotations_ce, cotations_ci))
+
+    print("6/6 Écriture des fichiers…")
     # Format compact : un tableau par fonds, pour garder un fichier léger
     # [source, idCompartiment, idProduit, nom, gestionnaire, classification, nature, isins, date, pays, tickers, marchés, devise, etf, public]
     lignes = []
@@ -306,9 +390,10 @@ def main():
         " * Sources : AMF (base GECO), ESMA (registre FIRDS), Deutsche Börse (Xetra), OpenFIGI. */\n"
         f"const ANNUAIRE_DATE = \"{date.today().isoformat()}\";\n"
         "const ANNUAIRE = " + json.dumps(lignes, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
-    compte = {s: sum(1 for l in lignes if l[0] == s) for s in "GEN"}
+    compte = {s: sum(1 for l in lignes if l[0] == s) for s in "GENU"}
     # Petit résumé pour la page d'accueil (qui ne charge pas tout l'annuaire)
-    resume = {"total": len(lignes), "francais": compte["G"], "etf": compte["E"], "etrangers": compte["N"], "date": date.today().isoformat()}
+    resume = {"total": len(lignes), "francais": compte["G"], "etf": compte["E"], "etrangers": compte["N"], "europe": compte["U"],
+              "date": date.today().isoformat()}
     (DATA / "resume.js").write_text(
         "/* Généré par scripts/construire_annuaire.py : chiffres affichés sur la page d'accueil (sans charger tout l'annuaire). */\n"
         f"const RESUME_ANNUAIRE = {json.dumps(resume)};\n", encoding="utf-8")
@@ -317,7 +402,7 @@ def main():
     par_isin_firds = collections.defaultdict(list)
     for d in cotations_ce + cotations_ci:
         par_isin_firds[d["isin"]].append(d)
-    utiles = {i for f in fonds.values() if f["s"] in "EN" for i in f["i"]}
+    utiles = {i for f in fonds.values() if f["s"] in "ENU" for i in f["i"]}
     places_utilisees, fiches = {}, {}
     for isin in sorted(utiles & set(par_isin_firds)):
         cot = par_isin_firds[isin]
@@ -342,7 +427,8 @@ def main():
                                        "parNom": sorted(par_nom)}, ensure_ascii=False, separators=(",", ":")) + ";\n",
         encoding="utf-8")
     print(f"\n✓ {len(lignes)} fonds écrits dans {SORTIE.name} ({SORTIE.stat().st_size / 1e6:.1f} Mo)")
-    print(f"  français (GECO) : {compte['G']} · ETF étrangers : {compte['E']} · étrangers : {compte['N']}")
+    print(f"  français (GECO) : {compte['G']} · ETF étrangers : {compte['E']} · étrangers vendus en France : {compte['N']}"
+          f" · autres fonds cotés en Europe : {compte['U']}")
     print(f"✓ identité ESMA de {len(fiches)} ISIN dans firds.js ({(DATA / 'firds.js').stat().st_size / 1e3:.0f} Ko)")
 
 

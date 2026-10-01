@@ -14,11 +14,6 @@ const LIENS = {
   justetf: isin => `https://www.justetf.com/fr/etf-profile.html?isin=${isin}`
 };
 
-const PAYS = {
-  FR: "France", IE: "Irlande", LU: "Luxembourg", DE: "Allemagne", NL: "Pays-Bas", AT: "Autriche", BE: "Belgique",
-  SE: "Suède", FI: "Finlande", IT: "Italie", ES: "Espagne", NO: "Norvège", DK: "Danemark", PT: "Portugal"
-};
-
 // Ce que chaque classification AMF implique (définitions réglementaires simplifiées)
 const CLASSIFICATIONS = {
   "Actions françaises": "Au moins 60 % du fonds est investi en actions françaises.",
@@ -226,7 +221,11 @@ function identiteEsma(e, isin) {
       `${cites.map(x => esc(x.p[0])).join(", ")}${reste > 0 ? ` et ${reste} autre${reste > 1 ? "s" : ""} plateforme${reste > 1 ? "s" : ""}` : ""}`
       + `<br><small>${total} place${total > 1 ? "s" : ""} de cotation au total (bourses et plateformes de négociation).</small>`, true]);
   }
-  if (parNom && e.isins.length > 1) lignes.push([terme("part", "Autres parts cotées"), esc(e.isins.filter(i => i !== isin).slice(0, 8).join(", ")), true]);
+  if ((parNom || e.source === "U") && e.isins.length > 1) {
+    const autres = e.isins.filter(i => i !== isin);
+    lignes.push([terme("part", "Autres parts cotées"), autres.slice(0, 8).map(i => `<a href="#${esc(i)}">${esc(i)}</a>`).join(", ")
+      + (autres.length > 8 ? ` et ${autres.length - 8} autres` : ""), true]);
+  }
   const reg = identiteRegistres(e, f && f[0], isin);
   return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
     source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source };
@@ -296,11 +295,23 @@ function ligneLiquiditeEtranger(liq, e) {
 
 // ---------- Détection des pièges (fonds automatiques) ----------
 
+// Fonds réservés aux investisseurs avertis, reconnaissables à leur nom (même règle dans scripts/construire_annuaire.py)
+const RESERVE_AVERTIS = /\bSIF\b|\bRAIF\b|Specialist Investment Fund|Spezial-?(AIF|fonds|sondervermögen)/i;
+
 function detecterPiegesAuto(e, d) {
   const p = [];
   const nom = indicesDuNom(e.nom);
   const dic = d && d.dic;
   const k = e.classification;
+
+  // Où le fonds peut être vendu
+  if (horsEee(e)) p.push({ niveau: "alerte", terme: "dic", titre: `Fonds de droit non européen (${PAYS[e.pays] || e.pays})`,
+    texte: "Ce fonds n'a pas de DIC européen : les banques et courtiers ne peuvent en général pas le proposer aux particuliers en France, et il n'offre pas les protections des fonds européens (règles UCITS). Cherche plutôt un ETF ou un fonds européen qui suit le même indice." });
+  else if (e.source === "U") p.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds absent de la liste des fonds vendus en France",
+    texte: "Ce fonds est coté sur une bourse européenne, mais nous ne l'avons pas trouvé parmi les fonds étrangers déclarés à l'AMF (base GECO) : il n'est peut-être pas proposé en France. Ton intermédiaire peut refuser l'ordre, et ses documents sont souvent en anglais ou en allemand seulement." });
+
+  if (e.source !== "G" && RESERVE_AVERTIS.test(e.nom)) p.push({ niveau: "attention", terme: "opcvm", titre: "Fonds réservé aux investisseurs avertis",
+    texte: "D'après son nom, c'est un fonds spécialisé (SIF ou RAIF luxembourgeois, ou fonds « spécial » allemand) : il est réservé aux investisseurs professionnels ou avertis, avec en général un montant minimum élevé (au moins 125 000 € pour un SIF luxembourgeois)." });
 
   // Structure du fonds
   if (/formule/i.test(k)) p.push({ niveau: "alerte", terme: "formule", titre: "Fonds à formule",
@@ -580,7 +591,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const part = d && d.part;
   const aujourdHui = new Date().toISOString().slice(0, 10);
   const srcGeco = { document: "AMF – base GECO (en direct)", date: aujourdHui };
-  const srcAnnuaire = { document: e.source === "E" ? "ESMA (registre FIRDS), liste Xetra et OpenFIGI" : "AMF – base GECO", date: ANNUAIRE_DATE };
+  const srcAnnuaire = { document: e.source === "E" ? "ESMA (registre FIRDS), liste Xetra et OpenFIGI" : e.source === "U" ? "ESMA (registre FIRDS) et GLEIF (registre des LEI)" : "AMF – base GECO", date: ANNUAIRE_DATE };
   const esma = identiteEsma(e, isin);
   const srcDic = dic ? { document: `DIC « ${dic.document.docName} »${dic.autrePart ? ` (part ${dic.autrePart})` : ""}`, date: dic.document.dateEffet } : null;
 

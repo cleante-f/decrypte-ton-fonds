@@ -109,6 +109,7 @@ function destinationFonds(e, isin) {
   if (!e) return null;
   if (e.source === "G" && e.isins.length) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
   if (e.source === "E" && typeof trouverJumeau === "function" && trouverJumeau(e.nom)) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
+  if (e.source === "U" && e.isins.length) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
   if (e.source === "G" || e.source === "N") return { type: "officielle", url: `https://geco.amf-france.org/produit-d-epargne/c${e.cmpId}`, site: "AMF" };
   if (e.source === "E" && e.isins.length) {
     const places = (e.marches || "").split(",").map(m => m.trim());
@@ -187,9 +188,10 @@ function afficherListe(requete, reels) {
   if (!reels.length) {
     return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p>
       <p class="aide">L'annuaire contient ${ANNUAIRE.length.toLocaleString("fr-FR")} fonds : tous les fonds de droit français (base GECO de l'AMF),
-      les ETF cotés sur Euronext et Xetra, et les fonds étrangers commercialisés en France. Essaie avec l'ISIN, le ticker ou quelques mots du nom.</p></div>`;
+      les fonds étrangers commercialisés en France, et tous les ETF et fonds cotés en bourse dans l'Union européenne. Essaie avec l'ISIN, le ticker ou quelques mots du nom.</p></div>`;
   }
-  const origine = e => e.source === "E" ? "ETF" : e.source === "N" ? "Fonds étranger" : e.etf ? "ETF · France" : "Fonds français";
+  const origine = e => (e.source === "E" ? "ETF" : e.source === "N" ? "Fonds étranger" : e.source === "U" ? "Fonds coté en Europe"
+    : e.etf ? "ETF · France" : "Fonds français") + (horsEee(e) ? ` · ${PAYS[e.pays] || e.pays}, hors Europe` : "");
   const lignes = reels.map(e => {
     const cle = cleEntree(e);
     return `<li><a href="#${esc(cle)}">${esc(e.nom)}</a>

@@ -5,6 +5,7 @@
 const GLOSSAIRE = {
   lei: "Identifiant international (norme ISO 17442) de l'entité juridique, ici le fonds. Il permet de le retrouver sans ambiguïté dans les registres officiels.",
   cotation_ue: "Bourses et plateformes de négociation de l'Union européenne où cette part peut s'acheter, d'après le registre FIRDS tenu par l'ESMA, le régulateur européen des marchés. Un marché réglementé est une bourse principale ; les autres plateformes sont des systèmes de négociation secondaires.",
+  commercialisation: "Pour être proposé aux particuliers en France, un fonds étranger doit être déclaré à l'AMF (« passeport » européen). La base GECO de l'AMF liste ces fonds. Un fonds seulement coté en bourse ailleurs en Europe n'a pas fait cette démarche.",
   compartiment: "Beaucoup de fonds étrangers sont des « compartiments » d'une grande structure juridique (le fonds parapluie, souvent une SICAV ou une plc). Chaque compartiment a son propre portefeuille et ses propres parts ; les actifs d'un compartiment ne répondent pas des dettes des autres.",
   cours_bourse: "Prix auquel une part s'échange en bourse entre acheteurs et vendeurs. Pour un ETF, il reste très proche de sa valeur liquidative grâce aux teneurs de marché. Le site relève chaque jour le cours de clôture publié gratuitement par Deutsche Börse (Xetra, Bourse de Francfort).",
   isin: "Code unique de 12 caractères qui identifie un fonds (ou une part de fonds) dans le monde entier. Les 2 premières lettres indiquent le pays d'enregistrement.",

@@ -45,6 +45,22 @@ function annuaireParCle(cle) { // "N12345" pour les fonds étrangers sans ISIN
   return l ? lireEntree(l) : null;
 }
 
+// Pays de domiciliation (2 premières lettres de l'ISIN)
+const PAYS = {
+  FR: "France", IE: "Irlande", LU: "Luxembourg", DE: "Allemagne", NL: "Pays-Bas", AT: "Autriche", BE: "Belgique",
+  SE: "Suède", FI: "Finlande", IT: "Italie", ES: "Espagne", NO: "Norvège", DK: "Danemark", PT: "Portugal",
+  PL: "Pologne", CZ: "Tchéquie", HU: "Hongrie", BG: "Bulgarie", HR: "Croatie", RO: "Roumanie", SK: "Slovaquie", SI: "Slovénie",
+  GR: "Grèce", EE: "Estonie", LV: "Lettonie", LT: "Lituanie", MT: "Malte", CY: "Chypre", IS: "Islande", LI: "Liechtenstein",
+  US: "États-Unis", CA: "Canada", CH: "Suisse", GB: "Royaume-Uni", KY: "îles Caïmans", VG: "îles Vierges britanniques",
+  GG: "Guernesey", JE: "Jersey", IM: "île de Man", BM: "Bermudes", HK: "Hong Kong", JP: "Japon", AU: "Australie",
+  SG: "Singapour", ZA: "Afrique du Sud", KR: "Corée du Sud", CN: "Chine", TW: "Taïwan", IN: "Inde", BR: "Brésil", MX: "Mexique", IL: "Israël"
+};
+
+// Espace économique européen : les fonds domiciliés ailleurs (États-Unis, îles Caïmans…) n'ont pas de DIC européen
+const PAYS_EEE = new Set(["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU",
+  "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO"]);
+function horsEee(e) { return !!e.pays && !PAYS_EEE.has(e.pays); }
+
 function rechercherAnnuaire(requete, max = 50) {
   const idx = indexAnnuaire();
   const code = requete.replace(/\s/g, "").toUpperCase();
@@ -54,8 +70,8 @@ function rechercherAnnuaire(requete, max = 50) {
   if (!mots.length) return [];
   const trouves = [];
   idx.noms.forEach((nom, i) => { if (mots.every(m => nom.includes(m))) trouves.push(lireEntree(ANNUAIRE[i])); });
-  // Priorité : fonds ouverts à tous avec ISIN, puis ETF, puis le reste
-  const rang = e => (e.isins.length ? 0 : 2) + (e.public ? 0 : 1);
+  // Priorité : fonds ouverts à tous avec ISIN, puis les fonds non commercialisés en France, puis les fonds hors d'Europe
+  const rang = e => (e.isins.length ? 0 : 2) + (e.public ? 0 : 1) + (e.source === "U" ? 1 : 0) + (horsEee(e) ? 4 : 0);
   return trouves.sort((a, b) => rang(a) - rang(b)).slice(0, max);
 }
 
