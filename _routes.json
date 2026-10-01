@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "include": ["/simulateur", "/simulateur.html", "/js/simulateur.js", "/js/projection.js", "/js/graphiques-simu.js", "/js/contexte-fonds.js", "/data/contexte.js"],
+  "exclude": []
+}
