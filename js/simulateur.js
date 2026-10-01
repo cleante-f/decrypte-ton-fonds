@@ -14,9 +14,6 @@ const PLAN_DEFAUT = {
   reinvestir: true, risque: "equilibre", inflation: null, fraisCourants: null, garde: 0, entree: 0, change: 0,
   courtageFixe: 0, courtagePct: 0, pays: "FR", enveloppe: "aucune", couple: false, primeActions: HYPOTHESES_DEFAUT.primeActions
 };
-// Le plan n'est gardé d'une visite à l'autre que si l'utilisateur coche « Mémoriser mon plan sur cet appareil »
-// (loi Informatique et Libertés, art. 82 ; RGPD, art. 25 : rien n'est enregistré par défaut)
-const CLE_PLAN = "simulateur-plan-v1", CLE_MEMORISER = "simulateur-memoriser";
 const MODES = [
   { cle: "projection", nom: "Projection", titre: "Voir l'évolution possible de mon investissement", texte: "Scénarios défavorable, central et favorable, sur 1 à 20 ans." },
   { cle: "objectif", nom: "Objectif", titre: "Atteindre un objectif", texte: "Combien verser, et pendant combien de temps, pour viser un montant ?" },
@@ -30,7 +27,7 @@ const EXEMPLES_SIMU = [["FR0011871128", "Amundi PEA S&P 500"], ["LU1681043599", 
 const EXEMPLE_PORTEFEUILLE = [["FR0011871128", 50], ["FR0012739431", 30], ["FR0010429068", 20]];
 
 const S = {
-  plan: chargerPlan(), etape: 1, lance: false, mode: "projection",
+  plan: { ...PLAN_DEFAUT }, simulation: null, demarrage: null, restauration: null, etape: 1, lance: false, mode: "projection",
   fonds: null, chargement: null, calc: null, marche: null, cleMarche: null,
   vue: { reel: false, exemples: true, tensions: true },
   objectif: { montant: 100000, enEurosDuJour: false }, crise: "fin2008",
@@ -42,26 +39,59 @@ const zoneFonds = document.getElementById("fonds-simu");
 const zoneAssistant = document.getElementById("assistant");
 const zoneResultats = document.getElementById("resultats-simu");
 
-// ---------- Mémoire du plan (dans ce navigateur uniquement, et seulement si l'utilisateur le demande) ----------
+// ---------- Enregistrement dans le compte (Supabase) : plus rien n'est gardé dans le navigateur ----------
 
-function memoriserPlan() {
-  try { return localStorage.getItem(CLE_MEMORISER) === "oui"; } catch (e) { return false; }
+let minuterieEnregistrement = 0;
+const etatEnregistrement = document.getElementById("etat-enregistrement");
+
+function etatCourant() {
+  const plan = { ...S.plan };
+  delete plan.debut;
+  return { plan, mode: S.mode,
+    comparaisons: S.comparaisons.map(c => cleEntree(c.entree, c.isin)),
+    portefeuille: S.portefeuille.lignes.map(l => ({ fonds: cleEntree(l.entree, l.isin), poids: l.poids })) };
 }
-function chargerPlan() {
-  try {
-    if (!memoriserPlan()) { localStorage.removeItem(CLE_PLAN); return { ...PLAN_DEFAUT }; }   // efface aussi un plan enregistré avant cette règle
-    return { ...PLAN_DEFAUT, ...JSON.parse(localStorage.getItem(CLE_PLAN) || "{}"), debut: MOIS_COURANT };
-  } catch (e) { return { ...PLAN_DEFAUT }; }
+function programmerEnregistrement() {
+  if (!S.simulation || S.restauration) return;
+  clearTimeout(minuterieEnregistrement);
+  minuterieEnregistrement = setTimeout(async () => {
+    try {
+      await Compte.enregistrerSimulation(S.simulation.id, etatCourant());
+      if (etatEnregistrement) etatEnregistrement.textContent = `Simulation enregistrée dans ton compte à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.`;
+    } catch (err) {
+      if (etatEnregistrement) etatEnregistrement.textContent = err.code === "non_connecte"
+        ? "Ta session a expiré : tes derniers changements ne sont pas enregistrés. Reconnecte-toi dans un autre onglet, puis modifie un réglage."
+        : `Enregistrement impossible : ${err.message}`;
+    }
+  }, 1500);
 }
-function sauverPlan() {
-  if (!memoriserPlan()) return;
-  try { localStorage.setItem(CLE_PLAN, JSON.stringify({ ...S.plan, debut: undefined })); } catch (e) { /* ignoré */ }
+
+// ---------- Décompte d'une simulation (un nouveau fonds principal = une simulation) ----------
+
+function ecranAbonnement() {
+  return `<section class="carte carte-abonnement">
+    <h2>Tes ${CONFIG_COMPTE.simulationsOffertes} simulations offertes sont utilisées</h2>
+    <p>Tu peux toujours rouvrir et modifier celles que tu as enregistrées. Pour simuler un nouveau fonds, passe à l'abonnement :
+      simulations illimitées, comparaisons et portefeuilles enregistrés.</p>
+    <p class="actions-compte"><a class="btn" href="abonnement.html">Voir l'abonnement</a> <a class="btn-secondaire" href="compte.html#simulations">Mes simulations</a></p>
+  </section>`;
 }
-function basculerMemorisation(oui) {
-  try {
-    if (oui) { localStorage.setItem(CLE_MEMORISER, "oui"); sauverPlan(); }
-    else { localStorage.removeItem(CLE_MEMORISER); localStorage.removeItem(CLE_PLAN); }
-  } catch (e) { /* stockage indisponible : rien n'est gardé */ }
+
+async function assurerSimulation() {
+  const { entree, isin } = S.chargement;
+  const fonds = cleEntree(entree, isin);
+  if (S.simulation && S.simulation.fonds === fonds) return true;
+  if (!S.demarrage) {   // une seule demande à la fois (double clic, rendu en double)
+    S.demarrage = Compte.demarrerSimulation(fonds, entree.nom).then(id => { S.simulation = { id, fonds }; return true; })
+      .finally(() => { S.demarrage = null; });
+  }
+  try { return await S.demarrage; } catch (err) {
+    S.lance = false;
+    zoneResultats.innerHTML = err.code === "quota_atteint" ? ecranAbonnement()
+      : err.code === "non_connecte" ? `<p class="non-dispo carte">Ta session a expiré : <a href="connexion.html?vue=connexion&retour=${encodeURIComponent("simulateur.html" + location.search + location.hash)}">reconnecte-toi</a>.</p>`
+      : `<p class="non-dispo carte">Simulation impossible : ${esc(err.message)}</p>`;
+    return false;
+  }
 }
 
 // ---------- Chargement et analyse d'un fonds ----------
@@ -281,6 +311,7 @@ async function afficherDepuisAdresse() {
   document.title = `${entree.nom} · Simulateur`;
   S.fonds = null; S.calc = null; S.chargement = { entree, isin }; S.planOuvert = false;
   S.comparaisons = []; S.portefeuille = { lignes: [], calc: null };
+  if (!S.restauration) S.simulation = null;   // un nouveau fonds n'hérite pas de la simulation précédente
   zoneFonds.innerHTML = carteFonds(null, "Préparation de la simulation…");
   zoneAssistant.hidden = false;
   rendreAssistant();
@@ -291,7 +322,7 @@ async function afficherDepuisAdresse() {
     S.fonds = A;
     zoneFonds.innerHTML = carteFonds(A);
     rendreAssistant();
-    if (S.lance) lancer();
+    if (S.restauration) await restaurerExtras(A); else if (S.lance && await assurerSimulation()) lancer();
     if (A.promesseCompo) A.promesseCompo.then(() => { if (S.fonds === A && S.lance && S.mode === "contexte") rendreResultats(); });
   } catch (err) {
     if (numero !== numeroChargement) return;
@@ -355,7 +386,7 @@ function optionsAvancees() {
   const p = S.plan;
   const infl = inflationParDefaut();
   return `<details class="options-avancees"${S.optionsOuvertes ? " open" : ""}>
-    <summary>Options avancées : inflation, frais, fiscalité, mémorisation</summary>
+    <summary>Options avancées : inflation, frais, fiscalité</summary>
     <div class="grille-options">
       <label>Inflation (% par an) ${champNombre("inflation", p.inflation ?? "", `step="0.1" placeholder="${String(infl).replace(".", ",")}"`)}
         <small>Par défaut : ${pct(infl)} = inflation attendue à long terme par les prévisionnistes de la BCE${indicateurCtx("anticipations_inflation") ? ` (enquête ${esc(indicateurCtx("anticipations_inflation").date.replace("-Q", " T"))})` : ""}.</small></label>
@@ -384,8 +415,6 @@ function optionsAvancees() {
           <a href="${FISCALITE_FR.liens.pfu}" target="_blank" rel="noopener">Source</a></p>`
         : `<p class="aide">La fiscalité n'est calculée que pour la France : les règles des autres pays ne sont pas intégrées de façon fiable.</p>`}
     </fieldset>
-    <label class="case memoriser-plan"><input type="checkbox" id="memoriser-plan"${memoriserPlan() ? " checked" : ""}> Mémoriser mon plan sur cet appareil
-      <small>Montants, durée et options restent dans ce navigateur pour ta prochaine visite. Rien n'est envoyé. Décocher efface le plan enregistré. <a href="confidentialite.html">En savoir plus</a></small></label>
   </details>`;
 }
 
@@ -449,7 +478,7 @@ function lireChamp(el) {
 }
 let minuterieCalcul = 0;
 function planModifie(redessinerAssistant) {
-  sauverPlan();
+  programmerEnregistrement();
   if (!S.lance) { if (redessinerAssistant) rendreAssistant(); return; }
   clearTimeout(minuterieCalcul);
   minuterieCalcul = setTimeout(() => {
@@ -471,7 +500,6 @@ zoneAssistant.addEventListener("change", e => {
   S.plan[el.dataset.champ] = lireChamp(el);
   planModifie(["frequence", "pays", "enveloppe", "debut"].includes(el.dataset.champ));
 });
-zoneAssistant.addEventListener("change", e => { if (e.target.id === "memoriser-plan") basculerMemorisation(e.target.checked); });
 zoneAssistant.addEventListener("toggle", e => { if (e.target.matches(".options-avancees")) S.optionsOuvertes = e.target.open; }, true);
 zoneAssistant.addEventListener("click", e => {
   if (e.target.closest("#modifier-plan")) {
@@ -482,17 +510,17 @@ zoneAssistant.addEventListener("click", e => {
   const puce = e.target.closest("[data-puce]");
   if (puce) { S.plan[puce.dataset.puce] = Number(puce.dataset.valeur); rendreAssistant(); planModifie(false); return; }
   const mode = e.target.closest("[data-mode]");
-  if (mode) { S.mode = mode.dataset.mode; zoneAssistant.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b === mode))); return; }
+  if (mode) { S.mode = mode.dataset.mode; programmerEnregistrement(); zoneAssistant.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b === mode))); return; }
   if (e.target.id === "etape-retour") { S.etape = Math.max(1, S.etape - 1); rendreAssistant(); }
 });
-zoneAssistant.addEventListener("submit", e => {
+zoneAssistant.addEventListener("submit", async e => {
   e.preventDefault();
   if (S.etape < 4) { S.etape++; rendreAssistant(); return; }
   if (!S.fonds) { zoneResultats.innerHTML = `<p class="chargement carte">Les données du fonds se chargent : la simulation s'affichera dans un instant…</p>`; S.lance = true; return; }
   S.lance = true;
   S.planOuvert = false;
   rendreAssistant();
-  lancer();
+  if (await assurerSimulation()) lancer();
 });
 
 // ---------- Lancement et rendu des résultats ----------
@@ -552,23 +580,24 @@ zoneResultats.addEventListener("click", e => {
   const onglet = e.target.closest("[data-onglet]");
   if (onglet) {
     S.mode = onglet.dataset.onglet;
+    programmerEnregistrement();
     basculerPlan(false);
     zoneResultats.querySelectorAll("[data-onglet]").forEach(b => b.setAttribute("aria-selected", String(b === onglet)));
     rendrePanneau();
     return;
   }
   const horizon = e.target.closest("[data-horizon]");
-  if (horizon) { S.plan.annees = Number(horizon.dataset.horizon); sauverPlan(); rendreAssistant(); lancer(true); return; }
+  if (horizon) { S.plan.annees = Number(horizon.dataset.horizon); programmerEnregistrement(); rendreAssistant(); lancer(true); return; }
   const vue = e.target.closest("[data-vue]");
   if (vue) { S.vue[vue.dataset.vue] = !S.vue[vue.dataset.vue]; rendrePanneau(); return; }
   const crise = e.target.closest("[data-crise]");
   if (crise) { S.crise = crise.dataset.crise; rendrePanneau(); return; }
   const retirer = e.target.closest("[data-retirer-comparaison]");
-  if (retirer) { S.comparaisons = S.comparaisons.filter(c => cleEntree(c.entree, c.isin) !== retirer.dataset.retirerComparaison); rendrePanneau(); return; }
+  if (retirer) { S.comparaisons = S.comparaisons.filter(c => cleEntree(c.entree, c.isin) !== retirer.dataset.retirerComparaison); rendrePanneau(); programmerEnregistrement(); return; }
   if (e.target.closest("#exemple-portefeuille")) { chargerExemplePortefeuille(); return; }
   if (e.target.closest("#simuler-portefeuille")) { simulerLePortefeuille(); return; }
   const retirerLigne = e.target.closest("[data-retirer-ligne]");
-  if (retirerLigne) { S.portefeuille.lignes.splice(Number(retirerLigne.dataset.retirerLigne), 1); S.portefeuille.calc = null; rendrePanneau(); return; }
+  if (retirerLigne) { S.portefeuille.lignes.splice(Number(retirerLigne.dataset.retirerLigne), 1); S.portefeuille.calc = null; rendrePanneau(); programmerEnregistrement(); return; }
   const ajout = e.target.closest("[data-ajouter-fonds]");
   if (ajout) { ajouterFonds(ajout.dataset.cible, ajout.dataset.ajouterFonds); return; }
 });
@@ -1119,6 +1148,7 @@ zoneResultats.addEventListener("input", e => {
   if (poids) {
     S.portefeuille.lignes[Number(poids.dataset.poids)].poids = Math.max(0, Number(poids.value) || 0);
     S.portefeuille.calc = null;
+    programmerEnregistrement();
     const total = S.portefeuille.lignes.reduce((s, l) => s + l.poids, 0);
     const el = document.getElementById("total-poids");
     if (el) { el.textContent = `Total : ${total} %`; el.classList.toggle("baisse", Math.abs(total - 100) > 0.5); }
@@ -1138,6 +1168,7 @@ async function ajouterFonds(cible, cle) {
     try { item.A = await chargerAnalyse(entree, isin, { composition: false }); } catch (err) { item.erreur = err.message; }
     item.enCours = false;
     if (S.mode === "comparer") rendrePanneau();
+    programmerEnregistrement();
   } else {
     if (S.portefeuille.lignes.length >= 6) return;
     const ligne = { entree, isin, poids: 0, enCours: true };
@@ -1147,6 +1178,7 @@ async function ajouterFonds(cible, cle) {
     try { ligne.A = await chargerAnalyse(entree, isin, { composition: false }); } catch (err) { ligne.erreur = err.message; }
     ligne.enCours = false;
     if (S.mode === "portefeuille") rendrePanneau();
+    programmerEnregistrement();
   }
 }
 
@@ -1421,12 +1453,59 @@ function panneauContexte() {
   </section>`;
 }
 
+// ---------- Réouverture : simulateur.html?sim=<id>#<fonds> ----------
+
+async function ouvrirSimulationEnregistree(id) {
+  const sim = await Compte.simulation(id);
+  if (!sim) { zoneResultats.innerHTML = `<p class="non-dispo carte">Simulation introuvable (supprimée ?). <a href="compte.html#simulations">Mes simulations</a></p>`; return; }
+  const etat = sim.etat || {};
+  S.simulation = { id: sim.id, fonds: sim.fonds };
+  S.restauration = etat;
+  S.plan = { ...PLAN_DEFAUT, ...(etat.plan || {}), debut: MOIS_COURANT };
+  S.mode = MODES.some(m => m.cle === etat.mode) ? etat.mode : "projection";
+  S.lance = true;
+  S.etape = 4;
+  if (decodeURIComponent(location.hash.slice(1)) !== sim.fonds) location.hash = sim.fonds;   // déclenche afficherDepuisAdresse
+  else await afficherDepuisAdresse();
+}
+
+async function restaurerExtras(A) {
+  const etat = S.restauration;
+  try {
+    lancer();
+    for (const cle of etat.comparaisons || []) await ajouterFonds("comparer", cle);
+    for (const ligne of etat.portefeuille || []) {
+      await ajouterFonds("portefeuille", ligne.fonds);
+      const l = S.portefeuille.lignes.at(-1);
+      if (l) l.poids = Number(ligne.poids) || 0;
+    }
+    rendrePanneau();
+  } finally { S.restauration = null; }
+}
+
 // ---------- Démarrage ----------
 
 let minuterieRedimSimu = 0;
 window.addEventListener("resize", () => { clearTimeout(minuterieRedimSimu); minuterieRedimSimu = setTimeout(() => { if (S.calc) apresRendu(); }, 150); });
 document.addEventListener("click", e => { if (!e.target.closest(".ajout-fonds")) document.querySelectorAll(".ajout-fonds .suggestions").forEach(l => { l.hidden = true; }); });
 window.addEventListener("hashchange", afficherDepuisAdresse);
-afficherDepuisAdresse();
+if (!Compte.session()) {
+  // Défense en profondeur : sur le site en ligne, le serveur a déjà renvoyé vers abonnement.html
+  location.replace("abonnement.html");
+} else {
+  const simDemandee = new URLSearchParams(location.search).get("sim");
+  if (simDemandee) ouvrirSimulationEnregistree(simDemandee).catch(err => { zoneResultats.innerHTML = `<p class="non-dispo carte">${esc(err.message)}</p>`; });
+  else afficherDepuisAdresse();
+  if (new URLSearchParams(location.search).get("abonnement") === "ok") attendreAbonnement();
+}
+
+// Retour de Stripe : le webhook peut arriver quelques secondes après la redirection
+async function attendreAbonnement() {
+  for (let essai = 0; essai < 10; essai++) {
+    try { if ((await Compte.droits()).abonne) { if (etatEnregistrement) etatEnregistrement.textContent = "Merci ! Ton abonnement est actif : simulations illimitées."; return; } } catch (e) { /* réessai */ }
+    await new Promise(ok => setTimeout(ok, 2000));
+  }
+  if (etatEnregistrement) etatEnregistrement.textContent = "Paiement reçu : l'activation peut prendre une minute. Recharge la page si besoin.";
+}
 const rechercheVenueSimu = rechercheDansAdresse();
 if (rechercheVenueSimu && !location.hash) { champSimu.value = rechercheVenueSimu; document.getElementById("form-recherche").requestSubmit(); }
