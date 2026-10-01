@@ -95,7 +95,7 @@ n'appelle aucune API : il lit ce fichier du site. Un module par source dans `scr
 | Bloc | Principale | Secours | Dernier recours | Cache |
 |---|---|---|---|---|
 | Taux de change (USD, GBP, CHF, JPY, CNY) | BCE, sans clé | Frankfurter (taux BCE), sans clé | Currency-api (fawazahmed0), sans clé | 6 h |
-| Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | Alpha Vantage, clé `ALPHAVANTAGE_KEY` (12 requêtes sur 25 par jour, en dollars) | — | 6 h |
+| Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | — (aucune source gratuite n'autorise un site public : Alpha Vantage retiré le 01/10/2026) | Dernière valeur connue | 6 h |
 | Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | MarketAux, clé `MARKETAUX_KEY` (23 requêtes sur 100 par jour ; usage non commercial) | — | 6 h |
 
 Les actualités s'affichent sous les principales lignes d'un fonds (fiche, section 2) et dans « Contexte & risques », pour
@@ -119,8 +119,8 @@ n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jou
 | Type de fonds | Nombre | Source | Données disponibles |
 |---|---|---|---|
 | Fonds de droit français (FCP, SICAV, FCPE, FCPI…) | ≈ 11 400 | AMF – base GECO | Identité, parts, encours, historique sur 10 ans (volatilité, perte maximale, performance), documents officiels, **DIC lu automatiquement** (SRI, frais, durée, objectif…) et **composition calculée** (voir ci-dessous) |
-| ETF étrangers cotés en Europe | ≈ 3 500 | Euronext + Xetra | Identité, tickers, places de cotation, indices tirés du nom, et composition estimée via un fonds français « jumeau » qui suit le même indice |
-| Fonds étrangers commercialisés en France | ≈ 8 500 | AMF – base GECO | Identité seulement (GECO ne publie pas leur ISIN) |
+| ETF étrangers cotés en Europe | ≈ 3 500 | ESMA (registre FIRDS) + Xetra, symboles via OpenFIGI | Identité officielle (LEI, devise, places de cotation dans l'UE), tickers, indices tirés du nom, et composition estimée via un fonds français « jumeau » qui suit le même indice |
+| Fonds étrangers commercialisés en France | ≈ 8 500 | AMF – base GECO, + ESMA (FIRDS) | Identité ; pour ceux qui sont cotés dans l'UE, ISIN retrouvés par le nom dans FIRDS (correspondance prudente, signalée « à vérifier dans le DIC ») |
 
 ## Comment on calcule « Où est investi l'argent ? » (méthode maison)
 
@@ -168,8 +168,16 @@ Les résultats sont gardés une semaine dans le navigateur (la lecture d'un gros
 python3 scripts/construire_annuaire.py
 ```
 
-Ce script régénère `data/annuaire.js` (environ 3,5 Mo) et `data/resume.js`. Il n'utilise que Python, sans rien à installer.
+Ce script régénère `data/annuaire.js` (environ 3,5 Mo), `data/resume.js` et `data/firds.js` (identité ESMA des fonds
+étrangers). Il n'utilise que Python, sans rien à installer, et dure 15 à 20 minutes (OpenFIGI limite les requêtes sans clé).
 Une mise à jour par mois suffit.
+
+Sources et droits de réutilisation (vérifiés le 01/10/2026) :
+- AMF (GECO), ESMA (FIRDS : « reproduction… authorised… provided the source is acknowledged »), Deutsche Börse (liste Xetra),
+  OpenFIGI (identifiants du domaine public), ISO 10383 (codes des places de marché).
+- **Non utilisés** faute d'autorisation : la liste et les cours d'Euronext (compilation et affichage public interdits sans accord
+  écrit), Alpha Vantage, Yahoo, Morningstar, justETF, fundinfo et les sites des sociétés de gestion (usage personnel seulement).
+  Demandes d'autorisation préparées pour Euronext, Alpha Vantage et HSBC AM (brouillons à envoyer par les éditeurs).
 
 ## Données personnelles (RGPD)
 
@@ -220,7 +228,7 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 ## Feuille de route
 
 1. ✅ Premier prototype (fonds fictifs, retirés depuis)
-2. ✅ Annuaire de tous les fonds + fiches automatiques (GECO, Euronext, Xetra, lecture du DIC)
+2. ✅ Annuaire de tous les fonds + fiches automatiques (GECO, ESMA FIRDS, Xetra, OpenFIGI, lecture du DIC)
 3. ✅ Composition calculée : inventaire des rapports annuels + analyse des rendements + fonds jumeaux
 4. Données de risque (SRI, volatilité) pour les ETF étrangers
 5. ✅ Page d'accueil et page « Performances » (graphique interactif, comparaisons)

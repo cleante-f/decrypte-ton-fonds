@@ -8,8 +8,7 @@ Le dernier test vérifie, sans réseau, le repli : secours, puis dernière valeu
 import unittest
 from datetime import date
 
-from sources import (actus_marketaux, actus_newsdata, change_bce, change_currencyapi, change_frankfurter, marches_alphavantage,
-                     marches_amf)
+from sources import actus_marketaux, actus_newsdata, change_bce, change_currencyapi, change_frankfurter, marches_amf
 from sources.commun import DEVISES, SourceIndisponible, cle_api
 from sources.entreprises import ENTREPRISES
 
@@ -56,10 +55,6 @@ class Marches(unittest.TestCase):
 
     def test_amf(self):
         self.verifier(marches_amf, "EUR")
-
-    @unittest.skipUnless(cle_definie("ALPHAVANTAGE_KEY"), "clé ALPHAVANTAGE_KEY absente")
-    def test_alphavantage(self):
-        self.verifier(marches_alphavantage, "USD")
 
 
 class Actualites(unittest.TestCase):

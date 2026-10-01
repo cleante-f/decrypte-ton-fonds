@@ -15,7 +15,6 @@ APPELS = [
     # les appels exacts des modules (voir scripts/sources/)
     ("NewsData.io", "NEWSDATA_KEY", "https://newsdata.io/api/1/latest?apikey={cle}&qInTitle=ASML&language=en,fr"),
     ("MarketAux", "MARKETAUX_KEY", "https://api.marketaux.com/v1/news/all?api_token={cle}&symbols=ASML&filter_entities=true&language=en,fr&limit=3"),
-    ("Alpha Vantage (quotidien)", "ALPHAVANTAGE_KEY", "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=SPY&outputsize=compact&apikey={cle}"),
 ]
 
 
@@ -36,24 +35,29 @@ def structure(x, retrait="  ", profondeur=0):
     return []
 
 
-for nom, variable, modele in APPELS:
-    print(f"\n=== {nom}")
-    try:
-        cle = cle_api(variable)
-    except SourceIndisponible as e:
-        print(f"  ignoré : {e}")
-        continue
-    req = urllib.request.Request(modele.format(cle=cle), headers={"User-Agent": AGENT, "Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=8) as r:
-            code, corps = r.status, r.read()
-    except urllib.error.HTTPError as e:
-        code, corps = e.code, e.read()
-    except Exception as e:
-        print(f"  pas de réponse ({type(e).__name__})")
-        continue
-    print(f"  HTTP {code}, {len(corps)} octets")
-    try:
-        print("\n".join(structure(json.loads(corps))).replace(cle, "***"))
-    except json.JSONDecodeError:
-        print("  réponse non JSON :", corps[:200].decode("utf-8", "replace").replace(cle, "***"))
+def main():
+    for nom, variable, modele in APPELS:
+        print(f"\n=== {nom}")
+        try:
+            cle = cle_api(variable)
+        except SourceIndisponible as e:
+            print(f"  ignoré : {e}")
+            continue
+        req = urllib.request.Request(modele.format(cle=cle), headers={"User-Agent": AGENT, "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=8) as r:
+                code, corps = r.status, r.read()
+        except urllib.error.HTTPError as e:
+            code, corps = e.code, e.read()
+        except Exception as e:
+            print(f"  pas de réponse ({type(e).__name__})")
+            continue
+        print(f"  HTTP {code}, {len(corps)} octets")
+        try:
+            print("\n".join(structure(json.loads(corps))).replace(cle, "***"))
+        except json.JSONDecodeError:
+            print("  réponse non JSON :", corps[:200].decode("utf-8", "replace").replace(cle, "***"))
+
+
+if __name__ == "__main__":
+    main()

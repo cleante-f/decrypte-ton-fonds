@@ -207,6 +207,29 @@ function enBref(e, d) {
   return phrase ? `<p class="en-bref"><span class="en-bref-titre">En bref</span> ${phrase}</p>` : "";
 }
 
+// ---------- Identité officielle dans le registre européen FIRDS (data/firds.js, ESMA) ----------
+
+// Fonds étrangers seulement : les fonds français ont déjà la fiche complète de l'AMF
+function identiteEsma(e, isin) {
+  if (typeof FIRDS === "undefined" || e.source === "G") return { lignes: [], devise: "", source: "" };
+  const f = isin && FIRDS.fonds[isin];
+  const parNom = e.source === "N" && FIRDS.parNom.includes(e.source + e.cmpId);
+  const lignes = [];
+  if (f && f[0]) lignes.push([terme("lei", "Identifiant LEI"), esc(f[0])]);
+  if (f && f[2].length) {
+    const places = f[2].map(m => ({ mic: m, p: FIRDS.places[m] })).filter(x => x.p);
+    const reglementes = places.filter(x => x.p[2]), autres = places.filter(x => !x.p[2]);
+    const cites = [...reglementes, ...autres].slice(0, 4);
+    const total = f[3] || places.length;   // firds.js ne garde que les 6 principales places
+    const reste = total - cites.length;
+    lignes.push([terme("cotation_ue", "Cotations dans l'Union européenne"),
+      `${cites.map(x => esc(x.p[0])).join(", ")}${reste > 0 ? ` et ${reste} autre${reste > 1 ? "s" : ""} plateforme${reste > 1 ? "s" : ""}` : ""}`
+      + `<br><small>${total} place${total > 1 ? "s" : ""} de cotation au total (bourses et plateformes de négociation).</small>`, true]);
+  }
+  if (parNom && e.isins.length > 1) lignes.push([terme("part", "Autres parts cotées"), esc(e.isins.filter(i => i !== isin).slice(0, 8).join(", ")), true]);
+  return { lignes, parNom, devise: f ? f[1] : "", source: f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "" };
+}
+
 // ---------- Détection des pièges (fonds automatiques) ----------
 
 function detecterPiegesAuto(e, d) {
@@ -493,7 +516,8 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const part = d && d.part;
   const aujourdHui = new Date().toISOString().slice(0, 10);
   const srcGeco = { document: "AMF – base GECO (en direct)", date: aujourdHui };
-  const srcAnnuaire = { document: e.source === "E" ? "Listes des ETF Euronext et Xetra" : "AMF – base GECO", date: ANNUAIRE_DATE };
+  const srcAnnuaire = { document: e.source === "E" ? "ESMA (registre FIRDS), liste Xetra et OpenFIGI" : "AMF – base GECO", date: ANNUAIRE_DATE };
+  const esma = identiteEsma(e, isin);
   const srcDic = dic ? { document: `DIC « ${dic.document.docName} »${dic.autrePart ? ` (part ${dic.autrePart})` : ""}`, date: dic.document.dateEffet } : null;
 
   // Types
@@ -528,21 +552,22 @@ function afficherFicheAuto(e, isin, d, chargement) {
     <h2>1. Identité du fonds</h2>
     <div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>
     ${listeInfos([
-      [terme("isin", "ISIN"), esc(isin || "non publié")],
+      [terme("isin", "ISIN"), esc(isin || "non publié") + (esma.parNom ? `<br><small>Retrouvé par le nom du fonds dans le registre européen FIRDS : vérifie-le dans le DIC.</small>` : ""), esma.parNom],
       e.tickers.length && [terme("ticker", "Ticker(s)"), esc(e.tickers.slice(0, 6).join(", "))],
       e.marches && ["Cotation", esc(e.marches)],
       e.gestionnaire && [terme("societe_gestion", "Société de gestion"), esc(e.gestionnaire)],
       [terme("domicile", "Domiciliation"), esc(PAYS[e.pays] || e.pays || "n.d.")],
-      [`Devise${part ? " de la part" : ""}`, esc((part && part.parRefDevCode) || e.devise || "n.d.")],
+      [`Devise${part ? " de la part" : ""}`, esc((part && part.parRefDevCode) || e.devise || esma.devise || "n.d.")],
       e.nature && ["Forme juridique", esc(e.nature)],
       d && d.encours ? [terme("encours", "Encours"), `${d.encours.montant.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} M€ <small>au ${dateFr(d.encours.date)}${d.encours.horsEuro ? ", parts en euros uniquement" : ""}</small>`]
         : e.source === "G" && [terme("encours", "Encours"), chargement ? "chargement…" : "non disponible"],
       e.dateCreation && [e.source === "N" ? "Commercialisé en France depuis" : "Création", dateFr(e.dateCreation)],
       d && d.parts && d.parts.length > 1 && [terme("part", "Parts du fonds"), `${d.parts.length} parts (voir section 6)`],
-      e.classification && [terme("classification_amf", "Classification AMF"), `${esc(e.classification)}${CLASSIFICATIONS[e.classification] ? `<br><small>${esc(CLASSIFICATIONS[e.classification])}</small>` : ""}`, true]
+      e.classification && [terme("classification_amf", "Classification AMF"), `${esc(e.classification)}${CLASSIFICATIONS[e.classification] ? `<br><small>${esc(CLASSIFICATIONS[e.classification])}</small>` : ""}`, true],
+      ...esma.lignes
     ])}
     ${e.source === "G" ? `<p class="aide"><a href="${LIENS.geco(e)}" target="_blank" rel="noopener">Voir la fiche officielle sur GECO (AMF)</a></p>` : ""}
-    ${source(srcAnnuaire)}
+    ${source(srcAnnuaire)}${esma.source}
   </section>`;
 
   // ----- 2 et 3. Composition calculée par nos deux moteurs (voir composition.js) -----
