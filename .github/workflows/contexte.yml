@@ -37,7 +37,6 @@ jobs:
         continue-on-error: true   # une panne ici ne doit pas empêcher d'enregistrer les autres données
         env:
           NEWSDATA_KEY: ${{ secrets.NEWSDATA_KEY }}
-          MARKETAUX_KEY: ${{ secrets.MARKETAUX_KEY }}
         run: python3 scripts/actualiser_marches.py ${{ inputs.forcer && '--forcer' || '' }}
       - name: Entretien des comptes et réveil de Supabase
         continue-on-error: true   # une panne ici ne doit pas empêcher d'enregistrer les données

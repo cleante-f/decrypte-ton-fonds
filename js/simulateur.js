@@ -1376,8 +1376,6 @@ function panneauContexte() {
   const titresActu = articles => articles && articles.length ? `<ul class="actus">${articles.slice(0, 3).map(a => `<li><a href="${esc(a.lien)}" target="_blank" rel="noopener">${esc(a.titre)}</a>
       <small>${esc(a.source)} · ${new Date(a.date).toLocaleDateString("fr-FR")}${a.langue === "en" ? " · en anglais" : ""}</small></li>`).join("")}</ul>`
     : `<p class="aide">Aucun titre récent sur ce thème dans nos sources (30 derniers jours).</p>`;
-  const fmi = ctx && ctx.fmi;
-  const zonesFmi = zonesFmiPertinentes(p);
   return `
   <section class="carte">
     <h2>Tableau de bord des risques</h2>
@@ -1436,17 +1434,12 @@ function panneauContexte() {
         <small>${esc(periodeFr(ind.date))} · <a href="${esc(ind.lien)}" target="_blank" rel="noopener">${esc(ind.source)}</a>${donneeAncienne(ind) ? " · <strong>donnée ancienne</strong>" : ""}</small>
       </article>`;
     }).join("")}</div>
-    ${fmi && fmi.croissance ? `<h3>Croissance économique par région (FMI)</h3>
-      <p class="aide">${esc(fmi.edition || "World Economic Outlook")} : ${fmi.annees[0]} (estimation), ${fmi.annees[1]} et ${fmi.annees[2]} (prévisions du FMI, pas de ce site).</p>
-      <div class="fmi-grille">${zonesFmi.map(z => { const v = fmi.croissance[z] || {}; const d = fmi.dette && fmi.dette[z] ? fmi.dette[z][fmi.annees[1]] : null; return `<div class="fmi-zone"><strong>${esc(fmi.zones[z])}</strong>
-        <span>${fmi.annees.map(a => `${a} : ${v[a] === null || v[a] === undefined ? "n.d." : (v[a] > 0 ? "+" : "") + pct(v[a], 1)}`).join(" · ")}</span>${d ? `<small>Dette publique ${fmi.annees[1]} : ${pct(d, 0)} du PIB</small>` : ""}</div>`; }).join("")}</div>
-      <p class="source"><a href="${esc(fmi.lien)}" target="_blank" rel="noopener">Source : FMI – DataMapper</a></p>` : ""}
     <p class="aide">Non intégrés faute de source gratuite et fiable exploitable automatiquement : ratios de valorisation des marchés (PER, CAPE) et flux d'investissement mondiaux.</p>
   </section>
 
   <section class="carte">
     <h2>Géopolitique et politique</h2>
-    <p class="aide">Risques susceptibles d'affecter ce fonds, d'après son exposition. Aucun scénario politique n'est inventé : les exemples sont des titres de presse récents, datés et reliés à leur source (sélection automatique par mots-clés, parmi ${ctx && ctx.flux ? ctx.flux.length : 0} flux de médias reconnus et d'institutions).</p>
+    <p class="aide">Risques susceptibles d'affecter ce fonds, d'après son exposition. Aucun scénario politique n'est inventé : les exemples sont des communiqués récents d'institutions (BCE, Fed, Commission européenne), datés et reliés à leur source (sélection automatique par mots-clés).</p>
     <div class="geo">${geo.map(g => `<article class="geo-theme risque-${["faible", "modere", "eleve"][NIVEAUX_RISQUE.indexOf(g.niveau)]}">
       <header><h3>${esc(g.nom)}</h3><span class="niveau-risque">${esc(g.niveau)}</span></header>
       <p>${esc(g.pourquoi)}</p>${titresActu(g.articles)}</article>`).join("")}</div>

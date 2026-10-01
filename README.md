@@ -65,17 +65,16 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
    qui a le plus réduit les variations sur le passé (entre 50 et 80 % pour le fonds de départ). Suivent un comparatif
    des risques et des performances passées, sans et avec ce fonds. Exemple pédagogique, pas un conseil.
 7. **Contexte** (`js/contexte-fonds.js`) : tableau de bord des risques (marché, géopolitique, change, secteur,
-   concentration, taux, réglementation), indicateurs économiques pertinents pour le fonds, prévisions de croissance
-   du FMI, risques géopolitiques illustrés par des titres de presse récents (datés, sourcés), exposition aux
+   concentration, taux, réglementation), indicateurs économiques pertinents pour le fonds, risques géopolitiques illustrés par des titres de presse récents (datés, sourcés), exposition aux
    tendances technologiques (opportunité / risque, sans recommandation).
 
 ### Données mises à jour automatiquement chaque jour
 
 `scripts/actualiser_contexte.py`, lancé chaque matin par GitHub Actions (`.github/workflows/contexte.yml`), écrit :
 - `data/contexte.js` : indicateurs de la BCE (taux, inflation, anticipations, chômage, croissance, dette, change,
-  stress financier), de la Fed de New York, du Trésor américain et du BLS, prévisions du FMI (World Economic Outlook)
-  et titres d'actualité classés par thème (Le Monde, Franceinfo, France 24, RFI, Le Figaro, BBC, New York Times,
-  The Guardian, BCE, Fed, Commission européenne) ;
+  stress financier), de la Fed de New York, du Trésor américain et du BLS (prévisions du FMI retirées le 01/10/2026 :
+  usage commercial soumis à autorisation) et titres d'actualité classés par thème (BCE, Fed, Commission européenne ; flux des médias retirés le 01/10/2026,
+  leurs conditions excluant l'usage commercial) ;
 - `data/references.js` : séries des fonds de référence, pour que chaque visiteur n'ait pas à les télécharger.
 
 Chaque donnée garde sa date et sa source ; une donnée en retard sur son rythme de publication est signalée.
@@ -96,7 +95,7 @@ n'appelle aucune API : il lit ce fichier du site. Un module par source dans `scr
 |---|---|---|---|---|
 | Taux de change (USD, GBP, CHF, JPY, CNY) | BCE, sans clé | Frankfurter (taux BCE), sans clé | Currency-api (fawazahmed0), sans clé | 6 h |
 | Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | — (aucune source gratuite n'autorise un site public : Alpha Vantage retiré le 01/10/2026) | Dernière valeur connue | 6 h |
-| Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | MarketAux, clé `MARKETAUX_KEY` (23 requêtes sur 100 par jour ; usage non commercial) | — | 6 h |
+| Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | — (MarketAux retiré le 01/10/2026 : usage commercial interdit) | — | 6 h |
 
 Les actualités s'affichent sous les principales lignes d'un fonds (fiche, section 2) et dans « Contexte & risques », pour
 les entreprises reconnues parmi ses lignes. Filtres : titres générés automatiquement (déclarations de positions,
@@ -200,6 +199,19 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
   les cours différés de gettex et de la Bourse de Stuttgart (usage privé seulement), Swiss Fund Data (accord écrit requis),
   les offres gratuites de Twelve Data, Marketstack, EODHD et Finnhub (affichage public interdit).
   Demandes d'autorisation préparées pour Euronext, Alpha Vantage et HSBC AM (brouillons à envoyer par les éditeurs).
+
+## Licences pour un site avec abonnement (vérifiées le 01/10/2026)
+
+| Source | Usage commercial | Décision |
+|---|---|---|
+| MarketAux | Interdit (usage non commercial) | Retirée |
+| FMI (World Economic Outlook) | Sur autorisation (copyright@imf.org), téléchargement automatique interdit sans accord | Retirée du contexte et du simulateur |
+| Flux RSS des médias (Le Monde, Franceinfo, France 24, RFI, Le Figaro, BBC, New York Times, The Guardian) | Usage personnel, ou autorisation requise | Retirés ; seuls restent les communiqués de la BCE, de la Fed et de la Commission européenne |
+| NewsData.io | Autorisé (« personal or commercial purposes », dans le respect du droit d'auteur) | Gardé |
+| Currency-api (fawazahmed0) | Licence CC0 | Gardé |
+| AMF (base GECO) | « Toute utilisation à des fins commerciales ou publicitaires est exclue », sauf accord | **Demande d'autorisation à envoyer avant d'ouvrir l'abonnement** (formulaire « Nous contacter ») |
+| Deutsche Börse (cours différés, fiches gratuites) | Gratuit hors revente | Demande de confirmation envoyée à data.services@deutsche-boerse.com |
+| BCE, ESMA, GLEIF, OpenFIGI, BLS, Trésor et Fed de New York | Autorisé (en citant la source) | Gardés |
 
 ## Données personnelles (RGPD)
 

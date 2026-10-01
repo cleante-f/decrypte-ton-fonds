@@ -19,7 +19,7 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 
-from sources import actus_marketaux, actus_newsdata, change_bce, change_currencyapi, change_frankfurter, marches_amf
+from sources import actus_newsdata, change_bce, change_currencyapi, change_frankfurter, marches_amf
 from sources.commun import RACINE, SourceIndisponible
 
 SORTIE = RACINE / "data" / "marches.js"
@@ -33,7 +33,7 @@ BLOCS = {
     # si l'AMF ne répond pas, la dernière valeur connue reste affichée avec sa date
     "marches": ([marches_amf], 6, lambda d: len(d["indices"]) >= 4),
     # actualités : au moins une entreprise sur deux avec un article (sinon la source est jugée défaillante)
-    "actus": ([actus_newsdata, actus_marketaux], 6,
+    "actus": ([actus_newsdata], 6,
               lambda d: sum(1 for e in d["entreprises"].values() if e["articles"]) >= len(d["entreprises"]) / 2),
 }
 

@@ -8,9 +8,8 @@ et utilisable à la main :  python3 scripts/actualiser_contexte.py
 Ce que le script récupère (sources publiques et gratuites, bibliothèque standard uniquement) :
   - Banque centrale européenne : taux directeur, €STR, taux d'État, inflation, anticipations d'inflation,
     chômage, croissance, dette publique, taux de change, indicateur de stress financier
-  - FMI (World Economic Outlook) : croissance, inflation et dette publique par grande région, prévisions comprises
   - États-Unis : taux de la Fed (Réserve fédérale de New York), taux à 10 ans (Trésor), inflation et chômage (BLS)
-  - Titres d'actualité récents de médias reconnus et d'institutions (flux RSS), classés par thème
+  - Communiqués récents d'institutions (BCE, Fed, Commission européenne ; flux RSS), classés par thème
   - data/references.js : séries des fonds de référence (base GECO de l'AMF), pour alléger le travail des visiteurs
 
 Rien n'est interprété ni inventé : chaque valeur garde sa date, sa source et un lien.
@@ -185,47 +184,14 @@ def indicateurs_usa():
     return res
 
 
-ZONES_FMI = [("WEOWORLD", "Monde"), ("ADVEC", "Pays avancés"), ("OEMDC", "Pays émergents et en développement"),
-             ("USA", "États-Unis"), ("EURO", "Zone euro"), ("FRA", "France"), ("DEU", "Allemagne"), ("GBR", "Royaume-Uni"),
-             ("JPN", "Japon"), ("CHN", "Chine"), ("IND", "Inde"), ("BRA", "Brésil")]
-
-
-def previsions_fmi():
-    res = {"zones": dict(ZONES_FMI), "annees": [str(AUJOURDHUI.year - 1), str(AUJOURDHUI.year), str(AUJOURDHUI.year + 1)]}
-    try:
-        meta = json.loads(telecharger("https://www.imf.org/external/datamapper/api/v1/indicators"))["indicators"]
-    except Exception:
-        meta = {}
-    for cle, code in (("croissance", "NGDP_RPCH"), ("inflation", "PCPIPCH"), ("dette", "GGXWDG_NGDP")):
-        try:
-            v = json.loads(telecharger(f"https://www.imf.org/external/datamapper/api/v1/{code}"))["values"][code]
-            res[cle] = {z: {a: v.get(z, {}).get(a) for a in res["annees"]} for z, _ in ZONES_FMI}
-            res["edition"] = (meta.get(code) or {}).get("source") or res.get("edition")
-        except Exception as e:
-            print(f"  ! FMI {code} : {e}", file=sys.stderr)
-    res["lien"] = "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO"
-    return res
-
-
 # ---------------------------------------------------------------------------
 # Actualités (titres et liens uniquement, classés par thème)
 # ---------------------------------------------------------------------------
 
+# Seulement des institutions dont les contenus sont réutilisables, y compris pour un site commercial (vérifié le 01/10/2026).
+# Les flux des médias (Le Monde, Franceinfo, France 24, RFI, Le Figaro, BBC, New York Times, The Guardian) ont été retirés :
+# leurs conditions réservent les flux RSS à un usage personnel ou exigent une autorisation pour un usage commercial.
 FLUX = [
-    ("Le Monde", "fr", "https://www.lemonde.fr/economie/rss_full.xml"),
-    ("Le Monde", "fr", "https://www.lemonde.fr/international/rss_full.xml"),
-    ("Le Monde", "fr", "https://www.lemonde.fr/economie-mondiale/rss_full.xml"),
-    ("Le Monde", "fr", "https://www.lemonde.fr/pixels/rss_full.xml"),
-    ("Franceinfo", "fr", "https://www.francetvinfo.fr/economie.rss"),
-    ("Franceinfo", "fr", "https://www.francetvinfo.fr/monde.rss"),
-    ("France 24", "fr", "https://www.france24.com/fr/economie/rss"),
-    ("RFI", "fr", "https://www.rfi.fr/fr/economie/rss"),
-    ("Le Figaro", "fr", "https://www.lefigaro.fr/rss/figaro_economie.xml"),
-    ("Le Figaro", "fr", "https://www.lefigaro.fr/rss/figaro_international.xml"),
-    ("BBC", "en", "https://feeds.bbci.co.uk/news/business/rss.xml"),
-    ("BBC", "en", "https://feeds.bbci.co.uk/news/world/rss.xml"),
-    ("The New York Times", "en", "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"),
-    ("The Guardian", "en", "https://www.theguardian.com/business/rss"),
     ("Banque centrale européenne", "en", "https://www.ecb.europa.eu/rss/press.html"),
     ("Réserve fédérale (Fed)", "en", "https://www.federalreserve.gov/feeds/press_all.xml"),
     ("Commission européenne", "fr", "https://ec.europa.eu/commission/presscorner/api/rss?language=fr"),
@@ -490,8 +456,6 @@ def main():
     ind = indicateurs_bce()
     print("Indicateurs américains…")
     ind.update(indicateurs_usa())
-    print("Prévisions du FMI…")
-    fmi = previsions_fmi()
     print("Actualités…")
     actus, flux = actualites()
 
@@ -502,13 +466,12 @@ def main():
     contexte = {
         "maj": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "indicateurs": ind,
-        "fmi": fmi,
         "actualites": actus,
         "flux": flux,
     }
     SORTIE.write_text(
         "/* Généré automatiquement par scripts/actualiser_contexte.py — ne pas modifier à la main.\n"
-        " * Sources : BCE, FMI, Réserve fédérale de New York, Trésor américain, BLS, flux RSS de médias et d'institutions. */\n"
+        " * Sources : BCE, Réserve fédérale de New York, Trésor américain, BLS, flux RSS d'institutions. */\n"
         f"const CONTEXTE = {json.dumps(contexte, ensure_ascii=False, separators=(',', ':'))};\n",
         encoding="utf-8")
     nb = sum(len(t["articles"]) for t in actus.values())

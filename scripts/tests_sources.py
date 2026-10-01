@@ -8,7 +8,7 @@ Le dernier test vérifie, sans réseau, le repli : secours, puis dernière valeu
 import unittest
 from datetime import date
 
-from sources import actus_marketaux, actus_newsdata, change_bce, change_currencyapi, change_frankfurter, marches_amf
+from sources import actus_newsdata, change_bce, change_currencyapi, change_frankfurter, marches_amf
 from sources.commun import DEVISES, SourceIndisponible, cle_api
 from sources.entreprises import ENTREPRISES
 
@@ -81,10 +81,6 @@ class Actualites(unittest.TestCase):
     @unittest.skipUnless(cle_definie("NEWSDATA_KEY"), "clé NEWSDATA_KEY absente")
     def test_newsdata(self):
         self.verifier(actus_newsdata)
-
-    @unittest.skipUnless(cle_definie("MARKETAUX_KEY"), "clé MARKETAUX_KEY absente")
-    def test_marketaux(self):
-        self.verifier(actus_marketaux)
 
 
 class Repli(unittest.TestCase):
