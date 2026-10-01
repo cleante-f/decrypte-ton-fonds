@@ -930,3 +930,5 @@ div.carte-horizon { cursor: default; }
 .liste-simulations .actions-ligne { display: flex; gap: 12px; }
 .note-erreur { border-color: var(--statut-critique); }
 @media (max-width: 560px) { .formulaire-ligne { grid-template-columns: 1fr; } .btn-compte { padding: 6px 10px; } }
+.liste-avantages { padding-left: 20px; line-height: 1.7; }
+.carte-abonnement { border-color: var(--accent); }

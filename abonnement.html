@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abonnement au simulateur · Décrypte ton fonds</title>
+  <meta name="description" content="Le simulateur de Décrypte ton fonds : 3 simulations offertes avec un compte gratuit, puis un abonnement résiliable à tout moment.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="index.html" class="logo">Décrypte ton fonds</a>
+    <nav class="onglets" aria-label="Pages du site">
+      <a href="index.html" data-page="index.html">Accueil</a>
+      <a href="decrypte.html" data-page="decrypte.html" data-fonds>Décrypte<span class="texte-long"> ton fonds</span></a>
+      <a href="performances.html" data-page="performances.html" data-fonds>Performances</a>
+      <a href="simulateur.html" data-page="simulateur.html" data-fonds aria-current="page">Simulateur</a>
+    </nav>
+    <div class="entete-actions">
+      <a class="btn-compte" id="lien-compte" href="connexion.html">Se connecter</a>
+      <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
+    </div>
+  </header>
+
+  <main class="page-compte">
+    <p class="surtitre">Simulateur d'investissement</p>
+    <h1>Que pourrait devenir ton investissement ?</h1>
+    <p class="sous-titre">Projection sur plusieurs scénarios, frais et inflation compris, crises rejouées, objectif à atteindre,
+      comparaison de fonds et portefeuille. Un outil pédagogique : jamais une promesse, jamais un conseil.</p>
+    <ul class="liste-avantages">
+      <li>7 onglets : projection, objectif, contexte et risque, crises, comparaison, réduction du risque, portefeuille.</li>
+      <li>Tes simulations enregistrées dans ton compte, sur tous tes appareils.</li>
+      <li><strong>3 simulations offertes</strong> à la création du compte.</li>
+    </ul>
+    <section class="carte" id="offre"><p class="chargement">Chargement…</p></section>
+    <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
+  </main>
+
+  <footer class="site-footer">
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <a href="cgv.html">CGV</a> · <a href="confidentialite.html">Confidentialité</a></p>
+  </footer>
+
+  <script src="js/outils.js"></script>
+  <script src="js/affichage.js"></script>
+  <script src="js/config-compte.js"></script>
+  <script src="js/compte.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/createur.js"></script>
+  <script src="js/abonnement.js"></script>
+</body>
+</html>

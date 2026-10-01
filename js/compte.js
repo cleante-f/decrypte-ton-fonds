@@ -19,7 +19,9 @@ const Compte = (() => {
     quota_atteint: "Tes 3 simulations offertes sont utilisées. Abonne-toi pour en lancer de nouvelles.",
     email_non_confirme: "Confirme d'abord ton adresse e-mail.",
     limite_simulations: "Tu as atteint 200 simulations enregistrées : supprimes-en avant d'en créer de nouvelles.",
-    non_connecte: "Ta session a expiré : reconnecte-toi."
+    non_connecte: "Ta session a expiré : reconnecte-toi.",
+    deja_abonne: "Tu es déjà abonné.",
+    execution_immediate_requise: "Coche d'abord la case d'accès immédiat."
   };
 
   class ErreurCompte extends Error {
@@ -54,7 +56,7 @@ const Compte = (() => {
     try { json = texte ? JSON.parse(texte) : null; } catch (e) { /* réponse non JSON */ }
     if (!r.ok) {
       // Auth : {error_code, msg} ; fonctions SQL : {code: "P0001", message: "quota_atteint"} ; anciens formats : {error, error_description}
-      let code = json && (json.error_code || json.code || json.error);
+      let code = json && (json.erreur || json.error_code || json.code || json.error);
       if (code === "P0001" && json.message) code = json.message;
       throw new ErreurCompte(String(code || r.status), (json && (json.msg || json.message || json.error_description)) || `Erreur ${r.status}`, r.status);
     }

@@ -101,3 +101,10 @@ test("déconnexion : session et cookie effacés même si le réseau échoue", as
   assert.equal(n.Compte.session(), null);
   assert.match(n.cookies.at(-1), /Max-Age=0/);
 });
+
+test("erreur d'une fonction serveur {erreur} : code et message français", async () => {
+  const n = navigateur([jetonRep(), { statut: 409, corps: { erreur: "deja_abonne" } }]);
+  await n.Compte.connecter("a@b.fr", "x", "c");
+  await assert.rejects(n.Compte.fonction("paiement"), e => e.code === "deja_abonne" && e.message === "Tu es déjà abonné.");
+  assert.match(n.appels[1].url, /\/functions\/v1\/paiement$/);
+});
