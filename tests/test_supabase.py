@@ -168,6 +168,18 @@ class TestBase(unittest.TestCase):
         s, _ = rpc("comptes_a_entretenir", self.a)
         self.assertIn(s, (401, 403, 404))
 
+    def test_entretien_avertit_puis_supprime_un_compte_inactif(self):
+        c = self.nouveau(confirme=False)          # jamais connecté : last_sign_in_at vide
+        vieux = (datetime.now(timezone.utc) - timedelta(days=740)).isoformat()
+        admin_profil(c["id"], {"cree_le": vieux, "derniere_activite": vieux})
+        s, lignes = http("/rest/v1/rpc/comptes_a_entretenir", "POST", {}, cle=SECRET)
+        self.assertIn({"id": c["id"], "email": c["email"], "action": "avertir"}, lignes)
+        admin_profil(c["id"], {"avertissement_inactivite_le": (datetime.now(timezone.utc) - timedelta(days=31)).isoformat()})
+        s, lignes = http("/rest/v1/rpc/comptes_a_entretenir", "POST", {}, cle=SECRET)
+        self.assertIn({"id": c["id"], "email": c["email"], "action": "supprimer"}, lignes)
+        admin_profil(c["id"], {"abonnement_statut": "actif", "abonnement_fin": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()})
+        s, lignes = http("/rest/v1/rpc/comptes_a_entretenir", "POST", {}, cle=SECRET)
+        self.assertNotIn(c["id"], [l["id"] for l in lignes])     # un abonné n'est jamais supprimé
 
 if __name__ == "__main__":
     unittest.main()

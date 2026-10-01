@@ -39,6 +39,13 @@ jobs:
           NEWSDATA_KEY: ${{ secrets.NEWSDATA_KEY }}
           MARKETAUX_KEY: ${{ secrets.MARKETAUX_KEY }}
         run: python3 scripts/actualiser_marches.py ${{ inputs.forcer && '--forcer' || '' }}
+      - name: Entretien des comptes et réveil de Supabase
+        continue-on-error: true   # une panne ici ne doit pas empêcher d'enregistrer les données
+        env:
+          URL_ENTRETIEN: ${{ secrets.SUPABASE_URL_ENTRETIEN }}
+          SECRET_ENTRETIEN: ${{ secrets.ENTRETIEN_SECRET }}
+        run: |
+          if [ -n "$URL_ENTRETIEN" ]; then curl -fsS -X POST -H "x-entretien: $SECRET_ENTRETIEN" "$URL_ENTRETIEN"; echo; else echo "Entretien non configuré."; fi
       - name: Enregistrer les fichiers modifiés
         run: |
           git config user.name "github-actions[bot]"
