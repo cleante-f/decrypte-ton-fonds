@@ -227,7 +227,71 @@ function identiteEsma(e, isin) {
       + `<br><small>${total} place${total > 1 ? "s" : ""} de cotation au total (bourses et plateformes de négociation).</small>`, true]);
   }
   if (parNom && e.isins.length > 1) lignes.push([terme("part", "Autres parts cotées"), esc(e.isins.filter(i => i !== isin).slice(0, 8).join(", ")), true]);
-  return { lignes, parNom, devise: f ? f[1] : "", source: f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "" };
+  const reg = identiteRegistres(e, f && f[0], isin);
+  return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
+    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source };
+}
+
+// ---------- Registres publics BCE et GLEIF (data/identite.js), reliés au fonds par son LEI ----------
+const POLITIQUES_BCE = { A: "actions", O: "obligations", M: "actions et obligations (fonds mixte)", I: "immobilier", C: "prêts aux entreprises",
+  H: "stratégies alternatives (hedge fund)", N: "infrastructures", P: "matières premières", X: "autres actifs" };
+const TRANCHES_ENCOURS = ["moins de 1 million d'euros", "1 à 5 millions d'euros", "5 à 50 millions d'euros", "50 à 100 millions d'euros",
+  "100 à 500 millions d'euros", "500 millions à 1 milliard d'euros", "1 à 5 milliards d'euros", "plus de 5 milliards d'euros"];
+
+function identiteRegistres(e, lei, isin) {
+  const vide = { lignes: [], source: "", maitre: "", liquidite: null, politique: "" };
+  if (typeof IDENTITE === "undefined") return vide;
+  const x = lei && IDENTITE.fonds[lei];
+  const nom = k => (x && x[k] >= 0 ? IDENTITE.noms[x[k]] : "");
+  const liq = isin && IDENTITE.liquidite[isin];
+  if (!x && !liq) return vide;
+  const lignes = [];
+  if (x) {
+    const [, , politique, etf, ucits, tranche, creation] = x;
+    if (nom(0) && !e.gestionnaire) lignes.push([terme("societe_gestion", "Société de gestion"), esc(nom(0))]);
+    if (nom(1)) lignes.push([terme("compartiment", "Compartiment de"), esc(nom(1))]);
+    if (politique) lignes.push(["Type de fonds", `${etf ? terme("etf", "ETF") + " investi" : "Fonds investi"} principalement en ${esc(POLITIQUES_BCE[politique] || "autres actifs")}${ucits ? ` · ${terme("opcvm", "OPCVM (UCITS)")}` : ""}`]);
+    if (tranche) lignes.push([terme("encours", "Encours"), `${TRANCHES_ENCOURS[tranche - 1]} <small>(tranche publiée par la BCE au ${dateFr(IDENTITE.bce)}, toutes parts confondues)</small>`]);
+    if (creation && !e.dateCreation) lignes.push(["Création", `${dateFr(creation)} <small>(création de l'entité juridique, d'après le registre LEI)</small>`]);
+    if (nom(7)) lignes.push([terme("nourricier", "Fonds nourricier de"), esc(nom(7)), true]);
+  }
+  const srcs = [x && "BCE – liste des fonds d'investissement de la zone euro", x && "GLEIF – registre des LEI (licence CC0)",
+    liq && "ESMA – registre FITRS"].filter(Boolean);
+  return {
+    lignes, maitre: nom(7), politique: x ? x[2] : "",
+    liquidite: liq ? { montant: liq[0], liquide: liq[1] === 1, annee: liq[2] || IDENTITE.fitrs } : null,
+    source: source({ document: srcs.join(", ") + " (réutilisation autorisée en citant la source)", date: IDENTITE.maj })
+  };
+}
+
+// ---------- Cours en bourse des fonds étrangers (js/cours.js) ----------
+function blocCoursEtranger(cours, fini, etf) {
+  if (!cours) return fini ? nonDispo("Aucun cours relevé en euros sur Xetra ou à la Bourse de Francfort pour cette part.") : "";
+  const h = cours.historique, n = h.valeurs.length, dernier = h.valeurs[n - 1];
+  const fmt = v => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " €";
+  const evolution = n > 1 ? (dernier / h.valeurs[0] - 1) * 100 : null;
+  const s = n > 200 && typeof statistiques === "function" ? statistiques(h) : null;
+  return `<h3>${terme("cours_bourse", "Cours en bourse")}</h3>
+    ${listeInfos([
+      ["Dernier cours", `${fmt(dernier)} <small>le ${h.dates[n - 1].toLocaleDateString("fr-FR")} (${esc(cours.lieu)})</small>`],
+      evolution !== null && [`Évolution depuis le ${h.dates[0].toLocaleDateString("fr-FR")}`, (evolution > 0 ? "+" : "") + pct(evolution)],
+      s && s.perf.a1 !== null && [terme("performance_annualisee", "Performance") + " 1 an", pct(s.perf.a1)],
+      s && s.volatilite.a1 !== null && [terme("volatilite", "Volatilité") + " 1 an", pct(s.volatilite.a1)]
+    ])}
+    ${n >= 5 ? graphiqueVL(h, "Cours de clôture en bourse") : ""}
+    <p class="note">Historique en construction : le site relève ce cours chaque jour de bourse depuis le ${h.dates[0].toLocaleDateString("fr-FR")}.
+      La performance et la volatilité sur 1 an apparaîtront quand l'historique couvrira une année.
+      ${etf ? "Le cours d'un ETF suit de près sa valeur liquidative." : "Pour un fonds classique, le prix en bourse est fixé par un intermédiaire spécialiste, au plus près de la dernière valeur liquidative connue."}</p>
+    ${source({ document: "Deutsche Börse – cours différés gratuits de Xetra et de la Bourse de Francfort (MiFIR art. 13)", date: cours.maj })}`;
+}
+
+function ligneLiquiditeEtranger(liq, e) {
+  if (!liq) return null;
+  const montant = liq.montant >= 1 ? `${liq.montant.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} millions d'euros`
+    : `${Math.round(liq.montant * 1000).toLocaleString("fr-FR")} milliers d'euros`;
+  return liq.liquide
+    ? { niveau: "faible", texte: `${montant} échangés en moyenne chaque jour en bourse dans l'Union européenne en ${liq.annee} : la part se revend facilement.` }
+    : { niveau: e.etf ? "moyen" : "faible", texte: `Seulement ${montant} échangés par jour en bourse en moyenne en ${liq.annee} (part jugée peu liquide par l'ESMA).${e.etf ? " L'écart entre prix d'achat et de vente peut être plus large : préfère les ordres à cours limité." : ""}` };
 }
 
 // ---------- Détection des pièges (fonds automatiques) ----------
@@ -339,7 +403,7 @@ function nonDispo(texte) {
 }
 
 // Petit graphique de la valeur liquidative (SVG), avec info au survol
-function graphiqueVL(h) {
+function graphiqueVL(h, legende = "Valeur liquidative de la part") {
   if (!h) return "";
   const n = h.valeurs.length, L = 640, H = 180, marge = 4;
   const min = Math.min(...h.valeurs), max = Math.max(...h.valeurs);
@@ -351,9 +415,9 @@ function graphiqueVL(h) {
   chemin += "L" + x(n - 1).toFixed(1) + " " + y(h.valeurs[n - 1]).toFixed(1);
   const fmt = d => d.toLocaleDateString("fr-FR", { month: "short", year: "numeric" });
   return `<figure class="graphique-vl" data-n="${n}">
-    <figcaption>Valeur liquidative de la part, du ${h.dates[0].toLocaleDateString("fr-FR")} au ${h.dates[n - 1].toLocaleDateString("fr-FR")}</figcaption>
+    <figcaption>${esc(legende)}, du ${h.dates[0].toLocaleDateString("fr-FR")} au ${h.dates[n - 1].toLocaleDateString("fr-FR")}</figcaption>
     <div class="graphique-zone">
-      <svg viewBox="0 0 ${L} ${H}" preserveAspectRatio="none" role="img" aria-label="Évolution de la valeur liquidative">
+      <svg viewBox="0 0 ${L} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(legende)} : évolution">
         <path d="${chemin}" class="ligne-vl" vector-effect="non-scaling-stroke"/>
         <line class="curseur-vl" x1="0" x2="0" y1="0" y2="${H}" vector-effect="non-scaling-stroke" visibility="hidden"/>
       </svg>
@@ -524,7 +588,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const types = [];
   if (e.etf) types.push(["etf", "ETF"]);
   if (nomIdx.indiciel || e.etf) types.push(["indiciel", "Indiciel (probable)"]);
-  if (dic && dic.nourricier) types.push(["nourricier", "Fonds nourricier"]);
+  if ((dic && dic.nourricier) || esma.maitre) types.push(["nourricier", "Fonds nourricier"]);
   if (dic && dic.fondsDeFonds) types.push(["fonds_de_fonds", "Fonds de fonds"]);
   if (/formule/i.test(e.classification)) types.push(["formule", "Fonds à formule"]);
 
@@ -582,9 +646,13 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const blocMarches = marchesDuJour ? `<h3>Les marchés et devises de ce fonds</h3>${marchesDuJour}` : "";
   let sectionRisque;
   if (e.source !== "G") {
+    const liquidite = ligneLiquiditeEtranger(esma.liquidite, e);
     sectionRisque = `<section class="carte"><h2>4. Risque</h2>
-      ${nonDispo("L'indicateur SRI, la volatilité et la perte maximale ne sont pas disponibles gratuitement pour ce fonds de droit étranger. Consulte son DIC sur le site de la société de gestion.")}
+      ${nonDispo("L'indicateur SRI n'est pas disponible gratuitement pour ce fonds de droit étranger : consulte son DIC sur le site de la société de gestion.")}
       ${nomIdx.levier ? `<p class="resume">Produit à levier ou inversé : réservé à des investisseurs très avertis, sur de courtes durées.</p>` : ""}
+      ${blocCoursEtranger(d && d.cours, d && d.coursFini, e.etf)}
+      ${liquidite ? `<dl class="grille-risques"><div><dt>${terme("risque_liquidite", "Risque de liquidité")}</dt><dd><span class="niveau niveau-${liquidite.niveau}">${liquidite.niveau}</span> ${esc(liquidite.texte)}</dd></div></dl>
+        ${source({ document: "ESMA – registre FITRS des calculs de transparence MiFID (montant moyen échangé par jour)", date: IDENTITE.maj })}` : ""}
       ${blocMarches}</section>`;
   } else if (chargement) {
     sectionRisque = `<section class="carte"><h2>4. Risque</h2><p class="chargement">Calcul à partir de l'historique des valeurs liquidatives…</p></section>`;

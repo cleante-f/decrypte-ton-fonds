@@ -1,0 +1,40 @@
+# Mise à jour mensuelle de l'identité des fonds étrangers (scripts/construire_identite.py → data/identite.js) :
+# société de gestion, type et taille (BCE), fonds parapluie (GLEIF), montant échangé en bourse (ESMA FITRS).
+# La BCE publie sa liste des fonds une fois par mois, vers le milieu du mois suivant.
+name: Identité des fonds étrangers
+
+on:
+  schedule:
+    - cron: "17 6 20 * *"   # le 20 de chaque mois, vers 8 h 17, heure de Paris
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: donnees-simulateur
+  cancel-in-progress: false
+
+jobs:
+  identite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Interroger la BCE, le GLEIF et l'ESMA
+        run: python3 scripts/construire_identite.py
+      - name: Enregistrer le fichier
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/identite.js
+          if git diff --cached --quiet; then
+            echo "Rien de nouveau."
+          else
+            git commit -m "Identité des fonds étrangers (BCE, GLEIF, ESMA) du $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi

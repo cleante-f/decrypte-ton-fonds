@@ -535,10 +535,6 @@ body.createur-actif { overflow: hidden; }
 @media (max-width: 480px) { .simu .carte { padding: 14px; } }
 .simu h2 { font-size: 1.25rem; letter-spacing: -.01em; }
 .simu-hero { position: relative; padding: 32px 0 12px; }
-.simu-hero::before {
-  content: ""; position: absolute; inset: -40px 0 auto; height: 260px; z-index: -1; pointer-events: none;
-  background: radial-gradient(ellipse at 30% 0%, rgba(42, 120, 214, .16), transparent 60%), radial-gradient(ellipse at 80% 10%, rgba(27, 175, 122, .10), transparent 55%);
-}
 .simu-hero h1 { font-size: clamp(1.7rem, 4.5vw, 2.5rem); letter-spacing: -.02em; margin: 0 0 8px; }
 
 .carte-fonds-simu .fonds-simu-titre { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }

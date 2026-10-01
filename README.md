@@ -119,8 +119,8 @@ n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jou
 | Type de fonds | Nombre | Source | Données disponibles |
 |---|---|---|---|
 | Fonds de droit français (FCP, SICAV, FCPE, FCPI…) | ≈ 11 400 | AMF – base GECO | Identité, parts, encours, historique sur 10 ans (volatilité, perte maximale, performance), documents officiels, **DIC lu automatiquement** (SRI, frais, durée, objectif…) et **composition calculée** (voir ci-dessous) |
-| ETF étrangers cotés en Europe | ≈ 3 500 | ESMA (registre FIRDS) + Xetra, symboles via OpenFIGI | Identité officielle (LEI, devise, places de cotation dans l'UE), tickers, indices tirés du nom, et composition estimée via un fonds français « jumeau » qui suit le même indice |
-| Fonds étrangers commercialisés en France | ≈ 8 500 | AMF – base GECO, + ESMA (FIRDS) | Identité ; pour ceux qui sont cotés dans l'UE, ISIN retrouvés par le nom dans FIRDS (correspondance prudente, signalée « à vérifier dans le DIC ») |
+| ETF étrangers cotés en Europe | ≈ 3 500 | ESMA (registres FIRDS et FITRS) + Xetra, OpenFIGI, BCE, GLEIF, cours Deutsche Börse | Identité officielle (LEI, devise, places de cotation dans l'UE, société de gestion, compartiment, type, tranche d'encours), tickers, cours de clôture relevé chaque jour (Xetra), montant échangé en bourse, et composition estimée via un fonds français « jumeau » qui suit le même indice |
+| Fonds étrangers commercialisés en France | ≈ 8 500 | AMF – base GECO, + ESMA (FIRDS), BCE, GLEIF, cours Deutsche Börse | Identité ; pour ceux qui sont cotés dans l'UE, ISIN retrouvés par le nom dans FIRDS (correspondance prudente, signalée « à vérifier dans le DIC »), et cours relevé chaque jour à la Bourse de Francfort quand il existe |
 
 ## Comment on calcule « Où est investi l'argent ? » (méthode maison)
 
@@ -170,13 +170,34 @@ python3 scripts/construire_annuaire.py
 
 Ce script régénère `data/annuaire.js` (environ 3,5 Mo), `data/resume.js` et `data/firds.js` (identité ESMA des fonds
 étrangers). Il n'utilise que Python, sans rien à installer, et dure 15 à 20 minutes (OpenFIGI limite les requêtes sans clé).
-Une mise à jour par mois suffit.
+Une mise à jour par mois suffit. Ensuite :
+
+```bash
+python3 scripts/construire_identite.py
+```
+
+régénère `data/identite.js` (3 minutes) : société de gestion, type de fonds et tranche d'encours (liste des fonds de la BCE),
+fonds parapluie et fonds maître (GLEIF), montant moyen échangé en bourse (ESMA FITRS). La tâche `identite.yml` le relance le 20 de chaque mois.
+
+## Cours des fonds étrangers
+
+`scripts/actualiser_cours.py` relève chaque jour le cours de clôture des fonds étrangers de l'annuaire : enchère de clôture
+de Xetra, sinon dernier cours de la Bourse de Francfort (en euros). Source : les données différées que Deutsche Börse publie
+gratuitement 15 minutes après chaque transaction (MiFIR art. 13, https://mfs.deutsche-boerse.com). Leur licence est gratuite
+tant que les données ne sont ni revendues ni intégrées à un service payant (conditions acceptées le 01/10/2026).
+Le fichier quotidien ne reste en ligne qu'un jour : l'historique se construit jour après jour dans `data/cours/AAAA/NN.json`
+(32 fichiers par an, lus par `js/cours.js`). La tâche `cours.yml` passe deux fois par jour.
 
 Sources et droits de réutilisation (vérifiés le 01/10/2026) :
-- AMF (GECO), ESMA (FIRDS : « reproduction… authorised… provided the source is acknowledged »), Deutsche Börse (liste Xetra),
-  OpenFIGI (identifiants du domaine public), ISO 10383 (codes des places de marché).
+- AMF (GECO), ESMA (FIRDS et FITRS : « reproduction… authorised… provided the source is acknowledged »), Deutsche Börse
+  (liste Xetra ; cours différés gratuits hors usage payant), OpenFIGI (identifiants du domaine public), ISO 10383 (codes des
+  places de marché), BCE (réutilisation libre en citant la BCE), GLEIF (licence CC0).
+- **À venir** : l'ESAP, point d'accès unique de l'Union européenne, publiera les DIC de tous les fonds à partir du 10/01/2028,
+  gratuitement et sans restriction de réutilisation : ce sera la source des frais et du SRI des fonds étrangers.
 - **Non utilisés** faute d'autorisation : la liste et les cours d'Euronext (compilation et affichage public interdits sans accord
-  écrit), Alpha Vantage, Yahoo, Morningstar, justETF, fundinfo et les sites des sociétés de gestion (usage personnel seulement).
+  écrit), Alpha Vantage, Yahoo, Morningstar, justETF, fundinfo et les sites des sociétés de gestion (usage personnel seulement),
+  les cours différés de gettex et de la Bourse de Stuttgart (usage privé seulement), Swiss Fund Data (accord écrit requis),
+  les offres gratuites de Twelve Data, Marketstack, EODHD et Finnhub (affichage public interdit).
   Demandes d'autorisation préparées pour Euronext, Alpha Vantage et HSBC AM (brouillons à envoyer par les éditeurs).
 
 ## Données personnelles (RGPD)

@@ -1,0 +1,41 @@
+# Relevé quotidien du cours de clôture des fonds étrangers (scripts/actualiser_cours.py → data/cours/).
+# Source : données différées gratuites de Deutsche Börse (Xetra et Bourse de Francfort, MiFIR art. 13).
+# Le fichier quotidien de Deutsche Börse ne reste en ligne que jusqu'au lendemain : deux passages par jour pour ne pas en manquer.
+name: Cours des fonds étrangers
+
+on:
+  schedule:
+    - cron: "41 5 * * *"    # vers 7 h 41, heure de Paris
+    - cron: "41 13 * * *"   # second passage, au cas où le fichier n'était pas encore prêt le matin
+  workflow_dispatch:          # bouton « Run workflow » pour lancer un relevé à la main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: donnees-simulateur   # même groupe que contexte.yml : jamais deux enregistrements en même temps
+  cancel-in-progress: false
+
+jobs:
+  cours:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Relever les cours du dernier jour de bourse
+        run: python3 scripts/actualiser_cours.py
+      - name: Enregistrer les cours
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cours
+          if git diff --cached --quiet; then
+            echo "Aucun nouveau cours."
+          else
+            git commit -m "Cours des fonds étrangers du $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi

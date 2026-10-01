@@ -59,7 +59,7 @@ async function afficherDepuisAdresse() {
     const y = window.scrollY;
     try {
       zoneResultat.innerHTML = afficherFicheAuto(entree, isin, donnees, false);
-      activerGraphiqueVL(zoneResultat, donnees.historique);
+      activerGraphiqueVL(zoneResultat, donnees.historique || (donnees.cours && donnees.cours.historique));
     } catch (err) {
       console.error("Erreur d'affichage de la fiche :", err); // on garde l'affichage précédent
     }
@@ -94,6 +94,14 @@ async function afficherDepuisAdresse() {
     }
     await analyserComposition(donnees, entree.nom, cleStyle, historiqueStyle, donnees.documents, donnees.part, progression, rendre);
     return;
+  }
+
+  // Fonds étrangers : cours relevés chaque jour sur Xetra et à Francfort (js/cours.js), chargés en parallèle
+  if (typeof chargerCours === "function") {
+    chargerCours(isin)
+      .then(c => { donnees.cours = c; donnees.coursFini = true; })
+      .catch(() => { donnees.coursFini = true; })
+      .then(rendre);
   }
 
   // ETF étrangers et fonds sans données : on passe par un fonds français qui suit le même indice
