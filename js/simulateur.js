@@ -906,7 +906,10 @@ function partQuiReduitLeRisque(A, B) {
 
 function panneauDiversifier() {
   return `<section class="carte">
-    <h2>Réduire le risque : un fonds complémentaire</h2>
+    <h2>Réduire le risque : illustration avec un fonds complémentaire</h2>
+    <p class="aide">Illustration calculée sur le passé : le fonds ci-dessous est choisi automatiquement, parmi des fonds d'un autre type,
+      pour montrer comment un mélange peut amortir les variations. Il ne tient pas compte de ta situation : ce n'est ni une recommandation
+      ni un conseil en investissement.</p>
     <div id="diversif"><p class="chargement">Recherche d'un fonds complémentaire et calcul des risques…</p></div>
   </section>`;
 }
