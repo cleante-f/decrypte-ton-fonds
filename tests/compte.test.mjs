@@ -108,3 +108,9 @@ test("erreur d'une fonction serveur {erreur} : code et message français", async
   await assert.rejects(n.Compte.fonction("paiement"), e => e.code === "deja_abonne" && e.message === "Tu es déjà abonné.");
   assert.match(n.appels[1].url, /\/functions\/v1\/paiement$/);
 });
+
+test("panne côté serveur (500) : message français, pas le texte technique anglais", async () => {
+  const n = navigateur([{ statut: 500, corps: { code: 500, error_code: "unexpected_failure", msg: "Error sending confirmation email" } }]);
+  await assert.rejects(n.Compte.inscrire("a@b.fr", "motdepasse123", "c"),
+    e => e.code === "unexpected_failure" && /ne répond pas correctement/.test(e.message) && !/Error sending/.test(e.message));
+});

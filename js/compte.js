@@ -24,8 +24,13 @@ const Compte = (() => {
     execution_immediate_requise: "Coche d'abord la case d'accès immédiat."
   };
 
+  const PANNE = "Le service de comptes ne répond pas correctement pour l'instant. Réessaie dans quelques minutes ; si le problème continue, écris-nous.";
+
   class ErreurCompte extends Error {
-    constructor(code, message, statut) { super(MESSAGES[code] || message); this.code = code; this.statut = statut; }
+    constructor(code, message, statut) {
+      super(MESSAGES[code] || (statut >= 500 ? PANNE : message));   // jamais le texte technique d'une panne serveur
+      this.code = code; this.statut = statut;
+    }
   }
 
   const base = () => CONFIG_COMPTE.supabaseUrl.replace(/\/$/, "");
