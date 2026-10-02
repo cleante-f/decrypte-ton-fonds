@@ -81,7 +81,8 @@ class TestBase(unittest.TestCase):
         return c
 
     def test_profil_cree_avec_consentements(self):
-        s, lignes = http("/rest/v1/profils?select=*", jeton=self.a["jeton"])
+        c = self.nouveau()   # compte neuf : les autres tests consomment des simulations sur A
+        s, lignes = http("/rest/v1/profils?select=*", jeton=c["jeton"])
         self.assertEqual(s, 200)
         self.assertEqual(len(lignes), 1)                      # A ne voit que son profil
         self.assertEqual(lignes[0]["offertes_utilisees"], 0)
