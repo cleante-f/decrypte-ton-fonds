@@ -12,7 +12,7 @@ function blocAcces(d) {
       <p>${d.abonnement_statut === "resilie_fin_periode" ? `Résilié : ton accès reste ouvert jusqu'au <strong>${dateCourte(d.abonnement_fin)}</strong>.`
         : `Prochain renouvellement le <strong>${dateCourte(d.abonnement_fin)}</strong>.`}</p>
       <p class="actions-compte"><a class="btn" href="simulateur.html">Ouvrir le simulateur</a>
-        <button type="button" class="btn-secondaire" id="portail">Gérer ou résilier mon abonnement</button></p>`;
+        <button type="button" class="btn btn-secondaire" id="portail">Gérer ou résilier mon abonnement</button></p>`;
   }
   const r = d.offertes_restantes;
   return `<h2>Compte gratuit</h2>
@@ -20,8 +20,8 @@ function blocAcces(d) {
       : "Tes simulations offertes sont utilisées : tu peux rouvrir et modifier celles que tu as enregistrées."}</p>
     ${d.abonnement_statut === "impaye" ? `<p class="note note-erreur">Le dernier paiement de ton abonnement a échoué : mets à jour ta carte pour retrouver l'accès.</p>` : ""}
     <p class="actions-compte">${r > 0 ? `<a class="btn" href="simulateur.html">Lancer une simulation</a>` : ""}
-      <a class="${r > 0 ? "btn-secondaire" : "btn"}" href="abonnement.html">Voir l'abonnement</a>
-      ${d.abonnement_statut === "impaye" ? `<button type="button" class="btn-secondaire" id="portail">Mettre à jour ma carte</button>` : ""}</p>`;
+      <a class="${r > 0 ? "btn btn-secondaire" : "btn"}" href="abonnement.html">Voir l'abonnement</a>
+      ${d.abonnement_statut === "impaye" ? `<button type="button" class="btn btn-secondaire" id="portail">Mettre à jour ma carte</button>` : ""}</p>`;
 }
 
 function ligneSimulation(s) {

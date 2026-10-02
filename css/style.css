@@ -924,7 +924,8 @@ div.carte-horizon { cursor: default; }
 .formulaire-ligne { grid-template-columns: 1fr auto; align-items: end; margin-bottom: 12px; }
 .lien-bouton { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; font: inherit; }
 .actions-compte { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.btn-danger { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--statut-critique); background: none; color: var(--statut-critique); cursor: pointer; }
+.actions-compte a.btn { text-decoration: none; display: inline-block; }
+.btn-danger { padding: 8px 14px; font: inherit; border-radius: 8px; border: 1px solid var(--statut-critique); background: none; color: var(--statut-critique); cursor: pointer; }
 .liste-simulations { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .liste-simulations li { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--bordure); }
 .liste-simulations .actions-ligne { display: flex; gap: 12px; }

@@ -73,7 +73,7 @@ function ecranAbonnement() {
     <h2>Tes ${CONFIG_COMPTE.simulationsOffertes} simulations offertes sont utilisées</h2>
     <p>Tu peux toujours rouvrir et modifier celles que tu as enregistrées. Pour simuler un nouveau fonds, passe à l'abonnement :
       simulations illimitées, comparaisons et portefeuilles enregistrés.</p>
-    <p class="actions-compte"><a class="btn" href="abonnement.html">Voir l'abonnement</a> <a class="btn-secondaire" href="compte.html#simulations">Mes simulations</a></p>
+    <p class="actions-compte"><a class="btn" href="abonnement.html">Voir l'abonnement</a> <a class="btn btn-secondaire" href="compte.html#simulations">Mes simulations</a></p>
   </section>`;
 }
 

@@ -6,7 +6,7 @@ function offreSansCompte() {
   return `<h2>Commence gratuitement</h2>
     <p>Crée ton compte : ${CONFIG_COMPTE.simulationsOffertes} simulations offertes, sans carte bancaire. Ensuite, l'abonnement coûte <strong>${prix}</strong>, résiliable à tout moment.</p>
     <p class="actions-compte"><a class="btn" href="connexion.html?retour=simulateur.html">Créer mon compte</a>
-      <a class="btn-secondaire" href="connexion.html?vue=connexion&retour=simulateur.html">J'ai déjà un compte</a></p>`;
+      <a class="btn btn-secondaire" href="connexion.html?vue=connexion&retour=simulateur.html">J'ai déjà un compte</a></p>`;
 }
 function offreAbonnement(d) {
   return `<h2>Abonnement : ${prix}</h2>
@@ -23,7 +23,7 @@ async function afficherOffre() {
   try {
     const d = await Compte.droits();
     zoneOffre.innerHTML = d.abonne
-      ? `<h2>Ton abonnement est actif</h2><p class="actions-compte"><a class="btn" href="simulateur.html">Ouvrir le simulateur</a> <a class="btn-secondaire" href="compte.html">Mon compte</a></p>`
+      ? `<h2>Ton abonnement est actif</h2><p class="actions-compte"><a class="btn" href="simulateur.html">Ouvrir le simulateur</a> <a class="btn btn-secondaire" href="compte.html">Mon compte</a></p>`
       : offreAbonnement(d);
   } catch (err) {
     if (err.code === "non_connecte") zoneOffre.innerHTML = offreSansCompte(); else { msgAbo.hidden = false; msgAbo.textContent = err.message; }
