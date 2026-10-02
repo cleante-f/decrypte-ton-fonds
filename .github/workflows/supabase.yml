@@ -31,5 +31,9 @@ jobs:
         run: supabase link --project-ref "$PROJET"
       - name: Appliquer les migrations de la base
         run: supabase db push
+      - name: Adresses autorisées à appeler les fonctions (valeur publique, pas un secret)
+        env:
+          ORIGINES: "http://localhost:8770"   # la tâche 11 ajoute en tête l'adresse Cloudflare du site
+        run: supabase secrets set ORIGINES="$ORIGINES" --project-ref "$PROJET"
       - name: Déployer les fonctions serveur
         run: if [ -d supabase/functions ] && ls supabase/functions/*/index.ts >/dev/null 2>&1; then supabase functions deploy --project-ref "$PROJET"; fi

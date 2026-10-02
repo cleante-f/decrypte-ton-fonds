@@ -82,7 +82,12 @@ async function assurerSimulation() {
   const fonds = cleEntree(entree, isin);
   if (S.simulation && S.simulation.fonds === fonds) return true;
   if (!S.demarrage) {   // une seule demande à la fois (double clic, rendu en double)
-    S.demarrage = Compte.demarrerSimulation(fonds, entree.nom).then(id => { S.simulation = { id, fonds }; return true; })
+    S.demarrage = Compte.demarrerSimulation(fonds, entree.nom).then(id => {
+      S.simulation = { id, fonds };
+      history.replaceState(null, "", `simulateur.html?sim=${encodeURIComponent(id)}#${encodeURIComponent(fonds)}`);   // recharger la page rouvre cette simulation
+      programmerEnregistrement();   // garde tout de suite les réglages choisis dans l'assistant
+      return true;
+    })
       .finally(() => { S.demarrage = null; });
   }
   try { return await S.demarrage; } catch (err) {
