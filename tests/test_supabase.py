@@ -19,6 +19,8 @@ from sources.commun import cle_api  # noqa: E402
 
 C = config_publique()
 SECRET = cle_api("SUPABASE_SECRET_KEY")
+# Jeton factice accepté par la clé secrète de TEST de Turnstile (1x000…AA) configurée dans Supabase
+CAPTCHA_TEST = "XXXX.DUMMY.TOKEN.XXXX"
 
 
 def http(chemin, methode="GET", corps=None, cle=None, jeton=None, prefer=None):
@@ -46,7 +48,8 @@ def creer_compte(confirme=True):
     assert s in (200, 201), (s, u)
     jeton = None
     if confirme:
-        s, t = http("/auth/v1/token?grant_type=password", "POST", {"email": email, "password": mdp})
+        s, t = http("/auth/v1/token?grant_type=password", "POST", {"email": email, "password": mdp,
+                                                                     "gotrue_meta_security": {"captcha_token": CAPTCHA_TEST}})
         assert s == 200, (s, t)
         jeton = t["access_token"]
     return {"id": u["id"], "email": email, "jeton": jeton}
