@@ -1,11 +1,34 @@
 /*
- * Contrôle d'accès au simulateur (Cloudflare Pages Functions, appelé seulement pour les chemins de _routes.json).
+ * Contrôle d'accès au simulateur (Cloudflare Pages Functions).
+ * _routes.json fait passer ici toutes les adresses, sauf des fichiers publics nommés exactement : le filtre de Cloudflare
+ * compare l'adresse telle qu'elle est écrite, alors que le serveur de fichiers la décode (« /js/%73imulateur.js » sert
+ * « /js/simulateur.js »). L'adresse est donc décodée avant d'être comparée aux chemins protégés.
  * Le cookie « dtf_session » contient le jeton d'accès Supabase ; c'est Supabase qui vérifie sa signature en exécutant
  * droit_acces() avec ce jeton (un jeton faux, expiré ou révoqué est refusé). Décision gardée 60 s par jeton.
+ * Adresse et clé publique de Supabase : variables de Cloudflare si elles existent, sinon celles de js/config-compte.js.
  */
 export const CHEMINS_PROTEGES = ["/simulateur", "/simulateur.html", "/js/simulateur.js", "/js/projection.js", "/js/graphiques-simu.js",
   "/js/contexte-fonds.js", "/data/contexte.js"];
+const PROTEGES = new Set(CHEMINS_PROTEGES.map(c => c.toLowerCase()));
 const DUREE_DECISION = 60;
+
+// Forme comparable d'une adresse : décodée (plusieurs fois au besoin), « \ » lu comme « / », sans « . », « .. »,
+// « // » ni « / » final, en minuscules. null si elle est mal encodée.
+export function cheminCanonique(chemin) {
+  let d = chemin;
+  for (let i = 0; i < 3 && d.includes("%"); i++) {
+    try { d = decodeURIComponent(d); } catch (e) { return null; }
+  }
+  const morceaux = [];
+  for (const m of d.replace(/\\/g, "/").split("/")) {
+    if (m === "" || m === ".") continue;
+    if (m === "..") morceaux.pop(); else morceaux.push(m);
+  }
+  return ("/" + morceaux.join("/")).toLowerCase();
+}
+
+export const estProtege = chemin => { const c = cheminCanonique(chemin); return c === null || PROTEGES.has(c); };
+const reglage = (env, nom, champ) => (env && env[nom]) || globalThis.CONFIG_COMPTE?.[champ];
 
 export function lireCookie(entete, nom) {
   for (const morceau of (entete || "").split(";")) {
@@ -26,9 +49,9 @@ async function droits(jeton, env, fetchImpl, cache) {
     const garde = await cache.match(cle);
     if (garde) return garde.json();
   }
-  const r = await fetchImpl(`${env.SUPABASE_URL}/rest/v1/rpc/droit_acces`, {
+  const r = await fetchImpl(`${reglage(env, "SUPABASE_URL", "supabaseUrl")}/rest/v1/rpc/droit_acces`, {
     method: "POST", body: "{}",
-    headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${jeton}`, "Content-Type": "application/json" }
+    headers: { apikey: reglage(env, "SUPABASE_PUBLISHABLE_KEY", "supabaseCle"), Authorization: `Bearer ${jeton}`, "Content-Type": "application/json" }
   });
   if (r.status === 401 || r.status === 403) return null;
   if (!r.ok) throw new Error(`Supabase ${r.status}`);
@@ -43,7 +66,10 @@ const vers = (url, chemin) => new Response(null, { status: 302, headers: { Locat
 
 export async function controlerAcces(requete, env, suivant, { fetchImpl = fetch, cache = null } = {}) {
   const url = new URL(requete.url);
-  const estPage = url.pathname === "/simulateur" || url.pathname.endsWith(".html");
+  const chemin = cheminCanonique(url.pathname);
+  if (chemin === null) return texte("Adresse invalide.", 400);
+  if (!PROTEGES.has(chemin)) return suivant();
+  const estPage = chemin === "/simulateur" || chemin.endsWith(".html");
   const jeton = lireCookie(requete.headers.get("Cookie"), "dtf_session");
   let d = null;
   if (jeton) {

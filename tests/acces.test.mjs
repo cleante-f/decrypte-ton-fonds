@@ -64,3 +64,61 @@ test("décision gardée 60 s : un seul appel à Supabase par jeton", async () =>
   await controlerAcces(requete("/js/simulateur.js", "dtf_session=bon"), env, fichier, { fetchImpl: f, cache });
   assert.equal(compteur.n, 1);
 });
+
+// ---- Adresses déguisées : le serveur de fichiers décode l'adresse, le contrôle doit la décoder aussi ----
+const { readFileSync, existsSync } = await import("node:fs");
+const { estProtege } = await import("../serveur/acces.js");
+const sansSupabase = async () => { throw new Error("Supabase ne doit pas être appelé"); };
+
+test("adresses déguisées du simulateur : reconnues comme protégées", () => {
+  for (const c of ["/js/%73imulateur.js", "/%6As/simulateur.js", "/js%2Fsimulateur.js", "/js//simulateur.js", "/SIMULATEUR.HTML",
+    "/Js/Simulateur.js", "/simulateur/", "/simulateur.html/", "/data/contexte.js/", "/js/%2e/simulateur.js", "/js/x/%2e%2e/simulateur.js",
+    "/data%5Ccontexte.js"])
+    assert.ok(estProtege(c), c);
+  for (const c of ["/", "/index.html", "/decrypte.html", "/decrypte", "/js/compte.js", "/js/simulateur-aide.js", "/data/contexte.json"])
+    assert.ok(!estProtege(c), c);
+});
+
+test("adresse déguisée sans cookie : refusée comme l'adresse normale", async () => {
+  let servi = false;
+  const r = await controlerAcces(requete("/js/%73imulateur.js"), env, () => { servi = true; return fichier(); }, { fetchImpl: sansSupabase });
+  assert.equal(r.status, 403);
+  assert.equal(servi, false);
+});
+
+test("adresse mal encodée : refusée (400), jamais servie", async () => {
+  const r = await controlerAcces(requete("/js/%E0%A4%A.js"), env, fichier, { fetchImpl: sansSupabase });
+  assert.equal(r.status, 400);
+});
+
+test("page publique : envoyée telle quelle, sans appel à Supabase, même avec un cookie", async () => {
+  for (const c of ["/decrypte.html", "/js/compte.js", "/"]) {
+    const r = await controlerAcces(requete(c, "dtf_session=bon"), env, fichier, { fetchImpl: sansSupabase });
+    assert.equal(r.status, 200, c);
+    assert.equal(r.headers.get("Cache-Control"), "public, max-age=14400", c);
+  }
+});
+
+test("réglages par défaut : adresse et clé publique lues dans js/config-compte.js", async () => {
+  await import("../js/config-compte.js");
+  const C = globalThis.CONFIG_COMPTE;
+  assert.ok(C && C.supabaseUrl.startsWith("https://") && C.supabaseCle);
+  const f = async (url, options) => {
+    assert.equal(url, `${C.supabaseUrl}/rest/v1/rpc/droit_acces`);
+    assert.equal(options.headers.apikey, C.supabaseCle);
+    return new Response(JSON.stringify({ acces: true }));
+  };
+  const r = await controlerAcces(requete("/js/simulateur.js", "dtf_session=bon"), {}, fichier, { fetchImpl: f });
+  assert.equal(r.status, 200);
+});
+
+test("_routes.json : tout passe par le contrôle, sauf des fichiers publics nommés exactement", () => {
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  assert.deepEqual(routes.include, ["/*"]);
+  assert.ok(routes.include.length + routes.exclude.length <= 100);
+  for (const c of routes.exclude) {
+    assert.ok(!c.includes("*"), `${c} : pas de joker dans les exclusions (une adresse déguisée pourrait s'y glisser)`);
+    assert.ok(existsSync(new URL(".." + c, import.meta.url)), `${c} : fichier introuvable`);
+    assert.ok(!estProtege(c), `${c} : fichier protégé exclu du contrôle`);
+  }
+});
