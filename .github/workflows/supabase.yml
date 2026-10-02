@@ -4,7 +4,7 @@ name: Supabase (base et fonctions)
 
 on:
   push:
-    paths: ["supabase/**"]
+    paths: ["supabase/**", ".github/workflows/supabase.yml"]
   workflow_dispatch:
 
 permissions:
