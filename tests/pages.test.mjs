@@ -69,3 +69,9 @@ test("abonnement : garanties reprises des CGV", () => {
     assert.ok(liste[0].replace(/<[^>]+>/g, "").includes(texte), texte);
   assert.ok(/<li[^>]*>[^]*?14 jours[^]*?href="cgv.html"[^]*?<\/li>/.test(liste[0]), "lien vers les CGV absent");
 });
+
+test("simulateur : avertissement propre à la page conservé", () => {
+  const html = lirePage("simulateur");
+  const horsPied = html.replace(/<footer[\s\S]*?<\/footer>/, "");
+  assert.ok(horsPied.replace(/\s+/g, " ").includes("Cette simulation repose sur des hypothèses et des données historiques. Elle ne constitue pas une garantie de performance future ni un conseil en investissement."));
+});

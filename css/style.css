@@ -383,6 +383,9 @@ body.createur-actif { overflow: hidden; }
   .site-header .entete-actions { order: 2; }
   .onglets { order: 3; flex: 1 1 100%; justify-content: space-between; gap: 8px; }
   .onglets a { padding: 6px 0; font-size: .85rem; }
+  /* Cibles tactiles d'au moins 44 px de haut sur téléphone */
+  .onglets a, .lien-bouton, .btn-link, .periodes button, .chip-comparer, .onglets-simu button,
+  .btn-onglet, .puce, .puce-radio span { display: inline-flex; align-items: center; min-height: 44px; }
 }
 
 .btn-onglet {
@@ -565,7 +568,7 @@ body.createur-actif { overflow: hidden; }
   width: min(280px, 100%); font: inherit; font-size: clamp(1.6rem, 5vw, 2.2rem); font-weight: 700; padding: 8px 14px;
   border: 2px solid var(--bordure-forte); border-radius: 8px; background: var(--carte); color: var(--texte);
 }
-.champ-montant input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-fond); }
+.champ-montant input:focus { border-color: var(--accent); }
 .champ-montant > span:last-child { font-size: 1.6rem; color: var(--texte-2); }
 .champ-montant.petit input { font-size: 1.3rem; width: 180px; }
 .champ-montant.petit > span:last-child { font-size: 1.2rem; }
@@ -578,8 +581,8 @@ body.createur-actif { overflow: hidden; }
 .puce[aria-pressed="true"] { background: var(--texte); color: var(--fond); border-color: var(--texte); font-weight: 600; }
 .ligne-options { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin: 8px 0; font-size: .92rem; }
 .ligne-options label, .grille-options label, .fiscalite label, .plan-champs label { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.simu input[type="number"], .simu input[type="month"], .simu select, .comparer-fonds input {
-  font: inherit; font-size: .95rem; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--bordure); background: var(--fond); color: var(--texte);
+.simu input[type="number"], .simu input[type="month"], .simu select {
+  font: inherit; font-size: .95rem; min-height: 40px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--bordure-forte); background: var(--carte); color: var(--texte);
 }
 .simu input[type="number"] { width: 110px; }
 .simu input.court[type="number"] { width: 72px; }
@@ -764,7 +767,7 @@ div.carte-horizon { cursor: default; }
 .frais-carte dt { color: var(--texte-2); }
 .frais-carte dd { margin: 0; font-variant-numeric: tabular-nums; }
 .frais-cout { border-top: 1px solid var(--bordure); padding-top: 4px; font-weight: 700; }
-.frais-cout dd { color: var(--rouge); white-space: nowrap; }
+.frais-cout dd { color: var(--rouge-texte); white-space: nowrap; }
 
 .rangs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 12px 0; }
 .rangs div { background: var(--fond); border-radius: 10px; padding: 8px 10px; }
@@ -872,8 +875,8 @@ div.carte-horizon { cursor: default; }
 .opp-risque { display: grid; grid-template-columns: 1fr; gap: 10px; }
 @media (min-width: 560px) { .opp-risque { grid-template-columns: 1fr 1fr; } }
 .opp-risque h4 { margin: 4px 0; color: var(--texte); }
-.opp-risque div:first-child h4::before { content: "↗ "; color: var(--statut-bon); }
-.opp-risque div:last-child h4::before { content: "↘ "; color: var(--statut-critique); }
+.opp-risque div:first-child h4::before { content: "↗ "; color: var(--vert-texte); }
+.opp-risque div:last-child h4::before { content: "↘ "; color: var(--rouge-texte); }
 .opp-risque p { margin: 0; font-size: .86rem; }
 .actus { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; font-size: .86rem; }
 .actus small { display: block; color: var(--texte-2); font-size: .76rem; }

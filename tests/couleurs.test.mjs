@@ -115,3 +115,39 @@ test("focus visible et mouvement réduit", () => {
   assert.ok(focus, "règle :focus-visible commune absente");
   assert.match(CSS, /@media \(prefers-reduced-motion: reduce\)/);
 });
+
+// ---- Relecture finale : règles qui contournent les variables ----
+const debutCreateur = CSS.indexOf("/* ---------- Bouton « Créateur » et son animation ---------- */");
+const HORS_CREATEUR = (CSS.slice(0, debutCreateur) + CSS.slice(CSS.indexOf("/* ----------", debutCreateur + 10))).replace(/\/\*[\s\S]*?\*\//g, "");
+const REGLES = [...HORS_CREATEUR.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selecteur, corps]) => ({ selecteur: selecteur.trim(), corps }));
+
+test("champs de saisie : contour lisible (--bordure-forte), jamais --bordure", () => {
+  const fautives = REGLES.filter(({ selecteur, corps }) =>
+    selecteur.split(",").some(s => /^(input|select|textarea)\b/.test(s.trim().split(/[\s>+~]+/).pop()))
+    && /border(-color)?\s*:[^;]*var\(--bordure\)/.test(corps)).map(r => r.selecteur);
+  assert.deepEqual(fautives, []);
+});
+
+test("couleurs de trait (vert, orange, rouge) jamais utilisées pour du texte", () => {
+  const fautives = REGLES.filter(({ corps }) => /(^|[;\s])color:\s*var\(--(vert|orange|rouge|statut-[a-z]+)\)/.test(corps)).map(r => r.selecteur);
+  assert.deepEqual(fautives, []);
+});
+
+test("aucun focus masqué (outline: none sur :focus)", () => {
+  const fautives = REGLES.filter(({ selecteur, corps }) => selecteur.includes(":focus") && /outline:\s*none/.test(corps)).map(r => r.selecteur);
+  assert.deepEqual(fautives, []);
+});
+
+test("téléphone : cibles tactiles d'au moins 44 px", () => {
+  let mobile = "";
+  for (let i = CSS.indexOf("@media (max-width: 760px) {"); i >= 0; i = CSS.indexOf("@media (max-width: 760px) {", i + 1)) {
+    let j = CSS.indexOf("{", i) + 1;
+    for (let n = 1; n > 0; j++) n += CSS[j] === "{" ? 1 : CSS[j] === "}" ? -1 : 0;
+    mobile += CSS.slice(CSS.indexOf("{", i) + 1, j - 1);
+  }
+  mobile = mobile.replace(/\/\*[\s\S]*?\*\//g, "");
+  const regles = [...mobile.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, , corps]) => /min-height:\s*44px/.test(corps))
+    .flatMap(([, selecteur]) => selecteur.split(",").map(s => s.trim()));
+  for (const cible of [".onglets a", ".lien-bouton", ".btn-link", ".periodes button", ".chip-comparer", ".onglets-simu button",
+    ".btn-onglet", ".puce", ".puce-radio span"]) assert.ok(regles.includes(cible), `${cible} : pas de min-height 44px sur téléphone`);
+});
