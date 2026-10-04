@@ -254,6 +254,7 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `js/marches.js` | Tableau « marchés et devises » de la fiche et du simulateur |
 | `js/confidentialite.js` | Page de confidentialité : données du site dans ce navigateur et bouton d'effacement |
 | `js/vendor/pdfjs/` | pdf.js 3.11.174 (Mozilla, licence Apache 2.0), hébergé avec le site : aucun appel à un service tiers |
+| `fonts/` | Police IBM Plex Sans 1.1.0 (IBM, SIL Open Font License 1.1, texte dans `fonts/OFL.txt`), alphabet latin, hébergée avec le site : aucun appel à un service tiers |
 | `js/nav.js` | Onglets communs (le fonds suit d'une page à l'autre) |
 | `js/infobulles.js` | Infobulles des termes techniques (toutes les pages) |
 | `js/createur.js` | Bouton « Créateur » et son animation |
