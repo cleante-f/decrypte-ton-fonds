@@ -118,8 +118,8 @@ small, .aide, .source, .total { color: var(--texte-2); }
 .rien { background: var(--vert-fond); padding: 12px; border-radius: 8px; }
 .vide { color: var(--texte-2); font-style: italic; }
 .liens-pied { margin-top: 8px; }
-.page-texte { max-width: 900px; }
-.page-texte h1 { margin: 20px 0 6px; }
+.page-texte { max-width: 720px; }
+.page-texte h1, .page-compte h1 { margin: 24px 0 8px; }
 .page-texte .carte p { line-height: 1.6; }
 .tableau-texte { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: .88rem; }
 .tableau-texte th, .tableau-texte td { padding: 8px; border-bottom: 1px solid var(--bordure); text-align: left; vertical-align: top; }
@@ -925,12 +925,15 @@ div.carte-horizon { cursor: default; }
 .formulaire-ligne { grid-template-columns: 1fr auto; align-items: end; margin-bottom: 12px; }
 .lien-bouton { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font: inherit; }
 .actions-compte { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.actions-compte a.btn { text-decoration: none; display: inline-block; }
+.actions-compte a.btn { text-decoration: none; }
 .btn-danger { min-height: 44px; padding: 8px 14px; font: inherit; font-weight: 600; border-radius: 8px; border: 1px solid var(--rouge-texte); background: none; color: var(--rouge-texte); cursor: pointer; }
 .liste-simulations { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .liste-simulations li { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--bordure); }
 .liste-simulations .actions-ligne { display: flex; gap: 12px; }
-.note-erreur { border-color: var(--statut-critique); }
+.note-erreur { background: var(--rouge-fond); color: var(--rouge-texte); }
 @media (max-width: 560px) { .formulaire-ligne { grid-template-columns: 1fr; } .btn-compte { padding: 6px 10px; } }
 .liste-avantages { padding-left: 20px; line-height: 1.7; }
 .carte-abonnement { border-color: var(--accent); }
+.garanties { list-style: none; padding: 16px 20px; margin: 16px 0; display: grid; gap: 8px; background: var(--accent-fond); border-radius: 12px; }
+.garanties li { position: relative; padding-left: 26px; }
+.garanties li > span { position: absolute; left: 0; color: var(--accent); font-weight: 600; }

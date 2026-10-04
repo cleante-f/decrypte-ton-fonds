@@ -60,3 +60,12 @@ test("accueil : textes corrigés et trois outils", () => {
   assert.ok(/<button type="submit" class="lien-bouton" formaction="performances.html">/.test(form));
   assert.ok(/<button type="submit" class="lien-bouton" formaction="simulateur.html">/.test(form));
 });
+
+test("abonnement : garanties reprises des CGV", () => {
+  const liste = lirePage("abonnement").match(/<ul class="garanties">[\s\S]*?<\/ul>/);
+  assert.ok(liste, "liste des garanties absente");
+  for (const texte of ["3 simulations offertes, sans carte bancaire", "Résiliable à tout moment depuis « Mon compte »",
+    "Paiement sécurisé par Stripe : tes données de carte ne passent jamais par ce site", "14 jours pour te rétracter (voir les CGV)"])
+    assert.ok(liste[0].replace(/<[^>]+>/g, "").includes(texte), texte);
+  assert.ok(/<li[^>]*>[^]*?14 jours[^]*?href="cgv.html"[^]*?<\/li>/.test(liste[0]), "lien vers les CGV absent");
+});
