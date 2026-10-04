@@ -537,9 +537,10 @@ body.createur-actif { overflow: hidden; }
 
 /* ---------- Simulateur ---------- */
 
-.page-simu main, .page-simu .site-header, .page-simu .site-footer { max-width: 1120px; }
+.page-simu main, .page-simu .site-footer { max-width: 1120px; }
+.page-simu .site-header { padding-left: max(16px, calc((100% - 1088px) / 2)); padding-right: max(16px, calc((100% - 1088px) / 2)); }
 .page-simu { overflow-x: clip; }
-.simu .carte { border-radius: 16px; box-shadow: var(--ombre-carte); padding: 20px; scroll-margin-top: 72px; }
+.simu .carte { border-radius: 12px; box-shadow: none; padding: 20px; scroll-margin-top: 72px; }
 .scenarios, .resume-simu { scroll-margin-top: 72px; }
 @media (max-width: 480px) { .simu .carte { padding: 14px; } }
 .simu h2 { font-size: 1.25rem; letter-spacing: -.01em; }
@@ -596,7 +597,7 @@ body.createur-actif { overflow: hidden; }
 .groupe-puces legend { font-size: .85rem; color: var(--texte-2); padding: 0; margin-bottom: 4px; width: 100%; }
 .puce-radio input { position: absolute; opacity: 0; pointer-events: none; }
 .puce-radio span { display: inline-block; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); cursor: pointer; font-size: .88rem; }
-.puce-radio input:checked + span { background: var(--texte); color: var(--fond); border-color: var(--texte); font-weight: 600; }
+.puce-radio input:checked + span { background: var(--accent); color: var(--sur-accent); border-color: var(--accent); font-weight: 600; }
 .puce-radio input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
 .options-avancees { margin-top: 14px; border-top: 1px dashed var(--bordure); padding-top: 10px; }
 .options-avancees summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: .92rem; }
@@ -620,7 +621,7 @@ body.createur-actif { overflow: hidden; }
 .resume-phrase { font-size: 1.05rem; line-height: 1.6; max-width: 900px; }
 .chiffres-heros { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 14px 0; }
 @media (min-width: 720px) { .chiffres-heros { grid-template-columns: 1fr 1.25fr 1fr; } }
-.chiffre-heros { background: var(--carte); border: 1px solid var(--bordure); border-radius: 16px; padding: 16px 18px; box-shadow: var(--ombre-carte); display: grid; gap: 2px; }
+.chiffre-heros { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 16px 18px; box-shadow: none; display: grid; gap: 2px; }
 .chiffre-heros span { font-size: .82rem; color: var(--texte-2); }
 .chiffre-heros strong { font-size: clamp(1.4rem, 3.6vw, 1.9rem); letter-spacing: -.02em; }
 .chiffre-heros small { font-size: .85rem; font-weight: 600; }
@@ -632,16 +633,17 @@ body.createur-actif { overflow: hidden; }
 .chiffre-heros.accent small, .chiffre-heros.accent small.hausse, .chiffre-heros.accent small.baisse { color: inherit; }
 
 .onglets-simu {
-  display: flex; gap: 4px; overflow-x: auto; padding: 4px; margin: 8px 0 4px; border-radius: 14px; background: var(--piste);
+  display: flex; gap: 2px; overflow-x: auto; padding: 3px; margin: 8px 0 4px; border-radius: 10px; background: var(--piste);
   position: sticky; top: 0; z-index: 4; scrollbar-width: none;
 }
 .onglets-simu::-webkit-scrollbar { display: none; }
 .onglets-simu button {
-  flex: 1 0 auto; font: inherit; font-size: .9rem; font-weight: 600; padding: 9px 14px; border: 0; border-radius: 10px; cursor: pointer;
+  flex: 1 0 auto; font: inherit; font-size: .9rem; font-weight: 500; min-height: 40px; padding: 8px 14px; border: 0; border-radius: 8px; cursor: pointer;
   background: transparent; color: var(--texte-2); white-space: nowrap;
 }
-.onglets-simu button[aria-selected="true"] { background: var(--carte); color: var(--texte); box-shadow: inset 0 0 0 1px var(--bordure); }
-.avertissement-simu { font-size: .88rem; padding: 12px 14px; border-radius: 12px; background: var(--orange-fond); border-left: 4px solid var(--statut-attention); }
+.onglets-simu button:hover { color: var(--texte); }
+.onglets-simu button[aria-selected="true"] { background: var(--carte); color: var(--texte); box-shadow: inset 0 0 0 1px var(--bordure-forte); }
+.avertissement-simu { font-size: .88rem; padding: 12px 14px; border-radius: 0; background: var(--orange-fond); border-left: 4px solid var(--statut-attention); }
 
 /* Graphiques */
 .entete-graphique { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
@@ -723,9 +725,9 @@ body.createur-actif { overflow: hidden; }
 .scenarios { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 16px 0; }
 @media (min-width: 640px) { .scenarios { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 1040px) { .scenarios { grid-template-columns: repeat(4, 1fr); } }
-.scenario { background: var(--carte); border: 1px solid var(--bordure); border-radius: 16px; padding: 16px; box-shadow: var(--ombre-carte); border-top: 4px solid var(--serie-0); }
+.scenario { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 16px; box-shadow: none; border-top: 4px solid var(--serie-0); }
 .scenario-defavorable { border-top-color: var(--rouge); }
-.scenario-favorable { border-top-color: var(--serie-2); }
+.scenario-favorable { border-top-color: var(--vert); }
 .scenario-tensions { border-top-color: var(--serie-1); }
 .scenario h3 { margin: 0; font-size: 1rem; }
 .scenario header p { margin: 4px 0 0; font-size: .8rem; color: var(--texte-2); min-height: 3.2em; }
@@ -896,7 +898,7 @@ div.carte-horizon { cursor: default; }
 @media (prefers-reduced-motion: reduce) { .btn-simuler, .progression-etapes .pas { transition: none; } }
 
 /* Simulateur : réduire le risque */
-.complement { background: var(--fond); border-radius: 14px; padding: 16px; margin: 12px 0 18px; border-left: 4px solid var(--serie-1); }
+.complement { background: var(--fond); border-radius: 0; padding: 16px; margin: 12px 0 18px; border-left: 4px solid var(--serie-1); }
 .complement h3 { margin: 2px 0 4px; font-size: 1.15rem; }
 .complement p { margin: 4px 0; }
 .complement .surtitre { margin: 0; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
