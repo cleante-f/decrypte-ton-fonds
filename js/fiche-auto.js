@@ -528,7 +528,7 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
   const sources = [];
   if (c && c.inventaire && c.inventaire.document) sources.push(`<a href="${GECO_API}/document/download/${c.inventaire.document.idInterne}" target="_blank" rel="noopener">${esc(c.inventaire.document.docTypeLib)} du ${dateFr(c.inventaire.document.dateEffet)}</a> (AMF – GECO)`);
   if (c && c.style) sources.push("valeurs liquidatives (AMF – GECO) et taux de la Banque centrale européenne");
-  return `<section class="carte"><h2>2. Où est investi l'argent ?</h2>
+  return `<section class="carte"><h2><span class="num-section">2.</span> Où est investi l'argent ?</h2>
     ${objectif}${corps}
     ${sources.length ? `<p class="source">Données brutes : ${sources.join(" ; ")}. Calculs : ce site.</p>` : ""}
     ${srcDic ? source(srcDic) : ""}
@@ -578,7 +578,7 @@ function sectionConcentrationAuto(e, d, chargement) {
   const enCours = !chargement && d && d.composition && !d.composition.fini;
   return `
   <section class="carte">
-    <h2>3. Surexposition et concentration</h2>
+    <h2><span class="num-section">3.</span> Surexposition et concentration</h2>
     ${c && c.principale ? `<p class="aide">Alertes calculées sur la composition ci-dessus. Seuils modifiables dans « Réglages des alertes ».</p>` : ""}
     ${alertes.length ? `<ul class="liste-alertes">${alertes.map(a => `<li class="alerte alerte-${a.niveau}">${pastille(a.niveau)}<div><strong>${esc(a.titre)}</strong><p>${esc(a.explication)}</p></div></li>`).join("")}</ul>` : ""}
     ${chargement || enCours ? `<p class="chargement">Calcul en attente de la composition…</p>` : !(c && c.principale) ? nonDispo("Composition non disponible : les alertes ci-dessus (s'il y en a) sont déduites de la classification AMF.") : ""}
@@ -614,17 +614,18 @@ function afficherFicheAuto(e, isin, d, chargement) {
     <header class="fiche-entete">
       <h1>${esc(e.nom)}</h1>
       <p>${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
+      ${types.length ? `<div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>` : ""}
       ${enBref(e, d)}
       <div class="actions-fiche">
         <a class="btn btn-simuler" href="simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
-        <a class="btn-onglet" href="performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
+        <a class="btn btn-secondaire" href="performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
       </div>
     </header>`;
 
   // ----- 1. Identité -----
   const identite = `
   <section class="carte">
-    <h2>1. Identité du fonds</h2>
+    <h2><span class="num-section">1.</span> Identité du fonds</h2>
     <div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>
     ${listeInfos([
       [terme("isin", "ISIN"), esc(isin || "non publié") + (esma.parNom ? `<br><small>Retrouvé par le nom du fonds dans le registre européen FIRDS : vérifie-le dans le DIC.</small>` : ""), esma.parNom],
@@ -658,7 +659,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
   let sectionRisque;
   if (e.source !== "G") {
     const liquidite = ligneLiquiditeEtranger(esma.liquidite, e);
-    sectionRisque = `<section class="carte"><h2>4. Risque</h2>
+    sectionRisque = `<section class="carte"><h2><span class="num-section">4.</span> Risque</h2>
       ${nonDispo("L'indicateur SRI n'est pas disponible gratuitement pour ce fonds de droit étranger : consulte son DIC sur le site de la société de gestion.")}
       ${nomIdx.levier ? `<p class="resume">Produit à levier ou inversé : réservé à des investisseurs très avertis, sur de courtes durées.</p>` : ""}
       ${blocCoursEtranger(d && d.cours, d && d.coursFini, e.etf)}
@@ -666,7 +667,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
         ${source({ document: "ESMA – registre FITRS des calculs de transparence MiFID (montant moyen échangé par jour)", date: IDENTITE.maj })}` : ""}
       ${blocMarches}</section>`;
   } else if (chargement) {
-    sectionRisque = `<section class="carte"><h2>4. Risque</h2><p class="chargement">Calcul à partir de l'historique des valeurs liquidatives…</p></section>`;
+    sectionRisque = `<section class="carte"><h2><span class="num-section">4.</span> Risque</h2><p class="chargement">Calcul à partir de l'historique des valeurs liquidatives…</p></section>`;
   } else {
     const s = d.stats;
     const sri = dic && dic.sri;
@@ -693,7 +694,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
     const ligne = (cle, lib, x) => `<div><dt>${terme(cle, lib)}</dt><dd><span class="niveau niveau-${normaliser(x.niveau).replace(/\s/g, "-")}">${esc(x.niveau)}</span> ${esc(x.texte)}</dd></div>`;
     sectionRisque = `
     <section class="carte">
-      <h2>4. Risque</h2>
+      <h2><span class="num-section">4.</span> Risque</h2>
       ${profil ? `<p class="resume">${esc(profil)}</p>` : ""}
       ${sri ? `<h3>Indicateur de risque ${terme("sri", "SRI")} : ${sri}/7</h3>${echelleSri(sri)}` : nonDispo(dic ? "SRI non lisible dans le DIC (il est probablement affiché sous forme d'image)." : "SRI non disponible : aucun DIC n'est publié dans GECO pour ce fonds.")}
       ${s ? listeInfos([
@@ -723,7 +724,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
 
   // ----- 5. Pièges -----
   let sectionPiegesHtml;
-  if (chargement) sectionPiegesHtml = `<section class="carte carte-pieges"><h2>5. Conditions particulières et pièges</h2><p class="chargement">Analyse en cours…</p></section>`;
+  if (chargement) sectionPiegesHtml = `<section class="carte carte-pieges"><h2><span class="num-section">5.</span> Conditions particulières et pièges</h2><p class="chargement">Analyse en cours…</p></section>`;
   else {
     const pieges = detecterPiegesAuto(e, d);
     const importants = pieges.filter(p => p.niveau !== "info"), infos = pieges.filter(p => p.niveau === "info");
@@ -738,7 +739,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
     const analyseLimitee = !dic ? `<p class="note">Analyse limitée : sans DIC, les pièges liés aux frais, à la structure (fonds nourricier, fonds de fonds) et au levier ne peuvent pas être vérifiés.</p>` : "";
     sectionPiegesHtml = `
     <section class="carte carte-pieges">
-      <h2>5. Conditions particulières et pièges</h2>
+      <h2><span class="num-section">5.</span> Conditions particulières et pièges</h2>
       ${importants.length ? `<ul class="liste-alertes">${importants.map(rendu).join("")}</ul>`
         : `<p class="rien">✓ Rien de particulier détecté${dic ? "" : " dans les informations disponibles"}.</p>`}
       ${analyseLimitee}
@@ -756,7 +757,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       <ul class="similaires">${d.parts.map(pa => `<li>${pa.isin === (part && part.isin) ? "<strong>" : `<a href="#${esc(pa.isin)}">`}${esc(pa.parNom)} — ${esc(pa.isin)}${pa.isin === (part && part.isin) ? " (cette part)</strong>" : "</a>"}
         <small>${esc(pa.parRefDevCode || "")} ${pa.parAffctnRevnuLib ? "· " + esc(pa.parAffctnRevnuLib) : ""} ${pa.parStatutCode && pa.parStatutCode !== "VIV" ? "· fermée" : ""}</small></li>`).join("")}</ul>` + comparaison;
   }
-  const sectionComparaison = `<section class="carte"><h2>6. Comparaison</h2>${comparaison}</section>`;
+  const sectionComparaison = `<section class="carte"><h2><span class="num-section">6.</span> Comparaison</h2>${comparaison}</section>`;
 
   const erreurs = d && d.erreurs && d.erreurs.length ? `<p class="aide">Informations manquantes : ${esc(d.erreurs.join(" ; "))}.</p>` : "";
 

@@ -107,7 +107,10 @@ small, .aide, .source, .total { color: var(--texte-2); }
   background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px;
   padding: 16px; margin: 16px 0;
 }
-.fiche-entete h1 { margin: 16px 0 0; font-size: 1.5rem; }
+.fiche-entete { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 20px 24px; margin: 16px 0; }
+.fiche-entete h1 { margin: 0; font-size: clamp(26px, 3.5vw, 34px); }
+.fiche-entete .etiquettes { margin: 12px 0 0; }
+.num-section { color: var(--accent); }
 .fiche-entete p { margin: 4px 0 0; color: var(--texte-2); }
 .fiche-entete .en-bref { margin: 12px 0 0; max-width: 860px; color: var(--texte); font-size: 1.02rem; line-height: 1.55; }
 .en-bref-titre { display: inline-block; margin-right: 6px; padding: 2px 9px; border-radius: 999px; background: var(--info-fond); color: var(--accent);
@@ -172,7 +175,7 @@ small, .aide, .source, .total { color: var(--texte-2); }
 
 /* ---------- Alertes ---------- */
 .liste-alertes { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-.alerte { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 8px; border-left: 4px solid; }
+.alerte { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 0; border-left: 4px solid; }
 .alerte p { margin: 4px 0 0; font-size: .92rem; }
 .alerte > div { min-width: 0; flex: 1; }
 .alerte-vert { background: var(--vert-fond); border-color: var(--vert); }
@@ -239,8 +242,8 @@ small, .aide, .source, .total { color: var(--texte-2); }
 /* ---------- Fiches automatiques ---------- */
 .bandeau-auto { background: var(--info-fond); border-radius: 8px; padding: 10px 12px; margin: 16px 0 0; }
 .non-dispo {
-  background: var(--piste); color: var(--texte-2); border-radius: 8px; padding: 10px 12px; font-size: .92rem;
-  border-left: 4px solid var(--bordure);
+  background: var(--piste); color: var(--texte-2); border-radius: 0; padding: 10px 12px; font-size: .92rem;
+  border-left: 4px solid var(--bordure-forte);
 }
 .chargement { color: var(--texte-2); font-style: italic; }
 .chargement::before {
