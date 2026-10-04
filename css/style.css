@@ -442,19 +442,24 @@ body.createur-actif { overflow: hidden; }
 /* ---------- Page Performances ---------- */
 .titre-chargement { font-size: 1.3rem; margin: 0 0 8px; }
 .carte-graphique { padding-top: 12px; }
-.periodes { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-.periodes button, .chip-comparer {
-  font: inherit; font-size: .85rem; padding: 6px 12px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--bordure); background: var(--carte); color: var(--texte);
+.periodes { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; margin-bottom: 12px; background: var(--piste); border-radius: 10px; }
+.periodes button {
+  font: inherit; font-size: .85rem; font-weight: 500; min-height: 36px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: var(--texte-2);
 }
-.periodes button[aria-pressed="true"] { background: var(--texte); color: var(--fond); border-color: var(--texte); }
+.periodes button:hover { color: var(--texte); }
+.periodes button[aria-pressed="true"] { background: var(--carte); color: var(--texte); border-color: var(--bordure-forte); }
+.chip-comparer {
+  font: inherit; font-size: .85rem; min-height: 36px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--bordure-forte); background: var(--carte); color: var(--texte);
+}
 .chip-comparer[aria-pressed="true"] { border-color: var(--accent); background: var(--info-fond); color: var(--accent); font-weight: 600; }
 .comparer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
 .comparer-titre { font-size: .85rem; color: var(--texte-2); margin-right: 2px; }
 .comparer-fonds { position: relative; flex: 1 1 220px; }
 .comparer-fonds input {
-  width: 100%; padding: 7px 12px; font: inherit; font-size: .88rem; border-radius: 999px;
-  border: 1px dashed var(--bordure); background: var(--fond); color: var(--texte);
+  width: 100%; min-height: 36px; padding: 7px 12px; font: inherit; font-size: .88rem; border-radius: 8px;
+  border: 1px dashed var(--bordure-forte); background: var(--carte); color: var(--texte);
 }
 .suggestions {
   position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none;
@@ -504,9 +509,9 @@ body.createur-actif { overflow: hidden; }
 
 .chiffres-cles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 16px 0 8px; }
 @media (min-width: 720px) { .chiffres-cles { grid-template-columns: repeat(4, 1fr); } }
-.tuile { background: var(--fond); border-radius: 10px; padding: 10px 12px; }
+.tuile { background: var(--fond); border: 1px solid var(--bordure); border-radius: 12px; padding: 12px 14px; }
 .tuile span { display: block; font-size: .8rem; color: var(--texte-2); }
-.tuile strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.tuile strong { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .details-annuel { margin: 12px 0; }
 .details-annuel summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .cadre-tableau { overflow-x: auto; }
