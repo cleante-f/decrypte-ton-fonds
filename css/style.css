@@ -70,10 +70,11 @@ small, .aide, .source, .total { color: var(--texte-2); }
 [hidden] { display: none !important; }
 
 .site-header {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  max-width: 960px; margin: 0 auto; padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px 28px;
+  padding: 12px max(16px, calc((100% - 928px) / 2)); background: var(--carte); border-bottom: 1px solid var(--bordure);
 }
-.logo { font-weight: 700; text-decoration: none; color: var(--texte); }
+.logo { font-weight: 600; font-size: 1.05rem; text-decoration: none; color: var(--texte); }
+.logo:hover { color: var(--texte); }
 .btn-link { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 3px; padding: 4px; }
 
 /* ---------- Recherche ---------- */
@@ -229,9 +230,11 @@ small, .aide, .source, .total { color: var(--texte-2); }
 
 /* ---------- Pied de page ---------- */
 .site-footer {
-  max-width: 960px; margin: 0 auto; padding: 16px; font-size: .82rem; color: var(--texte-2);
+  max-width: 960px; margin: 48px auto 0; padding: 24px 16px 32px; font-size: .85rem; color: var(--texte-2);
   border-top: 1px solid var(--bordure);
 }
+.site-footer p { margin: 0 0 8px; max-width: 80ch; }
+.reglages-alertes { margin: 8px 0 0; }
 
 /* ---------- Fiches automatiques ---------- */
 .bandeau-auto { background: var(--info-fond); border-radius: 8px; padding: 10px 12px; margin: 16px 0 0; }
@@ -272,14 +275,10 @@ small, .aide, .source, .total { color: var(--texte-2); }
 /* ---------- Bouton « Créateur » et son animation ---------- */
 .entete-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .btn-createur {
-  position: relative; padding: 6px 14px; border: 0; border-radius: 999px; cursor: pointer;
-  font: inherit; font-size: .85rem; font-weight: 700; color: #fff; letter-spacing: .02em;
-  background: linear-gradient(120deg, #2a78d6, #7c5cff, #4fd1ff, #2a78d6); background-size: 300% 100%;
-  animation: createur-degrade 6s linear infinite; box-shadow: 0 2px 10px rgba(124, 92, 255, .35);
-  transition: transform .15s ease, box-shadow .15s ease;
+  position: relative; min-height: 36px; padding: 6px 12px; border: 1px solid var(--bordure-forte); border-radius: 8px; cursor: pointer;
+  font: inherit; font-size: .9rem; font-weight: 500; color: var(--texte-2); background: var(--carte); transition: background-color .15s ease;
 }
-.btn-createur:hover, .btn-createur:focus-visible { transform: translateY(-1px) scale(1.04); box-shadow: 0 4px 18px rgba(124, 92, 255, .55); }
-@keyframes createur-degrade { to { background-position: 300% 0; } }
+.btn-createur:hover { background: var(--piste); color: var(--texte); }
 
 body.createur-actif { overflow: hidden; }
 
@@ -360,7 +359,6 @@ body.createur-actif { overflow: hidden; }
 }
 .createurs-calque.reduit .logo-badge { transition: opacity .4s ease; }
 @media (prefers-reduced-motion: reduce) {
-  .btn-createur { animation: none; }
   .createur-bloc.visible .createur-nom { animation: none; }
 }
 .logo { white-space: nowrap; }
@@ -371,18 +369,17 @@ body.createur-actif { overflow: hidden; }
 
 /* ---------- En-tête et onglets ---------- */
 .site-header { flex-wrap: wrap; }
-.onglets { display: flex; gap: 4px; background: var(--piste); padding: 4px; border-radius: 999px; }
-.onglets a {
-  padding: 6px 14px; border-radius: 999px; text-decoration: none; color: var(--texte-2);
-  font-size: .9rem; font-weight: 600; white-space: nowrap;
-}
+.onglets { display: flex; gap: 22px; flex: 1; }
+.onglets a { padding: 8px 0; text-decoration: none; color: var(--texte-2); font-size: .95rem; font-weight: 500; white-space: nowrap; }
 .onglets a:hover { color: var(--texte); }
-.onglets a[aria-current="page"] { background: var(--carte); color: var(--texte); box-shadow: inset 0 0 0 1px var(--bordure); }
+.onglets a[aria-current="page"] { color: var(--texte); box-shadow: inset 0 -2px 0 var(--accent); }
 @media (max-width: 760px) {
+  .site-header { justify-content: space-between; row-gap: 8px; padding-top: 10px; padding-bottom: 4px; }
+  .site-header .btn-compte, .site-header .btn-createur { min-height: 44px; }
   .site-header .logo { order: 1; }
   .site-header .entete-actions { order: 2; }
-  .onglets { order: 3; width: 100%; justify-content: space-between; }
-  .onglets a { flex: 1; text-align: center; padding: 6px 6px; font-size: .82rem; }
+  .onglets { order: 3; flex: 1 1 100%; justify-content: space-between; gap: 8px; }
+  .onglets a { padding: 6px 0; font-size: .85rem; }
 }
 
 .btn-onglet {
@@ -903,8 +900,12 @@ div.carte-horizon { cursor: default; }
 }
 
 /* ---------- Compte : barre du haut, connexion, espace « Mon compte » ---------- */
-.btn-compte { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); color: inherit; text-decoration: none; font-size: .9rem; white-space: nowrap; }
-.btn-compte:hover, .btn-compte[aria-current="page"] { border-color: var(--accent); }
+.btn-compte {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--bordure-forte);
+  background: var(--carte); color: var(--texte); text-decoration: none; font-size: .9rem; font-weight: 500; white-space: nowrap;
+}
+.btn-compte:hover { background: var(--piste); color: var(--texte); }
+.btn-compte[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
 .page-compte { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
 .bascule-compte { margin: 4px 0 0; padding-top: 12px; border-top: 1px solid var(--bordure); color: var(--texte-2); }
 .formulaire-compte { display: grid; gap: 12px; }
