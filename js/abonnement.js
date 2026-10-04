@@ -5,7 +5,7 @@ const prix = esc(CONFIG_COMPTE.prixAffiche);
 function offreSansCompte() {
   return `<h2>Commence gratuitement</h2>
     <p>Crée ton compte : ${CONFIG_COMPTE.simulationsOffertes} simulations offertes, sans carte bancaire. Ensuite, l'abonnement coûte <strong>${prix}</strong>, résiliable à tout moment.</p>
-    <p class="actions-compte"><a class="btn" href="connexion.html?retour=simulateur.html">Créer mon compte</a>
+    <p class="actions-compte"><a class="btn" href="connexion.html?vue=inscription&retour=simulateur.html">Créer mon compte</a>
       <a class="btn btn-secondaire" href="connexion.html?vue=connexion&retour=simulateur.html">J'ai déjà un compte</a></p>`;
 }
 function offreAbonnement(d) {

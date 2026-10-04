@@ -24,15 +24,10 @@
   </header>
 
   <main class="page-compte">
-    <h1 id="titre-compte">Ton compte</h1>
+    <h1 id="titre-compte">Se connecter</h1>
     <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
 
-    <div class="onglets-compte" role="tablist">
-      <button type="button" role="tab" data-vue="inscription" aria-selected="true">Créer un compte</button>
-      <button type="button" role="tab" data-vue="connexion" aria-selected="false">Se connecter</button>
-    </div>
-
-    <form id="form-inscription" class="carte formulaire-compte" data-vue="inscription">
+    <form id="form-inscription" class="carte formulaire-compte" data-vue="inscription" hidden>
       <p class="resume">Crée ton compte gratuitement : <strong>3 simulations offertes</strong>, enregistrées et retrouvables sur tous tes appareils.</p>
       <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
       <label>Mot de passe <small>(10 caractères au moins)</small> <input type="password" name="mdp" autocomplete="new-password" minlength="10" required></label>
@@ -41,14 +36,17 @@
         et j'ai lu la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</label>
       <div class="captcha" data-captcha></div>
       <button type="submit" class="btn">Créer mon compte</button>
+      <p class="bascule-compte">Tu as déjà un compte ? <button type="button" class="lien-bouton" data-vers="connexion">Se connecter</button></p>
     </form>
 
-    <form id="form-connexion" class="carte formulaire-compte" data-vue="connexion" hidden>
+    <form id="form-connexion" class="carte formulaire-compte" data-vue="connexion">
       <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
       <label>Mot de passe <input type="password" name="mdp" autocomplete="current-password" required></label>
       <div class="captcha" data-captcha></div>
       <button type="submit" class="btn">Me connecter</button>
       <button type="button" class="lien-bouton" data-vers="oubli">Mot de passe oublié ?</button>
+      <p class="bascule-compte">Pas encore de compte ? <button type="button" class="lien-bouton" data-vers="inscription">Créer un compte</button>
+        <small>(3 simulations offertes)</small></p>
     </form>
 
     <form id="form-oubli" class="carte formulaire-compte" data-vue="oubli" hidden>
@@ -56,6 +54,7 @@
       <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
       <div class="captcha" data-captcha></div>
       <button type="submit" class="btn">Recevoir le lien</button>
+      <p class="bascule-compte"><button type="button" class="lien-bouton" data-vers="connexion">Retour à la connexion</button></p>
     </form>
 
     <form id="form-nouveau-mdp" class="carte formulaire-compte" data-vue="nouveau-mdp" hidden>

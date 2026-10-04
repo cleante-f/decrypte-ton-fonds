@@ -2,7 +2,10 @@
 const msg = document.getElementById("message-compte");
 const dateCourte = iso => (iso ? new Date(iso).toLocaleDateString("fr-FR") : "");
 function annoncer(texte, erreur) { msg.hidden = !texte; msg.textContent = texte || ""; msg.className = erreur ? "note note-erreur" : "note"; }
-const action = fn => async e => { e.preventDefault(); try { await fn(e); } catch (err) { annoncer(err.message, true); } };
+// « protege » affiche l'erreur éventuelle ; « action » annule en plus l'effet normal (envoi du formulaire).
+// Les clics de toute la page passent par « protege » seulement : sinon plus aucun lien ni bouton d'envoi ne marcherait.
+const protege = fn => async e => { try { await fn(e); } catch (err) { annoncer(err.message, true); } };
+const action = fn => protege(e => { e.preventDefault(); return fn(e); });
 
 if (!Compte.session()) location.replace("connexion.html?vue=connexion&retour=compte.html");
 
@@ -40,7 +43,7 @@ async function rafraichirEspace() {
   document.querySelector("#form-email [name=email]").value = u.email || "";
 }
 
-document.addEventListener("click", action(async e => {
+document.addEventListener("click", protege(async e => {
   if (e.target.id === "portail") { const r = await Compte.fonction("portail"); location.href = r.url; return; }
   const li = e.target.closest("[data-id]");
   if (li && e.target.matches("[data-renommer]")) {

@@ -12,12 +12,17 @@ function afficher(texte, type = "info") {
   message.textContent = texte || "";
   message.className = type === "erreur" ? "note note-erreur" : "note";
 }
+// Une seule vue à la fois, comme des pages séparées : titre, onglet du navigateur et adresse (?vue=…) suivent la vue
+const TITRES = { inscription: "Créer un compte", connexion: "Se connecter", oubli: "Mot de passe oublié", "nouveau-mdp": "Nouveau mot de passe" };
 function vue(nom) {
-  document.querySelectorAll("[data-vue]").forEach(el => {
-    if (el.tagName === "FORM") el.hidden = el.dataset.vue !== nom;
-    else el.setAttribute("aria-selected", String(el.dataset.vue === nom));
-  });
-  document.querySelector(".onglets-compte").hidden = nom === "oubli" || nom === "nouveau-mdp";
+  document.querySelectorAll("form[data-vue]").forEach(f => { f.hidden = f.dataset.vue !== nom; });
+  document.getElementById("titre-compte").textContent = TITRES[nom];
+  document.title = `${TITRES[nom]} · Décrypte ton fonds`;
+  if (nom === "inscription" || nom === "connexion") {
+    const p = new URLSearchParams(location.search);
+    p.set("vue", nom);
+    history.replaceState(null, "", `?${p}`);
+  }
 }
 
 // Turnstile : un widget par formulaire ; chaque jeton ne sert qu'une fois
@@ -43,7 +48,6 @@ async function soumettre(form, action) {
   try { await action(new FormData(form)); } catch (e) { afficher(e.message, "erreur"); } finally { bouton.disabled = false; }
 }
 
-document.querySelector(".onglets-compte").addEventListener("click", e => { const b = e.target.closest("[data-vue]"); if (b) { afficher(""); vue(b.dataset.vue); } });
 document.addEventListener("click", e => { const b = e.target.closest("[data-vers]"); if (b) { afficher(""); vue(b.dataset.vers); } });
 
 document.getElementById("form-inscription").addEventListener("submit", e => {
@@ -78,5 +82,5 @@ document.getElementById("form-nouveau-mdp").addEventListener("submit", e => {
   if (Compte.session()) {   // déjà connecté (ou session rafraîchissable) : retour direct
     if (await Compte.jetonValide()) { location.replace(retour); return; }
   }
-  vue(new URLSearchParams(location.search).get("vue") === "connexion" ? "connexion" : "inscription");
+  vue(new URLSearchParams(location.search).get("vue") === "inscription" ? "inscription" : "connexion");
 })();
