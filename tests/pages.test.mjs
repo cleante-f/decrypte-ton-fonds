@@ -42,3 +42,21 @@ test("bouton Créateurs sobre", () => {
   const regle = CSS.match(/\.btn-createur \{[^}]*\}/)[0];
   assert.doesNotMatch(regle, /gradient|animation/);
 });
+
+test("accueil : textes corrigés et trois outils", () => {
+  const html = lirePage("index");
+  const main = html.match(/<main[\s\S]*?<\/main>/)[0];
+  assert.ok(!html.includes("Euronext"), "Euronext encore cité");
+  assert.ok(!main.includes("0 €"), "« 0 € » encore présent");
+  for (const id of ["nb-total", "nb-francais", "nb-etf", "date-maj"]) assert.ok(main.includes(`id="${id}"`), id);
+  assert.ok(main.includes("AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI"));
+  const titres = [...main.matchAll(/<h2 class="outil-titre">([^<]+)<\/h2>/g)].map(m => m[1]);
+  assert.deepEqual(titres, ["Décrypte ton fonds", "Performances", "Simulateur"]);
+  for (const action of ["Décrypter un fonds →", "Voir les performances →", "Simuler →"]) assert.ok(main.includes(action), action);
+  assert.equal((main.match(/>Gratuit</g) || []).length, 2);
+  assert.ok(main.includes(">3 simulations offertes<"));
+  const form = main.match(/<form class="recherche-accueil"[\s\S]*?<\/form>/)[0];
+  assert.equal((form.match(/class="btn"/g) || []).length, 1);
+  assert.ok(/<button type="submit" class="lien-bouton" formaction="performances.html">/.test(form));
+  assert.ok(/<button type="submit" class="lien-bouton" formaction="simulateur.html">/.test(form));
+});

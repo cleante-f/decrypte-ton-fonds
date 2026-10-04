@@ -391,39 +391,50 @@ body.createur-actif { overflow: hidden; }
 
 /* ---------- Page d'accueil ---------- */
 .accueil { padding-top: 8px; }
-.accueil-hero { padding: 40px 0 24px; max-width: 760px; }
-.surtitre { color: var(--accent); font-weight: 700; font-size: .9rem; margin: 0 0 8px; }
-.accueil-hero h1 { font-size: clamp(1.8rem, 5vw, 2.8rem); margin: 0 0 12px; letter-spacing: -.01em; }
-.accroche { font-size: 1.08rem; color: var(--texte-2); margin: 0 0 20px; }
-.recherche-accueil { display: flex; gap: 8px; flex-wrap: wrap; }
+.accueil-hero { display: grid; gap: 32px; align-items: center; padding: 48px 0 40px; }
+@media (min-width: 900px) { .accueil-hero { grid-template-columns: 1.4fr 1fr; } }
+.surtitre { color: var(--accent); font-weight: 600; font-size: .9rem; margin: 0 0 8px; }
+.accueil-hero h1 { font-size: clamp(32px, 5vw, 44px); margin: 0 0 12px; letter-spacing: -.015em; }
+.accroche { font-size: 1.1rem; color: var(--texte-2); margin: 0 0 24px; }
+.champ-accueil { display: flex; gap: 8px; flex-wrap: wrap; }
 .recherche-accueil input {
-  flex: 1 1 280px; min-width: 0; padding: 14px; font-size: 16px; border-radius: 8px;
+  flex: 1 1 260px; min-width: 0; padding: 12px 14px; font-size: 16px; border-radius: 8px;
   border: 1px solid var(--bordure-forte); background: var(--carte); color: var(--texte);
 }
-.boutons-accueil { display: flex; gap: 8px; flex-wrap: wrap; }
-.cartes-accueil { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 16px 0 24px; }
-@media (min-width: 720px) { .cartes-accueil { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 900px) { .cartes-accueil { grid-template-columns: 1fr 1fr 1fr; } }
+.autres-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 12px 0 0; color: var(--texte-2); }
+.chiffres-accueil { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 8px 20px 16px; }
+.chiffres-accueil dl { margin: 0; }
+.chiffres-accueil dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--bordure); }
+.chiffres-accueil dt { color: var(--texte-2); }
+.chiffres-accueil dd { margin: 0; font-size: 1.4rem; font-weight: 600; }
+.maj-accueil, .sources-chiffres { margin: 12px 0 0; font-size: .85rem; color: var(--texte-2); }
+.sources-chiffres { margin-top: 2px; }
+.titre-section { font-size: .95rem; font-weight: 600; color: var(--texte-2); margin: 0 0 16px; }
+.outils-accueil { padding: 8px 0 48px; }
+.grille-outils { display: grid; gap: 16px; }
+@media (min-width: 720px) { .grille-outils { grid-template-columns: 1.3fr 1fr; } .outil-principal { grid-row: span 2; } }
 .carte-lien {
-  display: flex; flex-direction: column; gap: 6px; padding: 22px; border-radius: 14px; text-decoration: none; color: var(--texte);
-  background: var(--carte); border: 1px solid var(--bordure); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  display: flex; flex-direction: column; gap: 8px; padding: 22px 24px; border-radius: 12px; text-decoration: none; color: var(--texte);
+  background: var(--carte); border: 1px solid var(--bordure); transition: border-color .15s ease;
 }
-.carte-lien:hover, .carte-lien:focus-visible { border-color: var(--accent); }
-.carte-lien h2 { margin: 6px 0 0; font-size: 1.3rem; }
+.carte-lien:hover, .carte-lien:focus-visible { border-color: var(--accent); color: var(--texte); }
+.outil-entete { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.carte-icone { width: 40px; height: 40px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--accent-fond); color: var(--accent); }
+.carte-icone svg { width: 24px; height: 24px; }
+.outil-titre { margin: 0; font-size: 22px; letter-spacing: -.01em; }
 .carte-lien p { margin: 0; color: var(--texte-2); }
-.carte-lien ul { margin: 8px 0 12px; padding-left: 18px; font-size: .93rem; }
+.carte-lien ul { margin: 4px 0 0; padding-left: 18px; color: var(--texte-2); }
 .carte-lien li { margin: 4px 0; }
-.carte-icone { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: var(--info-fond); color: var(--accent); }
-.carte-action { margin-top: auto; font-weight: 700; color: var(--accent); }
-.chiffres-accueil { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 8px 0 32px; }
-@media (min-width: 720px) { .chiffres-accueil { grid-template-columns: repeat(4, 1fr); } }
-.chiffres-accueil div { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 14px; }
-.chiffres-accueil strong { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
-.chiffres-accueil span { font-size: .85rem; color: var(--texte-2); }
-.etapes, .sources-accueil { max-width: 760px; margin-bottom: 28px; }
-.etapes ol { padding-left: 20px; }
-.etapes li { margin: 10px 0; }
-.astuce { background: var(--info-fond); border-radius: 10px; padding: 12px 14px; }
+.outil-pied { margin-top: auto; padding-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.pilule { font-size: .8rem; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--accent-fond); color: var(--accent); }
+.carte-action { font-weight: 600; color: var(--accent); }
+.etapes, .sources-accueil { margin-bottom: 48px; }
+.etapes ol { list-style: none; padding: 0; margin: 0 0 20px; display: grid; gap: 20px; counter-reset: etape; }
+@media (min-width: 720px) { .etapes ol { grid-template-columns: repeat(3, 1fr); } }
+.etapes li { border-top: 2px solid var(--accent); padding-top: 12px; color: var(--texte-2); counter-increment: etape; }
+.etapes li strong { color: var(--texte); }
+.etapes li::before { content: counter(etape) ". "; font-weight: 600; color: var(--texte); }
+.astuce { background: var(--accent-fond); border-radius: 8px; padding: 12px 14px; }
 
 /* ---------- Page Performances ---------- */
 .titre-chargement { font-size: 1.3rem; margin: 0 0 8px; }
