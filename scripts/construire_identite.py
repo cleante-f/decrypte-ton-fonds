@@ -11,6 +11,7 @@ Sources (publiques, gratuites et réutilisables) :
      montant moyen échangé chaque jour en bourse dans l'Union européenne et caractère « liquide ».
   4. ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) :
      pays où chaque fonds est notifié.
+  5. AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr, Licence Ouverte 2.0) → data/societes.js
 Le lien se fait par le LEI de chaque part, lu dans data/firds.js (scripts/construire_annuaire.py).
 
 Lancement (depuis le dossier analyse-fonds, après construire_annuaire.py) :
@@ -22,6 +23,7 @@ import csv
 import io
 import json
 import re
+import sys
 import time
 import unicodedata
 import urllib.error
@@ -34,12 +36,14 @@ from pathlib import Path
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 SORTIE = DATA / "identite.js"
+SORTIE_SOCIETES = DATA / "societes.js"
 ENTETES = {"User-Agent": "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)"}
 BCE_PAGE = "https://www.ecb.europa.eu/stats/financial_corporations/list_of_financial_institutions/html/index.en.html"
 GLEIF_COPIES = "https://leidata-preview.gleif.org/api/v2/golden-copies/publishes/latest"
 GLEIF_API = "https://api.gleif.org/api/v1/lei-records"
 FITRS = "https://registers.esma.europa.eu/solr/esma_registers_fitrs_equities/select"
 ESMA_CBDIF = "https://registers.esma.europa.eu/solr/esma_registers_funds_cbdif/select"
+SGP_FICHE = "https://www.data.gouv.fr/api/1/datasets/liste-des-societes-de-gestion-de-portefeuille-sgp-agreees-par-lamf/"
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
 # Codes courts (le site les traduit en français : js/fiche-auto.js)
@@ -243,6 +247,49 @@ def commercialisation(leis):
     return res
 
 
+# ---------- 5. AMF : sociétés de gestion de portefeuille agréées ----------
+def site_propre(texte):
+    """Adresse de site internet saisie par l'AMF, ou « » si ce n'en est pas une (« NA », e-mail, « Under%20construction »…)."""
+    texte = (texte or "").strip()
+    return texte if re.match(r"^(https?://)?[A-Za-z0-9._-]+\.[A-Za-z]{2,}(/\S*)?$", texte) else ""
+
+
+def lire_sgp(texte):
+    """Lit le CSV de l'AMF (texte déjà décodé). Renvoie ({clé du nom: [n° AMF, début d'autorisation, site, statut]}, date de publication).
+    Une entrée par n° AMF (première ligne gardée) ; si deux n° AMF ont le même nom normalisé, celui qui est « Vivant » l'emporte."""
+    lecteur = csv.DictReader(io.StringIO(texte), delimiter=";")
+    if "no_amf" not in (lecteur.fieldnames or []):
+        raise ValueError("format du fichier AMF inattendu : colonne no_amf absente")
+    vus, societes, publication = set(), {}, ""
+    for l in lecteur:
+        publication = max(publication, l.get("date_de_publication") or "")
+        no = l["no_amf"]
+        cle = cle_societe(l.get("entite_nom"))
+        if no in vus or not cle:
+            continue
+        vus.add(no)
+        fiche = [no, l.get("date_debut_autorisation") or "", site_propre(l.get("site_internet")), l.get("statut") or ""]
+        if cle not in societes or (societes[cle][3] != "Vivant" and fiche[3] == "Vivant"):
+            societes[cle] = fiche
+    return societes, publication
+
+
+def societes_amf():
+    """Liste des sociétés de gestion agréées publiée sur data.gouv.fr → (sociétés, date de publication)."""
+    fiche = json.loads(telecharger(SGP_FICHE))
+    url = next(r["url"] for r in fiche["resources"] if r.get("format") == "csv")
+    return lire_sgp(telecharger(url).decode("utf-8-sig"))
+
+
+def ecrire_societes(societes, publication, fichier=SORTIE_SOCIETES):
+    contenu = {"maj": date.today().isoformat(), "publication": publication, "societes": societes}
+    fichier.write_text(
+        "/* Généré par scripts/construire_identite.py — ne pas modifier à la main.\n"
+        " * Source : AMF – liste des sociétés de gestion de portefeuille agréées, data.gouv.fr (Licence Ouverte 2.0).\n"
+        " * societes : clé du nom (cle_societe) → [n° AMF, début d'autorisation, site internet, statut] */\n"
+        "const SOCIETES = " + json.dumps(contenu, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + ";\n", encoding="utf-8")
+
+
 def main():
     annuaire = lire_js("annuaire.js", "ANNUAIRE")
     firds = lire_js("firds.js", "FIRDS")
@@ -304,6 +351,17 @@ def main():
     print(f"\n✓ {len(fonds)} fonds (BCE : {sum(1 for x in leis if x in bce)}, parapluie GLEIF : "
           f"{sum(1 for x in leis if 'parapluie' in liens.get(x, {}))}, nourriciers : {sum(1 for x in leis if 'maitre' in liens.get(x, {}))}), "
           f"liquidité de {len(liq)} parts, {len(notif)} notifiés pour la France (ESMA) → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
+
+    print("5/5 AMF – sociétés de gestion agréées…")
+    try:
+        societes, publication = societes_amf()
+        if len(societes) < 300:
+            raise ValueError(f"seulement {len(societes)} sociétés")
+        ecrire_societes(societes, publication)
+        print(f"✓ {len(societes)} sociétés de gestion (publication AMF du {publication}) → {SORTIE_SOCIETES.name} "
+              f"({SORTIE_SOCIETES.stat().st_size / 1e3:.0f} Ko)")
+    except (OSError, ValueError, KeyError, RuntimeError, StopIteration) as e:
+        print(f"! liste AMF non mise à jour ({e}) : ancien fichier gardé", file=sys.stderr)
 
 
 if __name__ == "__main__":

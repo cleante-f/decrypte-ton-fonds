@@ -64,5 +64,41 @@ class Commercialisation(unittest.TestCase):
         self.assertEqual(resultat, notifies)   # union des lots : le notifié du 1er lot et celui du dernier
 
 
+class SocietesAmf(unittest.TestCase):
+    def test_lire_sgp_extrait_reel(self):
+        societes, publication = ci.lire_sgp((DONNEES / "amf_sgp.csv").read_text(encoding="utf-8-sig"))
+        self.assertEqual(publication, "2026-10-05")
+        self.assertEqual(societes, {
+            "CARMIGNACGESTION": ["GP97008", "1997-03-13", "www.carmignac.com", "Vivant"],
+            "AMUNDIASSETMANAGEMENT": ["GP-04000036", "2004-06-08", "", "Vivant"],
+            "123INVESTMENTMANAGERS": ["GP01021", "2001-06-28", "http://www.123-im.com", "Vivant"],
+            "OTOKTONE3I": ["GP-14000025", "2014-07-16", "", "Vivant"]})
+
+    def test_site_propre_valeurs_reelles(self):
+        for mauvais in ["NA", "N/A", "info@gutenbergfinance.com", "Under%20construction", "En%20cours%20de%20création", ""]:
+            self.assertEqual(ci.site_propre(mauvais), "", mauvais)
+        for bon in ["www.carmignac.com", "http://am.oddo-bhf.com", "https://investmentsolutions.societegenerale.fr", "jeito.life"]:
+            self.assertEqual(ci.site_propre(" " + bon + " "), bon)
+
+    def test_lire_sgp_refuse_un_autre_format(self):
+        with self.assertRaises(ValueError):
+            ci.lire_sgp("nom;site\nX;Y\n")
+
+    def test_lire_sgp_meme_nom_vivant_prioritaire(self):
+        entete = (DONNEES / "amf_sgp.csv").read_text(encoding="utf-8-sig").splitlines()[0]
+        texte = entete + '\n"GP-1";"Même Nom";"";"";"";"";"";"";"";"2000-01-01";"";"Retiré";"";"";"";"2026-10-05"' \
+                         '\n"GP-2";"MEME NOM";"";"";"";"";"";"";"";"2010-01-01";"";"Vivant";"";"";"";"2026-10-05"\n'
+        self.assertEqual(ci.lire_sgp(texte)[0]["MEMENOM"][0], "GP-2")
+
+    def test_ecrire_societes(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "societes.js"
+            ci.ecrire_societes({"A": ["GP-1", "2000-01-01", "", "Vivant"]}, "2026-10-05", f)
+            contenu = json.loads(re.search(r"const SOCIETES = (.*?);\n", f.read_text(encoding="utf-8"), re.S).group(1))
+        self.assertEqual(contenu["publication"], "2026-10-05")
+        self.assertEqual(contenu["societes"], {"A": ["GP-1", "2000-01-01", "", "Vivant"]})
+        self.assertRegex(contenu["maj"], r"^\d{4}-\d{2}-\d{2}$")
+
+
 if __name__ == "__main__":
     unittest.main()
