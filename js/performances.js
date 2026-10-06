@@ -60,7 +60,7 @@ function serieReference(ref) {
       }
       // Référence BCE (€STR, livrets) : on reconstitue la valeur d'un placement rémunéré à ce taux (base 100)
       const texte = await (await fetch(`${BCE_API}${ref.bce}?format=csvdata&detail=dataonly&startPeriod=2019-10-01`)).text();
-      const serie = serieDepuisCsvBce(texte, new Date());   // les livrets sont publiés avec retard : dernier taux appliqué jusqu'à aujourd'hui
+      const serie = serieDepuisCsvBce(texte, new Date());   // les livrets sont publiés avec retard : dernier taux appliqué, jour par jour, jusqu'à aujourd'hui
       if (serie.dates.length < 2) throw new Error("série BCE indisponible");
       return serie;
     })().catch(err => { cacheSeries.delete(ref.cle); throw err; }));

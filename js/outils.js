@@ -23,8 +23,9 @@ function cleSociete(nom) {
 //  - série mensuelle (AAAA-MM, ex. livrets) : taux annuel composé sur le nombre exact de jours, base 365,
 //    date = 1er du mois (les jours sont arrondis : le changement d'heure ne fait pas 30,96 jours) ;
 //  - série quotidienne (AAAA-MM-JJ, ex. €STR) : intérêts simples, base 360.
-// `jusqua` (Date, facultatif) : pour une série mensuelle, ajoute un dernier point à cette date (à minuit) en appliquant
-// le dernier taux publié, pour couvrir les mois pas encore publiés. Sans effet sur une série quotidienne.
+// `jusqua` (Date, facultatif) : pour une série mensuelle, ajoute un point par jour (à minuit) jusqu'à cette date incluse,
+// en appliquant le dernier taux publié : il couvre les mois pas encore publiés, et un point existe pour chaque date
+// où le graphique coupe la série. Sans effet sur une série quotidienne.
 // Renvoie { dates: Date[], valeurs: number[] } ; les lignes sans valeur sont ignorées.
 function serieDepuisCsvBce(texte, jusqua) {
   const lignes = texte.trim().split(/\r?\n/);
@@ -32,7 +33,7 @@ function serieDepuisCsvBce(texte, jusqua) {
   const iD = entete.indexOf("TIME_PERIOD"), iV = entete.indexOf("OBS_VALUE");
   const dates = [], valeurs = [];
   let niveau = 100, precedent = null;
-  const composer = (taux, depuis, jusquA) => (1 + taux / 100) ** (Math.round((jusquA - depuis) / 864e5) / 365);
+  const composer = (taux, depuis, vers) => (1 + taux / 100) ** (Math.round((vers - depuis) / 864e5) / 365);
   for (const l of lignes.slice(1)) {
     const c = l.split(","), periode = c[iD], taux = parseFloat(c[iV]);
     if (isNaN(taux)) continue;
@@ -46,7 +47,12 @@ function serieDepuisCsvBce(texte, jusqua) {
   }
   if (jusqua && precedent && precedent.mensuelle) {
     const fin = new Date(jusqua.getFullYear(), jusqua.getMonth(), jusqua.getDate());
-    if (fin > precedent.d) { dates.push(fin); valeurs.push(niveau * composer(precedent.taux, precedent.d, fin)); }
+    const parJour = (1 + precedent.taux / 100) ** (1 / 365);
+    // setDate : on avance de jour calendaire en jour calendaire (pas de 24 h), donc toujours à minuit malgré le changement d'heure
+    for (const j = new Date(precedent.d.getFullYear(), precedent.d.getMonth(), precedent.d.getDate() + 1); j <= fin; j.setDate(j.getDate() + 1)) {
+      niveau *= parJour;
+      dates.push(new Date(j)); valeurs.push(niveau);
+    }
   }
   return { dates, valeurs };
 }

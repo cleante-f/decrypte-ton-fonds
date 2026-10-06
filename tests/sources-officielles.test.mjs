@@ -116,16 +116,30 @@ test("serieDepuisCsvBce : série quotidienne (€STR, intérêts simples, base 3
   proche(r.valeurs[1], 100 * (1 + 2 / 100 * 2 / 360));
 });
 
-test("serieDepuisCsvBce : série mensuelle prolongée jusqu'à la date demandée (dernier taux appliqué)", () => {
+test("serieDepuisCsvBce : série mensuelle prolongée jour par jour jusqu'à la date demandée (dernier taux appliqué)", () => {
   const { serieDepuisCsvBce } = charger(["js/outils.js"]);
   const csv = lire("tests/donnees/bce_livrets.csv");
   const seule = serieDepuisCsvBce(csv);
   const r = serieDepuisCsvBce(csv, new Date(2026, 9, 6, 15, 30));   // l'heure de la journée est ignorée
-  assert.deepEqual(simple(r.dates.map(jour)), [[2026, 6, 1], [2026, 7, 1], [2026, 8, 1], [2026, 10, 6]]);
-  proche(r.valeurs[3], r.valeurs[2] * 1.0155 ** (66 / 365));
+  assert.equal(r.dates.length, 3 + 66);                              // un point par jour du 02/08 au 06/10
+  assert.deepEqual(simple(r.dates.slice(2, 4).map(jour)), [[2026, 8, 1], [2026, 8, 2]]);
+  assert.deepEqual(jour(r.dates.at(-1)), [2026, 10, 6]);
+  assert.ok(r.dates.some(d => jour(d).join() === "2026,10,2"));
+  assert.ok(r.dates.every((d, i) => i === 0 || d > r.dates[i - 1]));
+  assert.ok(r.dates.slice(3).every(d => d.getHours() === 0));
+  proche(r.valeurs[3], r.valeurs[2] * 1.0155 ** (1 / 365));
+  proche(r.valeurs.at(-1), r.valeurs[2] * 1.0155 ** (66 / 365));
   assert.deepEqual(simple(r.valeurs.slice(0, 3)), simple(seule.valeurs));
   assert.equal(serieDepuisCsvBce(csv, new Date(2026, 7, 1)).dates.length, 3);   // même jour que le dernier point : rien à ajouter
   assert.equal(serieDepuisCsvBce(csv, new Date(2026, 6, 1)).dates.length, 3);   // date antérieure : rien à ajouter
+});
+
+test("serieDepuisCsvBce : prolongement à travers le changement d'heure (un point à minuit chaque jour)", () => {
+  const r = charger(["js/outils.js"]).serieDepuisCsvBce("TIME_PERIOD,OBS_VALUE\n2026-03,1.5\n", new Date(2026, 3, 3));   // mars 2026 : passage à l'heure d'été le 29
+  assert.equal(r.dates.length, 1 + 33);
+  assert.ok(r.dates.every(d => d.getHours() === 0));
+  assert.deepEqual(jour(r.dates.at(-1)), [2026, 4, 3]);
+  proche(r.valeurs.at(-1), 100 * 1.015 ** (33 / 365));
 });
 
 test("serieDepuisCsvBce : la série quotidienne n'est pas prolongée", () => {
@@ -135,37 +149,53 @@ test("serieDepuisCsvBce : la série quotidienne n'est pas prolongée", () => {
   assert.deepEqual(simple(r.dates.map(jour)), [[2026, 10, 1], [2026, 10, 3]]);
 });
 
-// js/performances.js touche à la page dès son chargement : on n'en extrait que la fonction testée
-function fonctionDePerformances(nom, globales) {
-  const ctx = charger(["js/outils.js"], globales);
-  vm.runInContext(lire("js/performances.js").match(new RegExp(`function ${nom}\\([\\s\\S]*?\\n\\}\\n`))[0], ctx);
+// js/performances.js touche à la page dès son chargement : on n'en extrait que les définitions testées
+function extraitDePerformances(globales, ...noms) {
+  const ctx = charger(["js/outils.js"], globales), source = lire("js/performances.js");
+  for (const nom of noms) {
+    const motif = nom === "PERIODES" ? /const PERIODES = \[[\s\S]*?\n\];\n/ : new RegExp(`function ${nom}\\([\\s\\S]*?\\n\\}\\n`);
+    vm.runInContext(source.match(motif)[0], ctx);
+  }
   return ctx;
 }
 
 test("serieReference : série BCE vide ou en erreur refusée et non gardée en cache", async () => {
   for (const corps of ["", "Not Found", "TIME_PERIOD,OBS_VALUE\n", "TIME_PERIOD,OBS_VALUE\n2026-08,\n"]) {
     const cacheSeries = new Map();
-    const c = fonctionDePerformances("serieReference", { cacheSeries, BCE_API: "https://bce.test/", fetch: async () => ({ text: async () => corps }) });
+    const c = extraitDePerformances({ cacheSeries, BCE_API: "https://bce.test/", fetch: async () => ({ text: async () => corps }) }, "serieReference");
     await assert.rejects(c.serieReference({ cle: "ref-livrets", bce: "MIR/X" }), /série BCE indisponible/);
     assert.equal(cacheSeries.has("ref-livrets"), false);
   }
 });
 
-test("serieReference : série BCE valide, prolongée jusqu'à aujourd'hui et gardée en cache", async () => {
+test("serieReference : série BCE valide, prolongée jour par jour jusqu'à aujourd'hui et gardée en cache", async () => {
   const cacheSeries = new Map(), appels = [];
-  const c = fonctionDePerformances("serieReference", { cacheSeries, BCE_API: "https://bce.test/",
-    fetch: async url => { appels.push(url); return { text: async () => lire("tests/donnees/bce_livrets.csv") }; } });
+  const c = extraitDePerformances({ cacheSeries, BCE_API: "https://bce.test/",
+    fetch: async url => { appels.push(url); return { text: async () => lire("tests/donnees/bce_livrets.csv") }; } }, "serieReference");
   const r = await c.serieReference({ cle: "ref-livrets", bce: "MIR/X" });
-  assert.equal(r.dates.length, 4);
+  assert.ok(r.dates.length > 3);
+  assert.deepEqual(jour(r.dates.at(-1)), jour(new Date()));
   assert.equal(cacheSeries.has("ref-livrets"), true);
   assert.deepEqual(appels, ["https://bce.test/MIR/X?format=csvdata&detail=dataonly&startPeriod=2019-10-01"]);
 });
 
 test("sourcesBce : une mention par référence BCE comparée", () => {
-  const { sourcesBce } = fonctionDePerformances("sourcesBce", {});
+  const { sourcesBce } = extraitDePerformances({}, "sourcesBce");
   const mention = (...cles) => sourcesBce(cles.map(cle => ({ cle })));
   assert.equal(mention("ref-monde", "fonds-X"), "");
   assert.equal(mention("ref-monetaire"), " et €STR de la Banque centrale européenne");
   assert.equal(mention("ref-livrets"), " et taux moyen des livrets (BCE, données de la Banque de France ; dernier taux publié appliqué aux mois pas encore publiés)");
   assert.equal(mention("ref-monetaire", "ref-livrets"), mention("ref-monetaire") + mention("ref-livrets"));
+});
+
+test("graphique : la série des livrets prolongée garde ses points jusqu'à la dernière date du fonds", () => {
+  const c = extraitDePerformances({}, "PERIODES", "indiceAvant", "debutPeriode", "pointsSurPeriode");
+  const livrets = c.serieDepuisCsvBce(lire("tests/donnees/bce_livrets.csv"), new Date(2026, 9, 6));
+  const finFonds = new Date(2026, 9, 5);   // les valeurs liquidatives sont publiées au plus tôt le lendemain
+  const unMois = c.pointsSurPeriode(livrets, c.debutPeriode("1m", finFonds, livrets.dates[0]), finFonds);
+  assert.ok(unMois, "la période « 1 mois » ne doit pas faire disparaître la série");
+  assert.deepEqual(jour(unMois.pts.at(-1).d), [2026, 10, 5]);
+  assert.deepEqual(jour(unMois.pts[0].d), [2026, 9, 5]);
+  const sixMois = c.pointsSurPeriode(livrets, c.debutPeriode("6m", finFonds, livrets.dates[0]), finFonds);
+  assert.deepEqual(jour(sixMois.pts.at(-1).d), [2026, 10, 5]);
 });
