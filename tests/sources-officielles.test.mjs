@@ -199,3 +199,22 @@ test("graphique : la série des livrets prolongée garde ses points jusqu'à la 
   const sixMois = c.pointsSurPeriode(livrets, c.debutPeriode("6m", finFonds, livrets.dates[0]), finFonds);
   assert.deepEqual(jour(sixMois.pts.at(-1).d), [2026, 10, 5]);
 });
+
+const SIMU = ["js/outils.js", "js/projection.js"];
+test("valeurLivret", () => {
+  const { valeurLivret } = charger(SIMU);
+  proche(valeurLivret({ capital: 1000, versement: 100, frequence: 1, augmentation: 0, mois: 12 }, 0), 2200);
+  proche(valeurLivret({ capital: 1000, versement: 0, frequence: 1, augmentation: 0, mois: 24 }, 3), 1000 * 1.03 ** 2);
+  proche(valeurLivret({ capital: 0, versement: 1200, frequence: 12, augmentation: 0, mois: 24 }, 10), 1200 * 1.1 + 1200);
+  proche(valeurLivret({ capital: 0, versement: 100, frequence: 12, augmentation: 10, mois: 24 }, 0), 210);
+});
+
+test("repereLivret sans indicateur", () => {
+  const { repereLivret } = charger(SIMU);
+  const P = { capital: 1000, versement: 100, frequence: 1, augmentation: 0, mois: 12 };
+  assert.equal(repereLivret(P, null), null);
+  assert.equal(repereLivret(P, { valeur: null, date: "2026-08" }), null);
+  const r = simple(repereLivret(P, { valeur: 1.55, date: "2026-08" }));
+  assert.equal(r.taux, 1.55); assert.equal(r.date, "2026-08");
+  proche(r.valeur, charger(SIMU).valeurLivret(P, 1.55));
+});
