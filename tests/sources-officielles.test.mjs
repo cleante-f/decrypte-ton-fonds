@@ -61,3 +61,32 @@ test("ligne d'identité et source ESMA (E et U notifiés seulement)", () => {
     assert.ok(!r.source.includes("commercialisation transfrontière"), src);
   }
 });
+
+const SOCIETES_T = { maj: "2026-10-06", publication: "2026-10-05", societes: {
+  CARMIGNACGESTION: ["GP97008", "1997-03-13", "www.carmignac.com", "Vivant"],
+  AMUNDIASSETMANAGEMENT: ["GP-04000036", "2004-06-08", "", "Vivant"],
+  SOCIETEFERMEE: ["GP-1", "2000-01-01", "", "Retiré"] } };
+const francais = gestionnaire => fonds("G", ["FR0010135103"], { gestionnaire, pays: "FR", etf: false });
+
+test("ligneAgrement", () => {
+  const c = charger(FICHE, { SOCIETES: SOCIETES_T });
+  const [libelle, valeur] = simple(c.ligneAgrement(francais("Carmignac Gestion")));
+  assert.ok(libelle.includes("Agréée par l&#39;AMF"));
+  assert.ok(valeur.includes("n° GP97008, depuis le 13/03/1997"));
+  assert.ok(valeur.includes('href="https://www.carmignac.com" target="_blank" rel="noopener"'));
+  assert.ok(valeur.includes("site de la société"));
+  assert.ok(!simple(c.ligneAgrement(francais("AMUNDI ASSET MANAGEMENT")))[1].includes("site de la société"));
+  assert.equal(c.ligneAgrement(francais("BLACKROCK ASSET MANAGEMENT IRELAND")), null);
+  assert.equal(c.ligneAgrement(francais("")), null);
+});
+
+test("ligneAgrement sans données", () => {
+  assert.equal(charger(FICHE).ligneAgrement(francais("Carmignac Gestion")), null);
+});
+
+test("alerte si l'agrément n'est pas « Vivant »", () => {
+  const c = charger(FICHE, { SOCIETES: SOCIETES_T });
+  assert.ok(simple(c.detecterPiegesAuto(francais("SOCIETE FERMEE"), null))
+    .some(p => p.niveau === "attention" && p.titre === "Agrément de la société de gestion : Retiré"));
+  assert.ok(!simple(c.detecterPiegesAuto(francais("CARMIGNAC GESTION"), null)).some(p => p.titre.startsWith("Agrément")));
+});
