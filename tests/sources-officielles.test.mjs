@@ -78,6 +78,7 @@ test("ligneAgrement", () => {
   assert.ok(!simple(c.ligneAgrement(francais("AMUNDI ASSET MANAGEMENT")))[1].includes("site de la société"));
   assert.equal(c.ligneAgrement(francais("BLACKROCK ASSET MANAGEMENT IRELAND")), null);
   assert.equal(c.ligneAgrement(francais("")), null);
+  assert.equal(c.ligneAgrement(francais("SOCIETE FERMEE")), null);
 });
 
 test("ligneAgrement sans données", () => {

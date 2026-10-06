@@ -252,7 +252,7 @@ function societeAmf(nom) {
 
 function ligneAgrement(e) {
   const s = societeAmf(e.gestionnaire);
-  if (!s) return null;
+  if (!s || s[3] !== "Vivant") return null;   // statut autre : l'alerte de detecterPiegesAuto porte seule l'information
   const [no, debut, site] = s;
   const url = esc(/^https?:\/\//.test(site) ? site : "https://" + site);
   return [terme("societe_gestion", "Agréée par l'AMF"),
