@@ -55,10 +55,15 @@ def telecharger(url, delai=45, essais=3):
 # Indicateurs
 # ---------------------------------------------------------------------------
 
-def serie_bce(cle, debut):
-    texte = telecharger(f"{BCE}{cle}?format=csvdata&detail=dataonly&startPeriod={debut}").decode("utf-8")
+def lire_serie_bce(texte):
+    """Analyse le CSV de l'API de la BCE : liste de (période, valeur), lignes sans valeur ignorées."""
     lignes = list(csv.DictReader(io.StringIO(texte)))
     return [(l["TIME_PERIOD"], float(l["OBS_VALUE"])) for l in lignes if l.get("OBS_VALUE") not in (None, "")]
+
+
+def serie_bce(cle, debut):
+    texte = telecharger(f"{BCE}{cle}?format=csvdata&detail=dataonly&startPeriod={debut}").decode("utf-8")
+    return lire_serie_bce(texte)
 
 
 def mensualiser(points):
@@ -103,6 +108,7 @@ INDICATEURS_BCE = [
     # clé, nom, clé BCE, fréquence, quotidienne ?, zone
     ("bce_depot", "Taux de dépôt de la BCE (taux directeur)", "FM/B.U2.EUR.4F.KR.DFR.LEV", "décision", True, "Zone euro"),
     ("estr", "€STR (taux du marché monétaire au jour le jour)", "EST/B.EU000A2X2A25.WT", "quotidienne", True, "Zone euro"),
+    ("livrets_fr", "Taux moyen des livrets d'épargne (France, ménages)", "MIR/M.FR.B.L23.D.R.A.2250.EUR.N", "mensuelle", False, "France"),
     ("taux3_euro", "Taux d'État à 3 ans (zone euro, AAA)", "YC/B.U2.EUR.4F.G_N_C.SV_C_YM.SR_3Y", "quotidienne", True, "Zone euro"),
     ("taux10_euro", "Taux d'État à 10 ans (zone euro, AAA)", "YC/B.U2.EUR.4F.G_N_C.SV_C_YM.SR_10Y", "quotidienne", True, "Zone euro"),
     ("inflation_euro", "Inflation (zone euro, sur un an)", "HICP/M.U2.N.000000.4D0.ANR", "mensuelle", False, "Zone euro"),

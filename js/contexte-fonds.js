@@ -191,6 +191,7 @@ function facteursMacro(A, p) {
   ajouter("inflation_euro", "L'inflation réduit le pouvoir d'achat de ton épargne et influence les décisions de la BCE sur les taux.");
   ajouter("bce_depot", obligs >= 20 || p.monetaire >= 20 ? "Le taux de la BCE guide le rendement des placements monétaires et, en partie, celui des obligations détenues par le fonds."
     : "Des taux élevés rendent le crédit plus cher pour les entreprises et les placements sans risque plus attractifs face aux actions.");
+  ajouter("livrets_fr", "Taux moyen servi par les livrets d'épargne en France : c'est le rendement d'une épargne sans risque, à comparer avec ce que tu peux attendre de ce fonds.");
   if (obligs >= 15) {
     ajouter("taux10_euro", "Quand les taux à 10 ans montent, la valeur des obligations déjà détenues baisse (et inversement). C'est aussi le rendement que l'on peut attendre de ces obligations sur la durée.");
     ajouter("taux3_euro", "Taux des emprunts d'État à échéance courte : ils réagissent vite aux décisions de la BCE.");

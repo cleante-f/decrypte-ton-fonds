@@ -91,3 +91,25 @@ test("alerte si l'agrément n'est pas « Vivant »", () => {
     .some(p => p.niveau === "attention" && p.titre === "Agrément de la société de gestion : Retiré"));
   assert.ok(!simple(c.detecterPiegesAuto(francais("CARMIGNAC GESTION"), null)).some(p => p.titre.startsWith("Agrément")));
 });
+
+const proche = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
+const jour = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()];
+
+test("serieDepuisCsvBce : série mensuelle (taux composé, base 365)", () => {
+  const r = charger(["js/outils.js"]).serieDepuisCsvBce(lire("tests/donnees/bce_livrets.csv"));
+  assert.deepEqual(simple(r.dates.map(jour)), [[2026, 6, 1], [2026, 7, 1], [2026, 8, 1]]);
+  proche(r.valeurs[0], 100);
+  proche(r.valeurs[1], 100 * 1.014 ** (30 / 365));
+  proche(r.valeurs[2], r.valeurs[1] * 1.014 ** (31 / 365));
+});
+
+test("serieDepuisCsvBce : changement d'heure", () => {
+  const r = charger(["js/outils.js"]).serieDepuisCsvBce("TIME_PERIOD,OBS_VALUE\n2026-03,1.5\n2026-04,1.5\n");
+  proche(r.valeurs[1], 100 * 1.015 ** (31 / 365));
+});
+
+test("serieDepuisCsvBce : série quotidienne (€STR, intérêts simples, base 360)", () => {
+  const r = charger(["js/outils.js"]).serieDepuisCsvBce("KEY,TIME_PERIOD,OBS_VALUE\nx,2026-10-01,2.0\nx,2026-10-02,\nx,2026-10-03,2.0\n");
+  assert.equal(r.valeurs.length, 2);
+  proche(r.valeurs[1], 100 * (1 + 2 / 100 * 2 / 360));
+});

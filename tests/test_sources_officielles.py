@@ -12,6 +12,7 @@ from unittest import mock
 RACINE = Path(__file__).resolve().parent.parent
 DONNEES = RACINE / "tests" / "donnees"
 sys.path.insert(0, str(RACINE / "scripts"))
+import actualiser_contexte as ac
 import construire_identite as ci
 
 
@@ -168,6 +169,18 @@ class SocietesAmf(unittest.TestCase):
             self.assertEqual(contenu["publication"], "2026-10-06")
             self.assertEqual(erreurs, "")
             self.assertIn("300 sociétés", sortie)
+
+
+class Livrets(unittest.TestCase):
+    def test_lire_serie_bce_mensuelle(self):
+        pts = ac.lire_serie_bce((DONNEES / "bce_livrets.csv").read_text(encoding="utf-8"))
+        self.assertEqual(pts, [("2026-06", 1.4), ("2026-07", 1.4), ("2026-08", 1.55)])
+        ind = ac.indicateur("Livrets", pts, "BCE", "lien", "mensuelle")
+        self.assertEqual((ind["valeur"], ind["date"], ind["unAn"]), (1.55, "2026-08", None))
+
+    def test_indicateur_livrets_declare(self):
+        self.assertIn(("livrets_fr", "Taux moyen des livrets d'épargne (France, ménages)", "MIR/M.FR.B.L23.D.R.A.2250.EUR.N",
+                       "mensuelle", False, "France"), ac.INDICATEURS_BCE)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,33 @@ function cleSociete(nom) {
   return String(nom || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+// Valeur d'un placement rémunéré au taux d'une série BCE (texte CSV de l'API), base 100 au départ.
+// Chaque période applique le taux de la période précédente jusqu'à la date courante.
+//  - série mensuelle (AAAA-MM, ex. livrets) : taux annuel composé sur le nombre exact de jours, base 365,
+//    date = 1er du mois (les jours sont arrondis : le changement d'heure ne fait pas 30,96 jours) ;
+//  - série quotidienne (AAAA-MM-JJ, ex. €STR) : intérêts simples, base 360.
+// Renvoie { dates: Date[], valeurs: number[] } ; les lignes sans valeur sont ignorées.
+function serieDepuisCsvBce(texte) {
+  const lignes = texte.trim().split(/\r?\n/);
+  const entete = lignes[0].split(",");
+  const iD = entete.indexOf("TIME_PERIOD"), iV = entete.indexOf("OBS_VALUE");
+  const dates = [], valeurs = [];
+  let niveau = 100, precedent = null;
+  for (const l of lignes.slice(1)) {
+    const c = l.split(","), periode = c[iD], taux = parseFloat(c[iV]);
+    if (isNaN(taux)) continue;
+    const mensuelle = /^\d{4}-\d{2}$/.test(periode);
+    const d = mensuelle ? new Date(+periode.slice(0, 4), +periode.slice(5, 7) - 1, 1) : new Date(periode + "T00:00:00");
+    if (precedent) {
+      const jours = (d - precedent.d) / 864e5;
+      niveau *= mensuelle ? (1 + precedent.taux / 100) ** (Math.round(jours) / 365) : 1 + precedent.taux / 100 * jours / 360;
+    }
+    dates.push(d); valeurs.push(niveau);
+    precedent = { d, taux };
+  }
+  return { dates, valeurs };
+}
+
 function pct(valeur, decimales = 1) {
   if (valeur === null || valeur === undefined) return "n.d.";
   return valeur.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales }) + " %";
