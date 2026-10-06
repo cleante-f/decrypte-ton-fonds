@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
 
+process.env.TZ = "Europe/Paris";   // le test « changement d'heure » en dépend : en UTC, mars → avril fait déjà 31 jours pile
+
 const lire = f => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 const simple = x => JSON.parse(JSON.stringify(x));
 function charger(fichiers, globales = {}) {
@@ -112,4 +114,58 @@ test("serieDepuisCsvBce : série quotidienne (€STR, intérêts simples, base 3
   const r = charger(["js/outils.js"]).serieDepuisCsvBce("KEY,TIME_PERIOD,OBS_VALUE\nx,2026-10-01,2.0\nx,2026-10-02,\nx,2026-10-03,2.0\n");
   assert.equal(r.valeurs.length, 2);
   proche(r.valeurs[1], 100 * (1 + 2 / 100 * 2 / 360));
+});
+
+test("serieDepuisCsvBce : série mensuelle prolongée jusqu'à la date demandée (dernier taux appliqué)", () => {
+  const { serieDepuisCsvBce } = charger(["js/outils.js"]);
+  const csv = lire("tests/donnees/bce_livrets.csv");
+  const seule = serieDepuisCsvBce(csv);
+  const r = serieDepuisCsvBce(csv, new Date(2026, 9, 6, 15, 30));   // l'heure de la journée est ignorée
+  assert.deepEqual(simple(r.dates.map(jour)), [[2026, 6, 1], [2026, 7, 1], [2026, 8, 1], [2026, 10, 6]]);
+  proche(r.valeurs[3], r.valeurs[2] * 1.0155 ** (66 / 365));
+  assert.deepEqual(simple(r.valeurs.slice(0, 3)), simple(seule.valeurs));
+  assert.equal(serieDepuisCsvBce(csv, new Date(2026, 7, 1)).dates.length, 3);   // même jour que le dernier point : rien à ajouter
+  assert.equal(serieDepuisCsvBce(csv, new Date(2026, 6, 1)).dates.length, 3);   // date antérieure : rien à ajouter
+});
+
+test("serieDepuisCsvBce : la série quotidienne n'est pas prolongée", () => {
+  const { serieDepuisCsvBce } = charger(["js/outils.js"]);
+  const r = serieDepuisCsvBce("KEY,TIME_PERIOD,OBS_VALUE\nx,2026-10-01,2.0\nx,2026-10-02,\nx,2026-10-03,2.0\n", new Date(2026, 9, 6));
+  assert.equal(r.valeurs.length, 2);
+  assert.deepEqual(simple(r.dates.map(jour)), [[2026, 10, 1], [2026, 10, 3]]);
+});
+
+// js/performances.js touche à la page dès son chargement : on n'en extrait que la fonction testée
+function fonctionDePerformances(nom, globales) {
+  const ctx = charger(["js/outils.js"], globales);
+  vm.runInContext(lire("js/performances.js").match(new RegExp(`function ${nom}\\([\\s\\S]*?\\n\\}\\n`))[0], ctx);
+  return ctx;
+}
+
+test("serieReference : série BCE vide ou en erreur refusée et non gardée en cache", async () => {
+  for (const corps of ["", "Not Found", "TIME_PERIOD,OBS_VALUE\n", "TIME_PERIOD,OBS_VALUE\n2026-08,\n"]) {
+    const cacheSeries = new Map();
+    const c = fonctionDePerformances("serieReference", { cacheSeries, BCE_API: "https://bce.test/", fetch: async () => ({ text: async () => corps }) });
+    await assert.rejects(c.serieReference({ cle: "ref-livrets", bce: "MIR/X" }), /série BCE indisponible/);
+    assert.equal(cacheSeries.has("ref-livrets"), false);
+  }
+});
+
+test("serieReference : série BCE valide, prolongée jusqu'à aujourd'hui et gardée en cache", async () => {
+  const cacheSeries = new Map(), appels = [];
+  const c = fonctionDePerformances("serieReference", { cacheSeries, BCE_API: "https://bce.test/",
+    fetch: async url => { appels.push(url); return { text: async () => lire("tests/donnees/bce_livrets.csv") }; } });
+  const r = await c.serieReference({ cle: "ref-livrets", bce: "MIR/X" });
+  assert.equal(r.dates.length, 4);
+  assert.equal(cacheSeries.has("ref-livrets"), true);
+  assert.deepEqual(appels, ["https://bce.test/MIR/X?format=csvdata&detail=dataonly&startPeriod=2019-10-01"]);
+});
+
+test("sourcesBce : une mention par référence BCE comparée", () => {
+  const { sourcesBce } = fonctionDePerformances("sourcesBce", {});
+  const mention = (...cles) => sourcesBce(cles.map(cle => ({ cle })));
+  assert.equal(mention("ref-monde", "fonds-X"), "");
+  assert.equal(mention("ref-monetaire"), " et €STR de la Banque centrale européenne");
+  assert.equal(mention("ref-livrets"), " et taux moyen des livrets (BCE, données de la Banque de France ; dernier taux publié appliqué aux mois pas encore publiés)");
+  assert.equal(mention("ref-monetaire", "ref-livrets"), mention("ref-monetaire") + mention("ref-livrets"));
 });

@@ -60,7 +60,9 @@ function serieReference(ref) {
       }
       // Référence BCE (€STR, livrets) : on reconstitue la valeur d'un placement rémunéré à ce taux (base 100)
       const texte = await (await fetch(`${BCE_API}${ref.bce}?format=csvdata&detail=dataonly&startPeriod=2019-10-01`)).text();
-      return serieDepuisCsvBce(texte);
+      const serie = serieDepuisCsvBce(texte, new Date());   // les livrets sont publiés avec retard : dernier taux appliqué jusqu'à aujourd'hui
+      if (serie.dates.length < 2) throw new Error("série BCE indisponible");
+      return serie;
     })().catch(err => { cacheSeries.delete(ref.cle); throw err; }));
   }
   return cacheSeries.get(ref.cle);
@@ -280,7 +282,7 @@ function majSurvol() {
 function sourcesBce(comparaisons) {
   const compare = cle => comparaisons.some(c => c.cle === cle);
   return (compare("ref-monetaire") ? " et €STR de la Banque centrale européenne" : "")
-    + (compare("ref-livrets") ? " et taux moyen des livrets (BCE, données de la Banque de France)" : "");
+    + (compare("ref-livrets") ? " et taux moyen des livrets (BCE, données de la Banque de France ; dernier taux publié appliqué aux mois pas encore publiés)" : "");
 }
 
 function majLegendeEtChiffres() {
