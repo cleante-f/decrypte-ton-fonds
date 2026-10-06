@@ -16,3 +16,48 @@ test("cleSociete : mêmes résultats que le Python", () => {
   for (const [nom, attendu] of JSON.parse(lire("tests/donnees/noms_societes.json"))) assert.equal(cleSociete(nom), attendu, nom);
   assert.equal(cleSociete(null), "");
 });
+
+const FICHE = ["js/glossaire.js", "js/outils.js", "js/affichage.js", "js/geco.js", "js/fiche-auto.js"];
+const FIRDS_T = { maj: "2026-10-01", parNom: [], places: {}, fonds: {
+  LU1681043599: ["5493003BFED2MWDBYH64", "EUR", [], 0], DE000A0F5UF5: ["529900APEXTPT6RN1778", "EUR", [], 0] } };
+const IDENTITE_T = { maj: "2026-10-06", esma: "2026-10-06", notifFR: ["5493003BFED2MWDBYH64"], noms: [], fonds: {}, liquidite: {}, bce: "", gleif: "", fitrs: 2025 };
+const fonds = (source, isins, autres = {}) => ({ source, cmpId: 1, prdId: 1, nom: "FONDS TEST", gestionnaire: "", classification: "", nature: "",
+  isins, dateCreation: "", pays: "LU", tickers: [], marches: "", devise: "EUR", etf: source === "E", public: true, ...autres });
+const TITRE_NOTIFIE = "Notifié pour la commercialisation en France (registre européen)";
+const TITRE_ABSENT = "Fonds absent de la liste des fonds vendus en France";
+
+test("notifieFrance", () => {
+  const c = charger(FICHE, { FIRDS: FIRDS_T, IDENTITE: IDENTITE_T });
+  assert.equal(c.notifieFrance(fonds("U", ["LU1681043599"])), true);
+  assert.equal(c.notifieFrance(fonds("U", ["DE000A0F5UF5"])), false);
+  assert.equal(c.notifieFrance(fonds("U", ["XX0000000000"])), false);
+});
+
+test("notifieFrance sans données", () => {
+  assert.equal(charger(FICHE).notifieFrance(fonds("U", ["LU1681043599"])), false);
+  const ancien = { ...IDENTITE_T }; delete ancien.notifFR;
+  assert.equal(charger(FICHE, { FIRDS: FIRDS_T, IDENTITE: ancien }).notifieFrance(fonds("U", ["LU1681043599"])), false);
+});
+
+test("fonds U notifié : information à la place de l'alerte", () => {
+  const c = charger(FICHE, { FIRDS: FIRDS_T, IDENTITE: IDENTITE_T });
+  const oui = simple(c.detecterPiegesAuto(fonds("U", ["LU1681043599"]), null));
+  assert.ok(oui.some(p => p.titre === TITRE_NOTIFIE && p.niveau === "info" && p.terme === "commercialisation"));
+  assert.ok(!oui.some(p => p.titre === TITRE_ABSENT));
+  const non = simple(c.detecterPiegesAuto(fonds("U", ["DE000A0F5UF5"]), null));
+  assert.ok(non.some(p => p.titre === TITRE_ABSENT && p.niveau === "attention"));
+});
+
+test("ligne d'identité et source ESMA (E et U notifiés seulement)", () => {
+  const c = charger(FICHE, { FIRDS: FIRDS_T, IDENTITE: IDENTITE_T });
+  for (const src of ["E", "U"]) {
+    const r = c.identiteEsma(fonds(src, ["LU1681043599"]), "LU1681043599");
+    assert.ok(JSON.stringify(simple(r.lignes)).includes("notifié (registre européen de l'ESMA)"), src);
+    assert.ok(r.source.includes("ESMA – registre de la commercialisation transfrontière des OPCVM et FIA"), src);
+  }
+  for (const [src, isin] of [["E", "DE000A0F5UF5"], ["N", "LU1681043599"]]) {
+    const r = c.identiteEsma(fonds(src, [isin]), isin);
+    assert.ok(!JSON.stringify(simple(r.lignes)).includes("registre européen de l'ESMA"), src);
+    assert.ok(!r.source.includes("commercialisation transfrontière"), src);
+  }
+});

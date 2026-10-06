@@ -204,6 +204,14 @@ function enBref(e, d) {
 
 // ---------- Identité officielle dans le registre européen FIRDS (data/firds.js, ESMA) ----------
 
+// Fonds notifié pour la France d'après le registre ESMA (data/identite.js, liste des LEI) ; faux si les données manquent
+let _notifFR = null;   // ensemble des LEI, construit une seule fois
+function notifieFrance(e) {
+  if (typeof FIRDS === "undefined" || typeof IDENTITE === "undefined" || !IDENTITE.notifFR) return false;
+  if (!_notifFR) _notifFR = new Set(IDENTITE.notifFR);
+  return e.isins.some(i => { const f = FIRDS.fonds[i]; return !!(f && f[0] && _notifFR.has(f[0])); });
+}
+
 // Fonds étrangers seulement : les fonds français ont déjà la fiche complète de l'AMF
 function identiteEsma(e, isin) {
   if (typeof FIRDS === "undefined" || e.source === "G") return { lignes: [], devise: "", source: "" };
@@ -226,9 +234,12 @@ function identiteEsma(e, isin) {
     lignes.push([terme("part", "Autres parts cotées"), autres.slice(0, 8).map(i => `<a href="#${esc(i)}">${esc(i)}</a>`).join(", ")
       + (autres.length > 8 ? ` et ${autres.length - 8} autres` : ""), true]);
   }
+  const notifie = (e.source === "E" || e.source === "U") && notifieFrance(e);
+  if (notifie) lignes.push([terme("commercialisation", "Commercialisation en France"), "notifié (registre européen de l'ESMA)"]);
   const reg = identiteRegistres(e, f && f[0], isin);
   return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
-    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source };
+    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source
+      + (notifie ? source({ document: "ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source)", date: IDENTITE.esma }) : "") };
 }
 
 // ---------- Registres publics BCE et GLEIF (data/identite.js), reliés au fonds par son LEI ----------
@@ -307,6 +318,8 @@ function detecterPiegesAuto(e, d) {
   // Où le fonds peut être vendu
   if (horsEee(e)) p.push({ niveau: "alerte", terme: "dic", titre: `Fonds de droit non européen (${PAYS[e.pays] || e.pays})`,
     texte: "Ce fonds n'a pas de DIC européen : les banques et courtiers ne peuvent en général pas le proposer aux particuliers en France, et il n'offre pas les protections des fonds européens (règles UCITS). Cherche plutôt un ETF ou un fonds européen qui suit le même indice." });
+  else if (e.source === "U" && notifieFrance(e)) p.push({ niveau: "info", terme: "commercialisation", titre: "Notifié pour la commercialisation en France (registre européen)",
+    texte: "D'après le registre européen de l'ESMA, ce fonds est déclaré pour être proposé en France, mais nous ne l'avons pas trouvé dans la base GECO de l'AMF sous cet ISIN. Vérifie auprès de ton intermédiaire qu'il le propose et que son DIC existe en français." });
   else if (e.source === "U") p.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds absent de la liste des fonds vendus en France",
     texte: "Ce fonds est coté sur une bourse européenne, mais nous ne l'avons pas trouvé parmi les fonds étrangers déclarés à l'AMF (base GECO) : il n'est peut-être pas proposé en France. Ton intermédiaire peut refuser l'ordre, et ses documents sont souvent en anglais ou en allemand seulement." });
 
