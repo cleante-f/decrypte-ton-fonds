@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import re
 import sys
@@ -98,6 +100,74 @@ class SocietesAmf(unittest.TestCase):
         self.assertEqual(contenu["publication"], "2026-10-05")
         self.assertEqual(contenu["societes"], {"A": ["GP-1", "2000-01-01", "", "Vivant"]})
         self.assertRegex(contenu["maj"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_societes_amf_prend_la_ressource_csv(self):
+        fiche = {"resources": [{"format": "pdf", "url": "https://exemple.test/notice.pdf"},
+                               {"format": "csv", "url": "https://exemple.test/sgp.csv"}]}
+        brut = (DONNEES / "amf_sgp.csv").read_text(encoding="utf-8-sig").encode("utf-8-sig")
+        with mock.patch.object(ci, "telecharger", side_effect=[json.dumps(fiche).encode(), brut]) as t:
+            societes, publication = ci.societes_amf()
+        self.assertEqual([c.args[0] for c in t.call_args_list], [ci.SGP_FICHE, "https://exemple.test/sgp.csv"])
+        self.assertEqual(sorted(societes), ["123INVESTMENTMANAGERS", "AMUNDIASSETMANAGEMENT", "CARMIGNACGESTION", "OTOKTONE3I"])
+        self.assertEqual(publication, "2026-10-05")
+
+    def test_societes_amf_sans_ressource_csv(self):
+        fiche = {"resources": [{"format": "pdf", "url": "https://exemple.test/notice.pdf"}]}
+        with mock.patch.object(ci, "telecharger", return_value=json.dumps(fiche).encode()) as t:
+            with self.assertRaisesRegex(ValueError, "aucune ressource CSV"):
+                ci.societes_amf()
+        self.assertEqual(t.call_count, 1)   # le CSV n'est pas demandé
+
+    def lire_societes(self, fichier):
+        return json.loads(re.search(r"const SOCIETES = (.*?);\n", fichier.read_text(encoding="utf-8"), re.S).group(1))
+
+    def mettre_a_jour(self, fichier, **simulation):
+        """Lance mettre_a_jour_societes avec une fausse liste AMF ; renvoie (ce qui est écrit sur stdout, sur stderr)."""
+        with mock.patch.object(ci, "societes_amf", **simulation), \
+                mock.patch("sys.stdout", new_callable=io.StringIO) as sortie, mock.patch("sys.stderr", new_callable=io.StringIO) as erreurs:
+            ci.mettre_a_jour_societes(fichier)
+        return sortie.getvalue(), erreurs.getvalue()
+
+    def test_mettre_a_jour_societes_garde_l_ancien_fichier_si_erreur(self):
+        pannes = [csv.Error("ligne illisible"), TypeError("'NoneType' object is not iterable"), AttributeError("x"),
+                  OSError("réseau coupé"), ValueError("format inattendu"), KeyError("resources"), RuntimeError("pas de réponse")]
+        for panne in pannes:
+            with self.subTest(panne=type(panne).__name__), tempfile.TemporaryDirectory() as d:
+                f = Path(d) / "societes.js"
+                f.write_text("ancien contenu\n", encoding="utf-8")
+                _, erreurs = self.mettre_a_jour(f, side_effect=panne)
+                self.assertEqual(f.read_text(encoding="utf-8"), "ancien contenu\n")
+                self.assertIn("liste AMF non mise à jour", erreurs)
+                self.assertIn("ancien fichier gardé", erreurs)
+
+    def test_mettre_a_jour_societes_fiche_sans_ressources(self):
+        # une fiche dont « resources » vaut null fait lever TypeError dans societes_amf : rattrapé quand même
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "societes.js"
+            f.write_text("ancien contenu\n", encoding="utf-8")
+            with mock.patch.object(ci, "telecharger", return_value=b'{"resources": null}'), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO) as erreurs:
+                ci.mettre_a_jour_societes(f)
+            self.assertEqual(f.read_text(encoding="utf-8"), "ancien contenu\n")
+            self.assertIn("liste AMF non mise à jour", erreurs.getvalue())
+
+    def test_mettre_a_jour_societes_seuil_de_300(self):
+        def liste(n):
+            return {f"S{i}": [f"GP-{i}", "2000-01-01", "", "Vivant"] for i in range(n)}
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "societes.js"
+            f.write_text("ancien contenu\n", encoding="utf-8")
+            sortie, erreurs = self.mettre_a_jour(f, return_value=(liste(299), "2026-10-05"))
+            self.assertEqual(f.read_text(encoding="utf-8"), "ancien contenu\n")   # 299 : trop peu, ancien fichier gardé
+            self.assertIn("liste AMF non mise à jour", erreurs)
+            self.assertIn("299", erreurs)
+            self.assertEqual(sortie, "")
+            sortie, erreurs = self.mettre_a_jour(f, return_value=(liste(300), "2026-10-06"))
+            contenu = self.lire_societes(f)   # 300 : fichier réécrit
+            self.assertEqual(contenu["societes"], liste(300))
+            self.assertEqual(contenu["publication"], "2026-10-06")
+            self.assertEqual(erreurs, "")
+            self.assertIn("300 sociétés", sortie)
 
 
 if __name__ == "__main__":

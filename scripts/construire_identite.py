@@ -277,7 +277,9 @@ def lire_sgp(texte):
 def societes_amf():
     """Liste des sociétés de gestion agréées publiée sur data.gouv.fr → (sociétés, date de publication)."""
     fiche = json.loads(telecharger(SGP_FICHE))
-    url = next(r["url"] for r in fiche["resources"] if r.get("format") == "csv")
+    url = next((r["url"] for r in fiche["resources"] if r.get("format") == "csv"), None)
+    if not url:
+        raise ValueError("aucune ressource CSV dans la fiche data.gouv.fr")
     return lire_sgp(telecharger(url).decode("utf-8-sig"))
 
 
@@ -288,6 +290,20 @@ def ecrire_societes(societes, publication, fichier=SORTIE_SOCIETES):
         " * Source : AMF – liste des sociétés de gestion de portefeuille agréées, data.gouv.fr (Licence Ouverte 2.0).\n"
         " * societes : clé du nom (cle_societe) → [n° AMF, début d'autorisation, site internet, statut] */\n"
         "const SOCIETES = " + json.dumps(contenu, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + ";\n", encoding="utf-8")
+
+
+def mettre_a_jour_societes(fichier=SORTIE_SOCIETES):
+    """Réécrit la liste des sociétés agréées. Quoi qu'il arrive (panne de data.gouv.fr, fichier au format changé, liste trop courte…),
+    l'ancien fichier est gardé et l'erreur seulement signalée : une panne de l'AMF ne doit jamais empêcher d'écrire identite.js."""
+    try:
+        societes, publication = societes_amf()
+        if len(societes) < 300:
+            raise ValueError(f"seulement {len(societes)} sociétés")
+        ecrire_societes(societes, publication, fichier)
+        print(f"✓ {len(societes)} sociétés de gestion (publication AMF du {publication}) → {fichier.name} "
+              f"({fichier.stat().st_size / 1e3:.0f} Ko)")
+    except Exception as e:
+        print(f"! liste AMF non mise à jour ({e}) : ancien fichier gardé", file=sys.stderr)
 
 
 def main():
@@ -353,15 +369,7 @@ def main():
           f"liquidité de {len(liq)} parts, {len(notif)} notifiés pour la France (ESMA) → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
 
     print("5/5 AMF – sociétés de gestion agréées…")
-    try:
-        societes, publication = societes_amf()
-        if len(societes) < 300:
-            raise ValueError(f"seulement {len(societes)} sociétés")
-        ecrire_societes(societes, publication)
-        print(f"✓ {len(societes)} sociétés de gestion (publication AMF du {publication}) → {SORTIE_SOCIETES.name} "
-              f"({SORTIE_SOCIETES.stat().st_size / 1e3:.0f} Ko)")
-    except (OSError, ValueError, KeyError, RuntimeError, StopIteration) as e:
-        print(f"! liste AMF non mise à jour ({e}) : ancien fichier gardé", file=sys.stderr)
+    mettre_a_jour_societes()
 
 
 if __name__ == "__main__":
