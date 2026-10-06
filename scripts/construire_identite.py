@@ -9,6 +9,8 @@ Sources (publiques, gratuites et réutilisables) :
      un compartiment, fonds maître d'un fonds nourricier, date de création de l'entité.
   3. ESMA – registre FITRS des calculs de transparence MiFID (réutilisation autorisée en citant la source) :
      montant moyen échangé chaque jour en bourse dans l'Union européenne et caractère « liquide ».
+  4. ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) :
+     pays où chaque fonds est notifié.
 Le lien se fait par le LEI de chaque part, lu dans data/firds.js (scripts/construire_annuaire.py).
 
 Lancement (depuis le dossier analyse-fonds, après construire_annuaire.py) :
@@ -37,6 +39,7 @@ BCE_PAGE = "https://www.ecb.europa.eu/stats/financial_corporations/list_of_finan
 GLEIF_COPIES = "https://leidata-preview.gleif.org/api/v2/golden-copies/publishes/latest"
 GLEIF_API = "https://api.gleif.org/api/v1/lei-records"
 FITRS = "https://registers.esma.europa.eu/solr/esma_registers_fitrs_equities/select"
+ESMA_CBDIF = "https://registers.esma.europa.eu/solr/esma_registers_funds_cbdif/select"
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
 # Codes courts (le site les traduit en français : js/fiche-auto.js)
@@ -218,6 +221,28 @@ def liquidite(isins):
     return res
 
 
+# ---------- 4. ESMA : commercialisation transfrontière (pays où chaque fonds est notifié) ----------
+def notifies_france(docs):
+    """LEI des fonds dont la liste des pays d'accueil contient la France (documents du registre ESMA)."""
+    return {d["funds_lei"] for d in docs if d.get("funds_lei") and "FR" in (d.get("funds_host_country_codes") or [])}
+
+
+def commercialisation(leis):
+    """LEI notifiés pour la commercialisation en France, parmi les LEI donnés (100 par requête).
+    Un LEI absent du registre ou sans « FR » n'est pas retenu : on ne sait rien de plus."""
+    res, liste = set(), sorted(leis)
+    for i in range(0, len(liste), 100):
+        lot = liste[i:i + 100]
+        params = urllib.parse.urlencode({
+            "q": f"funds_lei:({' OR '.join(lot)})", "wt": "json", "rows": 1000,
+            "fl": "funds_lei,funds_host_country_codes"})
+        res |= notifies_france(json.loads(telecharger(f"{ESMA_CBDIF}?{params}"))["response"]["docs"])
+        time.sleep(0.5)
+        if i // 100 % 20 == 19:
+            print(f"  ESMA : {i + 100}/{len(liste)}")
+    return res
+
+
 def main():
     annuaire = lire_js("annuaire.js", "ANNUAIRE")
     firds = lire_js("firds.js", "FIRDS")
@@ -226,14 +251,16 @@ def main():
     leis = set(lei_de.values())
     print(f"{len(isins)} parts de fonds étrangers, {len(leis)} LEI distincts")
 
-    print("1/3 BCE – liste des fonds d'investissement…")
+    print("1/5 BCE – liste des fonds d'investissement…")
     bce = liste_bce()
-    print("2/3 GLEIF – fonds parapluies, fonds maîtres, dates de création…")
+    print("2/5 GLEIF – fonds parapluies, fonds maîtres, dates de création…")
     liens, date_gleif, _ = liens_gleif(leis)
     autres = {x for l in liens.values() for x in l.values()}
     fiches = fiches_gleif(leis | autres)
-    print("3/3 ESMA FITRS – montants échangés en bourse…")
+    print("3/5 ESMA FITRS – montants échangés en bourse…")
     liq = liquidite(isins)
+    print("4/5 ESMA – commercialisation transfrontière des fonds…")
+    notif = commercialisation(leis)
 
     # Table des noms (sociétés de gestion, parapluies, maîtres) pour alléger le fichier
     noms, index_noms = [], {}
@@ -263,18 +290,20 @@ def main():
     annee_fitrs = max(set(annees), key=annees.count) if annees else 0
     liq = {i: v if v[2] != annee_fitrs else v[:2] for i, v in liq.items()}
     contenu = {"maj": date.today().isoformat(), "bce": dates_bce[-1] if dates_bce else "", "gleif": date_gleif, "fitrs": annee_fitrs,
-               "noms": noms, "fonds": fonds, "liquidite": {i: v for i, v in sorted(liq.items())}}
+               "esma": date.today().isoformat(), "noms": noms, "fonds": fonds, "liquidite": {i: v for i, v in sorted(liq.items())},
+               "notifFR": sorted(notif)}
     SORTIE.write_text(
         "/* Généré par scripts/construire_identite.py — ne pas modifier à la main.\n"
         " * Sources : BCE (liste des fonds d'investissement), GLEIF (licence CC0), ESMA (registre FITRS).\n"
         " * fonds : LEI → [société de gestion, fonds parapluie, fonds maître (index dans noms) : voir l'ordre ci-dessous]\n"
         " *   [gestion, parapluie, politique (A actions, O obligations, M mixte, I immobilier, C crédit, H alternatif,\n"
         " *    N infrastructures, P matières premières, X autre), ETF (1/0), UCITS (1/0), tranche d'encours (1 à 8), création, maître]\n"
-        " * liquidite : ISIN → [montant moyen échangé par jour en bourse dans l'UE (M€), liquide (1/0), année du calcul si ≠ fitrs] */\n"
+        " * liquidite : ISIN → [montant moyen échangé par jour en bourse dans l'UE (M€), liquide (1/0), année du calcul si ≠ fitrs]\n"
+        " * notifFR : LEI notifiés pour la commercialisation en France (ESMA, registre de la commercialisation transfrontière) ; esma : date du relevé */\n"
         "const IDENTITE = " + json.dumps(contenu, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
     print(f"\n✓ {len(fonds)} fonds (BCE : {sum(1 for x in leis if x in bce)}, parapluie GLEIF : "
           f"{sum(1 for x in leis if 'parapluie' in liens.get(x, {}))}, nourriciers : {sum(1 for x in leis if 'maitre' in liens.get(x, {}))}), "
-          f"liquidité de {len(liq)} parts → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
+          f"liquidité de {len(liq)} parts, {len(notif)} notifiés pour la France (ESMA) → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
 
 
 if __name__ == "__main__":

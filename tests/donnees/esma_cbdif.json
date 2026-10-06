@@ -1,0 +1,28 @@
+{
+  "responseHeader":{
+    "status":0,
+    "QTime":216,
+    "params":{
+      "q":"funds_lei:(5493003BFED2MWDBYH64 OR 529900APEXTPT6RN1778)",
+      "fl":"funds_lei,funds_host_country_codes",
+      "rows":"1000",
+      "wt":"json"}},
+  "response":{"numFound":2,"start":0,"numFoundExact":true,"docs":[
+      {
+        "funds_lei":"529900APEXTPT6RN1778",
+        "funds_host_country_codes":["DE"]},
+      {
+        "funds_lei":"5493003BFED2MWDBYH64",
+        "funds_host_country_codes":["FR",
+          "IT",
+          "NL",
+          "FI",
+          "SE",
+          "ES",
+          "AT",
+          "DE",
+          "IE",
+          "PT",
+          "DK",
+          "NO"]}]
+  }}
