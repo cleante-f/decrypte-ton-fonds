@@ -13,6 +13,11 @@ function normaliser(texte) {
   return String(texte || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 }
 
+// même règle que cle_societe dans scripts/construire_identite.py
+function cleSociete(nom) {
+  return String(nom || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 function pct(valeur, decimales = 1) {
   if (valeur === null || valeur === undefined) return "n.d.";
   return valeur.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales }) + " %";

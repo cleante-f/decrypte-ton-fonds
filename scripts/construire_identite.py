@@ -21,6 +21,7 @@ import io
 import json
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -92,6 +93,16 @@ def joli(nom):
     # chaque partie d'un mot composé à part : « SICAV-SIF » reste en capitales, « NON-FINANCIAL » → « Non-Financial »
     mots = ["-".join(partie(x) for x in m.split("-")) for m in nom.split()]
     return re.sub(r" (PLC|Public Limited Company)$", " plc", " ".join(mots))
+
+
+def cle_societe(nom):
+    """Clé commune de normalisation des noms de sociétés de gestion : accents retirés, majuscules, [A-Z0-9] uniquement.
+    « Société Générale » → « SOCIETEGENERALE », None → « »."""
+    s = unicodedata.normalize("NFD", nom or "")
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    s = s.upper()
+    s = re.sub(r"[^A-Z0-9]", "", s)
+    return s
 
 
 # ---------- 1. BCE : liste des fonds d'investissement ----------
