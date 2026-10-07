@@ -256,9 +256,10 @@ def commercialisation(leis):
 
 # ---------- 5. AMF : sociétés de gestion de portefeuille agréées ----------
 def site_propre(texte):
-    """Adresse de site internet saisie par l'AMF, ou « » si ce n'en est pas une (« NA », e-mail, « Under%20construction »…)."""
+    """Adresse de site internet saisie par l'AMF, ou « » si ce n'en est pas une (« NA », e-mail, « Under%20construction »…).
+    Le « _ » est refusé dans le nom de domaine : le lien serait cassé (« www.access_capital_partners.com »)."""
     texte = (texte or "").strip()
-    return texte if re.match(r"^(https?://)?[A-Za-z0-9._-]+\.[A-Za-z]{2,}(/\S*)?$", texte) else ""
+    return texte if re.match(r"^(https?://)?[A-Za-z0-9.-]+\.[A-Za-z]{2,}(/\S*)?$", texte) else ""
 
 
 def lire_sgp(texte):

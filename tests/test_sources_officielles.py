@@ -101,7 +101,8 @@ class SocietesAmf(unittest.TestCase):
             "OTOKTONE3I": ["GP-14000025", "2014-07-16", "", "Vivant"]})
 
     def test_site_propre_valeurs_reelles(self):
-        for mauvais in ["NA", "N/A", "info@gutenbergfinance.com", "Under%20construction", "En%20cours%20de%20création", ""]:
+        for mauvais in ["NA", "N/A", "info@gutenbergfinance.com", "Under%20construction", "En%20cours%20de%20création", "",
+                        "www.access_capital_partners.com"]:
             self.assertEqual(ci.site_propre(mauvais), "", mauvais)
         for bon in ["www.carmignac.com", "http://am.oddo-bhf.com", "https://investmentsolutions.societegenerale.fr", "jeito.life"]:
             self.assertEqual(ci.site_propre(" " + bon + " "), bon)
