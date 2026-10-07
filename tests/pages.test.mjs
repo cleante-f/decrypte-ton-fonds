@@ -91,7 +91,9 @@ test("js/mode-site.js chargé en premier dans le <head>", () => {
 
 test("éléments réservés au mode comptes", () => {
   const index = lirePage("index");
-  assert.match(bloc(index, "header"), /<a class="btn-compte" id="lien-compte"[^>]*data-seulement="comptes"/);
+  // « Se connecter » / « Mon compte » : sur chaque page (le test « en-tête identique » réécrit ce lien avant de comparer)
+  for (const nom of PAGES)
+    assert.match(bloc(lirePage(nom), "header"), /<a class="btn-compte" id="lien-compte"[^>]*data-seulement="comptes"/, `${nom} : #lien-compte sans data-seulement="comptes"`);
   assert.ok(bloc(index, "footer").includes('<span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span>'));
   assert.ok(index.includes('<span class="pilule" data-seulement="comptes">3 simulations offertes</span>'));
   assert.ok(index.includes('<span class="pilule" data-seulement="gratuit">Gratuit</span>'));
@@ -116,7 +118,10 @@ test("Turnstile chargé par le script, en mode comptes seulement", () => {
   assert.ok(js.includes("challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=captchaPret"));
   assert.ok(js.includes("modeSite("));
   assert.match(js, /modeSite\(location\.hostname\)\s*===\s*"comptes"/);
-  assert.ok(js.indexOf("window.captchaPret") < js.indexOf("chargerTurnstile()"), "chargerTurnstile doit venir après captchaPret");
+  // L'APPEL (ligne qui commence par « chargerTurnstile(); »), pas la déclaration « function chargerTurnstile() { »
+  const appel = js.search(/^chargerTurnstile\(\);/m);
+  assert.ok(appel >= 0, "chargerTurnstile() n'est jamais appelée : Turnstile ne se chargerait plus en mode comptes");
+  assert.ok(js.indexOf("window.captchaPret") >= 0 && js.indexOf("window.captchaPret") < appel, "l'appel de chargerTurnstile() doit venir après la définition de captchaPret");
 });
 
 test("_routes.json : js/mode-site.js exclu des Functions", () => {
