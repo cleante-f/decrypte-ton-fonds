@@ -53,7 +53,9 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
 4. **Plan** appliqué à chaque trajectoire : versements (mensuels, trimestriels, annuels, avec hausse annuelle),
    date de début (si elle est passée, les premiers mois suivent l'historique réel), frais courants (lus dans le DIC),
    frais d'entrée, de courtage, de change et de contrat, dividendes réinvestis ou versés, inflation,
-   fiscalité française simplifiée (compte-titres, PEA, assurance-vie ; règles 2026 de service-public.fr).
+   fiscalité française simplifiée (compte-titres, PEA, assurance-vie, PEE ; règles 2026 de service-public.fr ; pour le PEE,
+   gains exonérés d'impôt sur le revenu et 18,6 % de prélèvements sociaux, chaque somme bloquée au moins 5 ans, abondement à ajouter au versement).
+   Le montant après impôts du scénario central est rappelé sous les chiffres principaux.
 5. **Scénarios** : défavorable (rang 10 %), central (médiane), favorable (rang 90 %) et tensions
    (pire baisse sur 12 mois de l'historique, subie pendant la dernière année). **Objectif** : versement, capital ou durée nécessaires pour 1 chance
    sur 2, 3 sur 4, 9 sur 10. **Crises** : 6 crises réelles rejouées et 7 chocs hypothétiques.
@@ -107,7 +109,7 @@ n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jou
 
 - Clés : jamais dans le code. Sur GitHub : Settings → Secrets and variables → Actions (noms dans `.env.example`) ;
   pour un essai local, copier `.env.example` en `.env` (ignoré par Git). Une clé absente fait simplement sauter la source.
-- Tests (appellent les vraies API et vérifient les champs utilisés) : `python3 scripts/tests_sources.py`
+- Tests (appellent les vraies API et vérifient les champs utilisés, y compris ESMA, liste AMF et taux des livrets) : `python3 scripts/tests_sources.py`
 - Avant d'écrire le module d'une API à clé : `python3 scripts/sonder_api.py` affiche la structure réelle de sa réponse
   (sans jamais afficher la clé).
 - Forcer un nouvel appel malgré le cache : `python3 scripts/actualiser_marches.py --forcer`, ou sur GitHub :
@@ -225,7 +227,7 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 | Source | Usage sur le site | Condition | Décision |
 |---|---|---|---|
 | ESMA – registre de la commercialisation transfrontière des OPCVM et FIA | OPCVM (UCITS) actifs notifiés pour la France seulement (un FIA notifié ne peut être proposé qu'aux investisseurs professionnels) : ligne « Commercialisation en France » sur la fiche des ETF et des fonds étrangers absents de la liste de l'AMF ; pour ces derniers, l'information « Notifié… » (section 5) remplace l'alerte « absent de la liste ». Affirmation positive seulement : un fonds absent du registre n'est pas déclaré « non commercialisé » | Reproduction autorisée en citant la source (comme FIRDS et FITRS) | Retenue |
-| AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr) | « Agréée par l'AMF : n° …, depuis le … » et lien vers le site de la société, sur la fiche des fonds français dont la société est dans la liste (`data/societes.js`) | Licence Ouverte 2.0 : citer la source et la date de publication | Retenue |
+| AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr) | « Agréée par l'AMF : n° …, depuis le … » et lien vers le site de la société (en https quand il répond ; aucun lien vers les sites HSBC, faute d'accord écrit), sur la fiche des fonds français dont la société est dans la liste (`data/societes.js`) | Licence Ouverte 2.0 : citer la source et la date de publication | Retenue |
 | BCE – taux moyen des livrets d'épargne en France (statistique compilée par la Banque de France) | Indicateur `livrets_fr` (Contexte & risques), repère « livret au taux moyen actuel » dans le simulateur, référence « Livrets d'épargne » dans Performances (le dernier taux publié est prolongé jour par jour jusqu'à la dernière valeur du fonds) | Réutilisation libre en citant la BCE | Retenue |
 | Webstat (Banque de France) | Aucun | Valeurs accessibles seulement avec un compte développeur et une clé (vérifié le 06/10/2026) | Écartée : la même statistique est diffusée sans clé par la BCE |
 | Eurostat | Aucun | — | Écartée : l'inflation est déjà lue à la BCE (même indice) |

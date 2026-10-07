@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Tests des sources de données : chaque test appelle la VRAIE API et vérifie que les champs utilisés existent toujours.
+Tests des sources de données : chaque test appelle la VRAIE API et vérifie que les champs utilisés existent toujours
+(y compris les sources officielles ajoutées le 06/10/2026 : ESMA, liste AMF, taux des livrets).
     python3 scripts/tests_sources.py
 Une source à clé est ignorée (et signalée) quand sa clé n'est pas définie (variable d'environnement ou fichier .env).
 Le dernier test vérifie, sans réseau, le repli : secours, puis dernière valeur connue.
@@ -81,6 +82,35 @@ class Actualites(unittest.TestCase):
     @unittest.skipUnless(cle_definie("NEWSDATA_KEY"), "clé NEWSDATA_KEY absente")
     def test_newsdata(self):
         self.verifier(actus_newsdata)
+
+
+class SourcesOfficielles(unittest.TestCase):
+    """Sources ajoutées le 06/10/2026 (sans clé) : registre ESMA de la commercialisation, liste AMF des sociétés de gestion,
+    taux moyen des livrets (BCE). Chaque test passe par les fonctions qu'utilisent les scripts, donc par les mêmes champs."""
+
+    def test_esma_commercialisation(self):
+        import construire_identite as ci
+        # Amundi MSCI World Swap (LU1681043599) : OPCVM actif notifié pour la France
+        self.assertEqual(ci.commercialisation({"5493003BFED2MWDBYH64"}), {"5493003BFED2MWDBYH64"},
+                         "le registre ne renvoie plus FR, UCITS ou ACTV pour ce fonds : champs ou valeurs changés ?")
+
+    def test_amf_societes_de_gestion(self):
+        import construire_identite as ci
+        societes, publication = ci.societes_amf()
+        self.assertGreaterEqual(len(societes), 300)
+        self.assertEqual(societes["CARMIGNACGESTION"][0], "GP97008")
+        self.assertLess((date.today() - date.fromisoformat(publication)).days, 120, "liste AMF de plus de 4 mois")
+
+    def test_bce_livrets(self):
+        import actualiser_contexte as ac
+        points = ac.serie_bce("MIR/M.FR.B.L23.D.R.A.2250.EUR.N", f"{date.today().year - 1}-01-01")
+        self.assertTrue(points, "série des livrets vide")
+        periode, taux = points[-1]
+        self.assertRegex(periode, r"^\d{4}-\d{2}$")
+        self.assertTrue(0 < taux < 10, taux)
+        annee, mois = map(int, periode.split("-"))
+        retard = (date.today().year - annee) * 12 + date.today().month - mois
+        self.assertLessEqual(retard, 4, f"dernier taux publié en {periode} : série interrompue ?")
 
 
 class Repli(unittest.TestCase):
