@@ -179,8 +179,8 @@ python3 scripts/construire_identite.py
 
 régénère `data/identite.js` et `data/societes.js` (environ 10 minutes). `identite.js` : société de gestion, type de fonds et tranche
 d'encours (liste des fonds de la BCE), fonds parapluie et fonds maître (GLEIF), montant moyen échangé en bourse (ESMA FITRS) et
-notification pour la France (registre de la commercialisation transfrontière des OPCVM et FIA de l'ESMA : 2 077 LEI notifiés au
-06/10/2026, dont 336 fonds hors liste de l'AMF et 614 ETF). `societes.js` : la liste des sociétés de gestion de portefeuille agréées
+notification pour la France (registre de la commercialisation transfrontière des OPCVM et FIA de l'ESMA : 2 048 OPCVM (UCITS) actifs
+notifiés au 07/10/2026, dont 308 fonds hors liste de l'AMF et 612 ETF). `societes.js` : la liste des sociétés de gestion de portefeuille agréées
 par l'AMF (data.gouv.fr, Licence Ouverte 2.0 : 667 sociétés, environ 96 % des fonds français rattachés à leur agrément).
 La tâche `identite.yml` les relance le 20 de chaque mois.
 
