@@ -97,17 +97,27 @@ test("alerte si l'agrément n'est pas « Vivant »", () => {
 const proche = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
 const jour = d => [d.getFullYear(), d.getMonth() + 1, d.getDate()];
 
-test("serieDepuisCsvBce : série mensuelle (taux composé, base 365)", () => {
+// Valeur de la série à une date (année, mois, jour), ou undefined si aucun point n'est daté de ce jour
+const valeurLe = (r, ...ajm) => r.valeurs[r.dates.findIndex(d => jour(d).join() === ajm.join())];
+
+test("serieDepuisCsvBce : série mensuelle (taux composé, base 365), un point par jour entre deux mois publiés", () => {
   const r = charger(["js/outils.js"]).serieDepuisCsvBce(lire("tests/donnees/bce_livrets.csv"));
-  assert.deepEqual(simple(r.dates.map(jour)), [[2026, 6, 1], [2026, 7, 1], [2026, 8, 1]]);
-  proche(r.valeurs[0], 100);
-  proche(r.valeurs[1], 100 * 1.014 ** (30 / 365));
-  proche(r.valeurs[2], r.valeurs[1] * 1.014 ** (31 / 365));
+  assert.equal(r.dates.length, 30 + 31 + 1);                         // du 01/06 au 01/08 inclus
+  assert.deepEqual(jour(r.dates[0]), [2026, 6, 1]);
+  assert.deepEqual(jour(r.dates.at(-1)), [2026, 8, 1]);
+  assert.ok(r.dates.every((d, i) => i === 0 || d > r.dates[i - 1]));
+  assert.ok(r.dates.every(d => d.getHours() === 0));
+  proche(valeurLe(r, 2026, 6, 1), 100);
+  proche(valeurLe(r, 2026, 7, 1), 100 * 1.014 ** (30 / 365));
+  proche(valeurLe(r, 2026, 8, 1), valeurLe(r, 2026, 7, 1) * 1.014 ** (31 / 365));
+  proche(valeurLe(r, 2026, 6, 2), 100 * 1.014 ** (1 / 365));         // chaque jour : taux du mois, composé sur 1/365
 });
 
 test("serieDepuisCsvBce : changement d'heure", () => {
   const r = charger(["js/outils.js"]).serieDepuisCsvBce("TIME_PERIOD,OBS_VALUE\n2026-03,1.5\n2026-04,1.5\n");
-  proche(r.valeurs[1], 100 * 1.015 ** (31 / 365));
+  assert.equal(r.dates.length, 31 + 1);
+  assert.ok(r.dates.every(d => d.getHours() === 0));
+  proche(valeurLe(r, 2026, 4, 1), 100 * 1.015 ** (31 / 365));
 });
 
 test("serieDepuisCsvBce : série quotidienne (€STR, intérêts simples, base 360)", () => {
@@ -121,17 +131,19 @@ test("serieDepuisCsvBce : série mensuelle prolongée jour par jour jusqu'à la 
   const csv = lire("tests/donnees/bce_livrets.csv");
   const seule = serieDepuisCsvBce(csv);
   const r = serieDepuisCsvBce(csv, new Date(2026, 9, 6, 15, 30));   // l'heure de la journée est ignorée
-  assert.equal(r.dates.length, 3 + 66);                              // un point par jour du 02/08 au 06/10
-  assert.deepEqual(simple(r.dates.slice(2, 4).map(jour)), [[2026, 8, 1], [2026, 8, 2]]);
+  const n = seule.dates.length;                                      // 62 points : du 01/06 au 01/08
+  assert.equal(r.dates.length, n + 66);                              // + un point par jour du 02/08 au 06/10
+  assert.deepEqual(simple(r.dates.slice(n - 1, n + 1).map(jour)), [[2026, 8, 1], [2026, 8, 2]]);
   assert.deepEqual(jour(r.dates.at(-1)), [2026, 10, 6]);
   assert.ok(r.dates.some(d => jour(d).join() === "2026,10,2"));
   assert.ok(r.dates.every((d, i) => i === 0 || d > r.dates[i - 1]));
-  assert.ok(r.dates.slice(3).every(d => d.getHours() === 0));
-  proche(r.valeurs[3], r.valeurs[2] * 1.0155 ** (1 / 365));
-  proche(r.valeurs.at(-1), r.valeurs[2] * 1.0155 ** (66 / 365));
-  assert.deepEqual(simple(r.valeurs.slice(0, 3)), simple(seule.valeurs));
-  assert.equal(serieDepuisCsvBce(csv, new Date(2026, 7, 1)).dates.length, 3);   // même jour que le dernier point : rien à ajouter
-  assert.equal(serieDepuisCsvBce(csv, new Date(2026, 6, 1)).dates.length, 3);   // date antérieure : rien à ajouter
+  assert.ok(r.dates.every(d => d.getHours() === 0));
+  proche(r.valeurs[n], r.valeurs[n - 1] * 1.0155 ** (1 / 365));
+  proche(r.valeurs.at(-1), r.valeurs[n - 1] * 1.0155 ** (66 / 365));
+  assert.deepEqual(simple(r.valeurs.slice(0, n)), simple(seule.valeurs));
+  assert.deepEqual(simple(r.dates.slice(0, n)), simple(seule.dates));
+  assert.equal(serieDepuisCsvBce(csv, new Date(2026, 7, 1)).dates.length, n);   // même jour que le dernier point : rien à ajouter
+  assert.equal(serieDepuisCsvBce(csv, new Date(2026, 6, 1)).dates.length, n);   // date antérieure : rien à ajouter
 });
 
 test("serieDepuisCsvBce : prolongement à travers le changement d'heure (un point à minuit chaque jour)", () => {
@@ -198,6 +210,21 @@ test("graphique : la série des livrets prolongée garde ses points jusqu'à la 
   assert.deepEqual(jour(unMois.pts[0].d), [2026, 9, 5]);
   const sixMois = c.pointsSurPeriode(livrets, c.debutPeriode("6m", finFonds, livrets.dates[0]), finFonds);
   assert.deepEqual(jour(sixMois.pts.at(-1).d), [2026, 10, 5]);
+});
+
+test("graphique : « Cette année » part du 31 décembre, pas du 1er décembre (série mensuelle des livrets)", () => {
+  const c = extraitDePerformances({}, "PERIODES", "indiceAvant", "debutPeriode", "pointsSurPeriode", "performancesAnnuelles");
+  const mois = ["2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"];
+  const csv = "TIME_PERIOD,OBS_VALUE\n" + mois.map(m => `${m},1.5\n`).join("");
+  const finFonds = new Date(2026, 9, 5);
+  const livrets = c.serieDepuisCsvBce(csv, finFonds);
+  const debut = c.debutPeriode("ytd", finFonds, livrets.dates[0]);
+  const annee = c.pointsSurPeriode(livrets, debut, finFonds);
+  assert.deepEqual(jour(annee.pts[0].d), jour(debut));               // 31/12/2025
+  assert.deepEqual(jour(annee.pts.at(-1).d), [2026, 10, 5]);
+  proche(annee.pts.at(-1).v, (1.015 ** (278 / 365) - 1) * 100);      // 278 jours du 31/12/2025 au 05/10/2026 : +1,14 %
+  const ligne2026 = simple(c.performancesAnnuelles(livrets)).find(l => l.annee === 2026);
+  proche(ligne2026.perf, (1.015 ** (278 / 365) - 1) * 100);          // la ligne 2026 ne contient pas décembre 2025
 });
 
 const SIMU = ["js/outils.js", "js/projection.js"];
