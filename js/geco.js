@@ -27,7 +27,12 @@ function indexAnnuaire() {
   if (_indexAnnuaire) return _indexAnnuaire;
   const parIsin = new Map(), parTicker = new Map(), noms = [];
   ANNUAIRE.forEach((l, i) => {
-    for (const isin of (l[7] ? l[7].split(" ") : [])) parIsin.set(isin, i);
+    // Un ISIN présent sur plusieurs lignes ouvre le fonds français (GECO), où il est officiel : un fonds étranger a pu le
+    // recevoir par erreur en rapprochant les noms dans FIRDS (ex. FR0010135103 et « CARMIGNAC PORTFOLIO - PATRIMOINE »)
+    for (const isin of (l[7] ? l[7].split(" ") : [])) {
+      const deja = parIsin.get(isin);
+      if (deja === undefined || l[0] === "G" || ANNUAIRE[deja][0] !== "G") parIsin.set(isin, i);
+    }
     for (const t of (l[10] ? l[10].split(" ") : [])) if (!parTicker.has(t)) parTicker.set(t, i);
     noms.push(normaliser(l[3] + " " + l[4]));
   });

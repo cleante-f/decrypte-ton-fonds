@@ -216,6 +216,14 @@ def correspondances(fonds_n, cotations_ci):
     return {k: [i for i in v if compte[i] == 1] for k, v in trouves.items() if any(compte[i] == 1 for i in v)}
 
 
+def isin_retrouves_par_nom(fonds, cotations_ci, par_isin):
+    """Étape 4 : ISIN des fonds étrangers vendus en France (GECO) retrouvés par leur nom dans FIRDS. Un ISIN que GECO donne
+    déjà à un fonds français n'est jamais proposé : sinon « CARMIGNAC PORTFOLIO - PATRIMOINE » (Luxembourg) recevait
+    FR0010135103, l'ISIN de Carmignac Patrimoine, coté à Stuttgart sous le nom « Carmignac Patrimoine »."""
+    etrangers = {k: f["n"] for k, f in fonds.items() if f["s"] == "N"}
+    return correspondances(etrangers, [d for d in cotations_ci if d["isin"] not in par_isin])
+
+
 # Fonds réservés aux investisseurs avertis, reconnaissables à leur nom (même règle dans js/fiche-auto.js)
 RESERVE_AVERTIS = re.compile(r"\bSIF\b|\bRAIF\b|Specialist Investment Fund|Spezial-?(AIF|fonds|sondervermögen)", re.I)
 
@@ -366,7 +374,7 @@ def main():
             "s": "N", "c": num(c["cmpId"]), "n": c["cmpNom"].strip(), "g": c.get("gestionnaire", ""),
             "pays": c.get("prdDomcltn", ""), "d": c.get("cmpDateCreation") or "", "i": [], "tk": [], "pub": True,
         }
-    par_nom = correspondances({k: f["n"] for k, f in fonds.items() if f["s"] == "N"}, cotations_ci)
+    par_nom = isin_retrouves_par_nom(fonds, cotations_ci, par_isin)
     for cle, isins in par_nom.items():
         fonds[cle]["i"] = isins
     print(f"  ISIN retrouvés pour {len(par_nom)} fonds étrangers ({sum(len(v) for v in par_nom.values())} parts)")
