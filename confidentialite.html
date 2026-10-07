@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Confidentialité · Décrypte ton fonds</title>
-  <meta name="description" content="Ce que le site Décrypte ton fonds fait de tes données : compte, cookie de connexion, prestataires, durées et droits.">
+  <meta name="description" content="Ce que le site Décrypte ton fonds fait de tes données : services contactés, stockage dans ton navigateur, durées et droits.">
   <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -23,60 +23,100 @@
     </div>
   </header>
 
+  <!-- Deux versions : data-seulement="comptes" (aperçu des comptes, localhost) et data-seulement="gratuit" (GitHub Pages, adresse
+       principale de Cloudflare) ; data-si-hebergeur choisit GitHub ou Cloudflare. Ce qui n'a pas de marque vaut pour les deux. -->
   <main class="page-texte">
     <h1>Confidentialité</h1>
-    <p class="sous-titre">En bref : sans compte, rien n'est enregistré sur un serveur. Avec un compte, nous gardons seulement ce qu'il faut pour le faire fonctionner.
-      Un seul cookie, strictement nécessaire à la connexion. Aucune mesure d'audience, aucune publicité.</p>
+    <div data-seulement="comptes">
+      <p class="sous-titre">En bref : sans compte, rien n'est enregistré sur un serveur. Avec un compte, nous gardons seulement ce qu'il faut pour le faire fonctionner.
+        Un seul cookie, strictement nécessaire à la connexion. Aucune mesure d'audience, aucune publicité.</p>
+    </div>
+    <div data-seulement="gratuit">
+      <p class="sous-titre">En bref : pas de compte, pas de cookie, pas de mesure d'audience, pas de publicité. Tes recherches et tes simulations sont calculées dans ton navigateur et ne nous sont jamais envoyées.</p>
+    </div>
 
     <section class="carte">
       <h2>Qui est responsable de tes données ?</h2>
-      <p>« Décrypte ton fonds » est édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>, directeurs de la publication.
-        L'abonnement est vendu par la micro-entreprise indiquée dans les <a href="mentions-legales.html">mentions légales</a>, responsable des traitements décrits ci-dessous.</p>
-      <p><strong>Nous contacter</strong> (questions, demandes sur tes données) : <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
-      <p><strong>Hébergeur</strong> : Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis.</p>
+      <div data-seulement="comptes">
+        <p>« Décrypte ton fonds » est édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>, directeurs de la publication.
+          L'abonnement est vendu par la micro-entreprise indiquée dans les <a href="mentions-legales.html">mentions légales</a>, responsable des traitements décrits ci-dessous.</p>
+        <p><strong>Nous contacter</strong> (questions, demandes sur tes données) : <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+        <p><strong>Hébergeur</strong> : Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis.</p>
+      </div>
+      <div data-seulement="gratuit">
+        <p>« Décrypte ton fonds » est un site personnel et gratuit, édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>,
+          directeurs de la publication et responsables des traitements décrits ci-dessous. Rien n'y est vendu.</p>
+        <p><strong>Nous contacter</strong> (questions, demandes sur tes données) : ouvre un ticket sur la
+          <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a> (bouton « New issue », compte GitHub gratuit nécessaire).
+          Les tickets sont publics : n'y écris pas d'informations personnelles.</p>
+        <p data-si-hebergeur="github"><strong>Hébergeur</strong> : GitHub, Inc. (service GitHub Pages), 88 Colin P. Kelly Jr. St., San Francisco, CA 94107, États-Unis.</p>
+        <p data-si-hebergeur="cloudflare"><strong>Hébergeur</strong> : Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis.</p>
+      </div>
       <p class="source">Loi pour la confiance dans l'économie numérique du 21 juin 2004, article 6.</p>
     </section>
 
-    <section class="carte">
-      <h2>Si tu crées un compte</h2>
-      <p>Le compte est facultatif : l'accueil, les fiches des fonds et les performances restent accessibles sans compte. Il sert au simulateur
-        (3 simulations offertes, puis abonnement).</p>
-      <div class="cadre-tableau"><table class="tableau-texte">
-        <thead><tr><th scope="col">Données</th><th scope="col">Pourquoi</th><th scope="col">Base légale (RGPD)</th><th scope="col">Durée</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">Adresse e-mail, mot de passe (enregistré sous une forme chiffrée irréversible), date d'inscription, confirmation d'avoir 18 ans et d'accepter les CGV</th>
-            <td>Créer et sécuriser ton compte</td><td>Exécution du contrat (art. 6.1 b)</td>
-            <td>Tant que le compte existe. Suppression automatique après 2 ans sans connexion, avec un e-mail d'avertissement 30 jours avant.</td></tr>
-          <tr><th scope="row">Simulations enregistrées (fonds, montants, durée, portefeuille), compteur des simulations offertes</th>
-            <td>Retrouver tes simulations sur tous tes appareils</td><td>Exécution du contrat</td><td>Comme le compte</td></tr>
-          <tr><th scope="row">Abonnement : état, date de fin, référence client du prestataire de paiement, factures</th>
-            <td>Gérer l'abonnement et la comptabilité</td><td>Exécution du contrat ; obligation légale pour les factures (art. 6.1 c)</td>
-            <td>Factures : 10 ans (Code de commerce), conservées par Stripe. Tes données de carte ne passent jamais par ce site.</td></tr>
-          <tr><th scope="row">Adresse IP dans les journaux techniques</th><td>Sécurité (tentatives de connexion, abus)</td><td>Intérêt légitime (art. 6.1 f)</td><td>Durée fixée par nos prestataires</td></tr>
-        </tbody>
-      </table></div>
-    </section>
+    <div data-seulement="comptes">
+      <section class="carte">
+        <h2>Si tu crées un compte</h2>
+        <p>Le compte est facultatif : l'accueil, les fiches des fonds et les performances restent accessibles sans compte. Il sert au simulateur
+          (3 simulations offertes, puis abonnement).</p>
+        <div class="cadre-tableau"><table class="tableau-texte">
+          <thead><tr><th scope="col">Données</th><th scope="col">Pourquoi</th><th scope="col">Base légale (RGPD)</th><th scope="col">Durée</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Adresse e-mail, mot de passe (enregistré sous une forme chiffrée irréversible), date d'inscription, confirmation d'avoir 18 ans et d'accepter les CGV</th>
+              <td>Créer et sécuriser ton compte</td><td>Exécution du contrat (art. 6.1 b)</td>
+              <td>Tant que le compte existe. Suppression automatique après 2 ans sans connexion, avec un e-mail d'avertissement 30 jours avant.</td></tr>
+            <tr><th scope="row">Simulations enregistrées (fonds, montants, durée, portefeuille), compteur des simulations offertes</th>
+              <td>Retrouver tes simulations sur tous tes appareils</td><td>Exécution du contrat</td><td>Comme le compte</td></tr>
+            <tr><th scope="row">Abonnement : état, date de fin, référence client du prestataire de paiement, factures</th>
+              <td>Gérer l'abonnement et la comptabilité</td><td>Exécution du contrat ; obligation légale pour les factures (art. 6.1 c)</td>
+              <td>Factures : 10 ans (Code de commerce), conservées par Stripe. Tes données de carte ne passent jamais par ce site.</td></tr>
+            <tr><th scope="row">Adresse IP dans les journaux techniques</th><td>Sécurité (tentatives de connexion, abus)</td><td>Intérêt légitime (art. 6.1 f)</td><td>Durée fixée par nos prestataires</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+    </div>
 
     <section class="carte">
-      <h2>Nos prestataires</h2>
-      <p>Ton navigateur contacte les services suivants, qui voient alors ton <strong>adresse IP</strong>. Les autres ne reçoivent tes données que pour nous rendre service.</p>
-      <div class="cadre-tableau"><table class="tableau-texte">
-        <thead><tr><th scope="col">Prestataire</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Où</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">Cloudflare (hébergeur) <small>(pages du site ; challenges.cloudflare.com)</small></th>
-            <td>Envoyer les pages du site, contrôler l'accès au simulateur, vérifier que tu n'es pas un robot (Turnstile) à l'inscription et à la connexion.</td>
-            <td>À chaque visite ; Turnstile seulement sur la page de connexion</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
-          <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, état de l'abonnement.</td>
-            <td>Quand tu es connecté ou que tu te connectes</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
-          <tr><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
-            <td>Quand tu t'abonnes ou gères ton abonnement</td><td>Irlande (Stripe Payments Europe)</td></tr>
-          <tr><th scope="row">Brevo <small>(liens des e-mails : sendibt2.com, sendibt3.com)</small></th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité).
-            Le lien de ces e-mails passe par une adresse de Brevo, qui compte les ouvertures et les clics <strong>de façon anonyme</strong> : seulement des totaux, jamais reliés à ton adresse.</td>
-            <td>Lors de ces envois ; quand tu ouvres l'e-mail ou cliques sur son lien</td><td>France</td></tr>
-          <tr><th scope="row">AMF, base GECO <small>(geco.amf-france.org)</small></th><td>Lire les données officielles d'un fonds : valeurs liquidatives, documents, rapports.</td><td>Quand tu consultes un fonds</td><td>France</td></tr>
-          <tr><th scope="row">Banque centrale européenne <small>(data-api.ecb.europa.eu)</small></th><td>Lire des taux d'intérêt et de change pour les calculs.</td><td>Analyse d'un fonds, performances, simulateur</td><td>Union européenne</td></tr>
-        </tbody>
-      </table></div>
+      <div data-seulement="comptes">
+        <h2>Nos prestataires</h2>
+        <p>Ton navigateur contacte les services suivants, qui voient alors ton <strong>adresse IP</strong>. Les autres ne reçoivent tes données que pour nous rendre service.</p>
+        <div class="cadre-tableau"><table class="tableau-texte">
+          <thead><tr><th scope="col">Prestataire</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Où</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Cloudflare (hébergeur) <small>(pages du site ; challenges.cloudflare.com)</small></th>
+              <td>Envoyer les pages du site, contrôler l'accès au simulateur, vérifier que tu n'es pas un robot (Turnstile) à l'inscription et à la connexion.</td>
+              <td>À chaque visite ; Turnstile seulement sur la page de connexion</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
+            <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, état de l'abonnement.</td>
+              <td>Quand tu es connecté ou que tu te connectes</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
+            <tr><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
+              <td>Quand tu t'abonnes ou gères ton abonnement</td><td>Irlande (Stripe Payments Europe)</td></tr>
+            <tr><th scope="row">Brevo <small>(liens des e-mails : sendibt2.com, sendibt3.com)</small></th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité).
+              Le lien de ces e-mails passe par une adresse de Brevo, qui compte les ouvertures et les clics <strong>de façon anonyme</strong> : seulement des totaux, jamais reliés à ton adresse.</td>
+              <td>Lors de ces envois ; quand tu ouvres l'e-mail ou cliques sur son lien</td><td>France</td></tr>
+            <tr><th scope="row">AMF, base GECO <small>(geco.amf-france.org)</small></th><td>Lire les données officielles d'un fonds : valeurs liquidatives, documents, rapports.</td><td>Quand tu consultes un fonds</td><td>France</td></tr>
+            <tr><th scope="row">Banque centrale européenne <small>(data-api.ecb.europa.eu)</small></th><td>Lire des taux d'intérêt et de change pour les calculs.</td><td>Analyse d'un fonds, performances, simulateur</td><td>Union européenne</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div data-seulement="gratuit">
+        <h2>Ce que ton navigateur transmet à des tiers</h2>
+        <p>Comme tout site, afficher une page oblige ton navigateur à contacter des serveurs, qui voient alors ton <strong>adresse IP</strong>.
+          Nous ne recevons ni ne conservons ces adresses : elles sont traitées par les organismes suivants, selon leurs propres règles.</p>
+        <div class="cadre-tableau"><table class="tableau-texte">
+          <thead><tr><th scope="col">Organisme</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Où</th></tr></thead>
+          <tbody>
+            <tr data-si-hebergeur="github"><th scope="row">GitHub (hébergeur) <small>(cleante-f.github.io)</small></th><td>Envoyer les pages du site. GitHub indique enregistrer et conserver l'adresse IP de chaque visiteur pour des raisons de sécurité.</td><td>À chaque visite</td>
+              <td>États-Unis. GitHub adhère au cadre de protection des données UE–États-Unis, reconnu par la Commission européenne (décision d'adéquation du 10 juillet 2023).
+                <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">Politique de GitHub</a></td></tr>
+            <tr data-si-hebergeur="cloudflare"><th scope="row">Cloudflare (hébergeur) <small>(decrypte-ton-fonds.pages.dev)</small></th><td>Envoyer les pages du site.</td>
+              <td>À chaque visite</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
+            <tr><th scope="row">AMF, base GECO <small>(geco.amf-france.org)</small></th><td>Lire les données officielles d'un fonds : valeurs liquidatives, documents, rapports.</td><td>Quand tu consultes un fonds</td><td>France</td></tr>
+            <tr><th scope="row">Banque centrale européenne <small>(data-api.ecb.europa.eu)</small></th><td>Lire des taux d'intérêt et de change pour les calculs.</td><td>Analyse d'un fonds, performances, simulateur</td><td>Union européenne</td></tr>
+          </tbody>
+        </table></div>
+        <p>Base légale : notre intérêt légitime à faire fonctionner le site (RGPD, article 6.1 f). Ces échanges sont techniquement nécessaires pour afficher ce que tu demandes.</p>
+      </div>
       <p>Les cours, taux de change et actualités affichés sont récupérés <strong>chaque jour par nos serveurs</strong> (GitHub Actions) auprès de la BCE, de l'AMF, de Frankfurter,
         Currency-api et NewsData.io, les communiqués de la BCE, de la Fed et de la Commission européenne, et les cours des fonds étrangers auprès de Deutsche Börse
         (cours différés de Xetra et de la Bourse de Francfort). L'annuaire des fonds est construit de la même façon, à partir de l'ESMA (registres FIRDS et FITRS, registre de la commercialisation transfrontière des fonds),
@@ -86,16 +126,29 @@
 
     <section class="carte">
       <h2>Ce qui est enregistré dans ton navigateur</h2>
-      <p>Le site utilise <strong>un seul cookie</strong>, et seulement si tu te connectes. Il garde aussi quelques données dans le stockage de ton navigateur (« localStorage »).</p>
-      <div class="cadre-tableau"><table class="tableau-texte">
-        <thead><tr><th scope="col">Donnée</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Durée</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">Cookie « dtf_session »</th><td>Prouver au serveur que tu es connecté, pour t'ouvrir le simulateur.</td><td>Quand tu te connectes</td><td>1 heure, renouvelé tant que tu restes connecté ; effacé à la déconnexion</td></tr>
-          <tr><th scope="row">Ta session (« compte-session-v1 »)</th><td>Rester connecté d'une page à l'autre.</td><td>Quand tu te connectes</td><td>Jusqu'à la déconnexion</td></tr>
-          <tr><th scope="row">Tes réglages des alertes</th><td>Garder les seuils que tu as choisis.</td><td>Quand tu les enregistres</td><td>Jusqu'à ce que tu les réinitialises ou effaces tes données</td></tr>
-          <tr><th scope="row">Copies de données publiques</th><td>Éviter de retélécharger la composition des fonds et les séries de marché.</td><td>Quand tu consultes un fonds</td><td>7 jours au plus (1 jour pour les cours), puis effacées automatiquement</td></tr>
-        </tbody>
-      </table></div>
+      <div data-seulement="comptes">
+        <p>Le site utilise <strong>un seul cookie</strong>, et seulement si tu te connectes. Il garde aussi quelques données dans le stockage de ton navigateur (« localStorage »).</p>
+        <div class="cadre-tableau"><table class="tableau-texte">
+          <thead><tr><th scope="col">Donnée</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Durée</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Cookie « dtf_session »</th><td>Prouver au serveur que tu es connecté, pour t'ouvrir le simulateur.</td><td>Quand tu te connectes</td><td>1 heure, renouvelé tant que tu restes connecté ; effacé à la déconnexion</td></tr>
+            <tr><th scope="row">Ta session (« compte-session-v1 »)</th><td>Rester connecté d'une page à l'autre.</td><td>Quand tu te connectes</td><td>Jusqu'à la déconnexion</td></tr>
+            <tr><th scope="row">Tes réglages des alertes</th><td>Garder les seuils que tu as choisis.</td><td>Quand tu les enregistres</td><td>Jusqu'à ce que tu les réinitialises ou effaces tes données</td></tr>
+            <tr><th scope="row">Copies de données publiques</th><td>Éviter de retélécharger la composition des fonds et les séries de marché.</td><td>Quand tu consultes un fonds</td><td>7 jours au plus (1 jour pour les cours), puis effacées automatiquement</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div data-seulement="gratuit">
+        <p>Le site n'utilise <strong>aucun cookie</strong>. Il garde quelques données dans le stockage de ton navigateur (« localStorage ») :
+          elles <strong>restent sur ton appareil et ne nous sont jamais envoyées</strong>.</p>
+        <div class="cadre-tableau"><table class="tableau-texte">
+          <thead><tr><th scope="col">Donnée</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Durée</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Tes réglages des alertes</th><td>Garder les seuils que tu as choisis.</td><td>Quand tu les enregistres</td><td>Jusqu'à ce que tu les réinitialises ou effaces tes données</td></tr>
+            <tr><th scope="row">Copies de données publiques</th><td>Éviter de retélécharger la composition des fonds et les séries de marché.</td><td>Quand tu consultes un fonds</td><td>7 jours au plus (1 jour pour les cours), puis effacées automatiquement</td></tr>
+          </tbody>
+        </table></div>
+      </div>
       <p class="source">Ces données sont dispensées de consentement, car strictement nécessaires au service ou enregistrées à ta demande (loi Informatique et Libertés, article 82).</p>
       <div class="effacer-donnees">
         <button type="button" class="btn btn-secondaire" id="effacer-donnees">Effacer les données de ce site sur cet appareil</button>
@@ -105,9 +158,17 @@
 
     <section class="carte">
       <h2>Tes droits</h2>
-      <p>Tu peux accéder à tes données, les rectifier, les effacer, t'opposer à leur traitement, en demander la limitation ou les récupérer (RGPD, articles 15 à 21).
-        Depuis « Mon compte » : <strong>Télécharger mes données</strong> (fichier JSON), <strong>Supprimer mon compte</strong>, changer d'adresse e-mail.
-        Pour toute autre demande, écris-nous à <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+      <div data-seulement="comptes">
+        <p>Tu peux accéder à tes données, les rectifier, les effacer, t'opposer à leur traitement, en demander la limitation ou les récupérer (RGPD, articles 15 à 21).
+          Depuis « Mon compte » : <strong>Télécharger mes données</strong> (fichier JSON), <strong>Supprimer mon compte</strong>, changer d'adresse e-mail.
+          Pour toute autre demande, écris-nous à <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+      </div>
+      <div data-seulement="gratuit">
+        <p>Tu peux demander l'accès à tes données, leur rectification ou leur effacement, t'opposer à leur traitement ou en demander la limitation (RGPD, articles 15 à 21).
+          Nous ne détenons aucune donnée te concernant sur un serveur. Les données de ton navigateur s'effacent avec le bouton ci-dessus ; pour les journaux de connexion,
+          adresse-toi à <span data-si-hebergeur="github">GitHub</span><span data-si-hebergeur="cloudflare">Cloudflare</span>.
+          Pour toute autre demande, ouvre un ticket sur la <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a>.</p>
+      </div>
       <p>Si tu estimes que tes droits ne sont pas respectés, tu peux adresser une réclamation à la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">cnil.fr</a>), RGPD article 77.</p>
       <p class="source">Page mise à jour le 7 octobre 2026.</p>
     </section>
