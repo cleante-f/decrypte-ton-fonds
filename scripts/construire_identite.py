@@ -10,7 +10,7 @@ Sources (publiques, gratuites et réutilisables) :
   3. ESMA – registre FITRS des calculs de transparence MiFID (réutilisation autorisée en citant la source) :
      montant moyen échangé chaque jour en bourse dans l'Union européenne et caractère « liquide ».
   4. ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) :
-     pays où chaque fonds est notifié.
+     OPCVM actifs notifiés pour la France.
   5. AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr, Licence Ouverte 2.0) → data/societes.js
 Le lien se fait par le LEI de chaque part, lu dans data/firds.js (scripts/construire_annuaire.py).
 
@@ -225,21 +225,28 @@ def liquidite(isins):
     return res
 
 
-# ---------- 4. ESMA : commercialisation transfrontière (pays où chaque fonds est notifié) ----------
+# ---------- 4. ESMA : commercialisation transfrontière (OPCVM actifs notifiés pour la France) ----------
+# Valeurs vues dans le registre le 07/10/2026 : cadre UCITS, AIF, EuVECA, ELTIF, EuSEF ; statut ACTV ou INAC.
+OPCVM, ACTIF = "UCITS", "ACTV"
+
+
 def notifies_france(docs):
-    """LEI des fonds dont la liste des pays d'accueil contient la France (documents du registre ESMA)."""
-    return {d["funds_lei"] for d in docs if d.get("funds_lei") and "FR" in (d.get("funds_host_country_codes") or [])}
+    """LEI des OPCVM actifs notifiés pour la France (documents du registre ESMA) : « FR » parmi les pays d'accueil,
+    cadre juridique OPCVM (UCITS) et statut actif. Un FIA notifié n'est commercialisable en France qu'auprès
+    d'investisseurs professionnels : il n'est pas retenu."""
+    return {d["funds_lei"] for d in docs if d.get("funds_lei") and "FR" in (d.get("funds_host_country_codes") or [])
+            and d.get("funds_legal_framework_name") == OPCVM and d.get("funds_status_code") == ACTIF}
 
 
 def commercialisation(leis):
-    """LEI notifiés pour la commercialisation en France, parmi les LEI donnés (100 par requête).
-    Un LEI absent du registre ou sans « FR » n'est pas retenu : on ne sait rien de plus."""
+    """LEI des OPCVM actifs notifiés pour la commercialisation en France, parmi les LEI donnés (100 par requête).
+    Un LEI absent du registre, sans « FR », qui n'est pas un OPCVM ou qui n'est plus actif n'est pas retenu."""
     res, liste = set(), sorted(leis)
     for i in range(0, len(liste), 100):
         lot = liste[i:i + 100]
         params = urllib.parse.urlencode({
             "q": f"funds_lei:({' OR '.join(lot)})", "wt": "json", "rows": 1000,
-            "fl": "funds_lei,funds_host_country_codes"})
+            "fl": "funds_lei,funds_host_country_codes,funds_legal_framework_name,funds_status_code"})
         res |= notifies_france(json.loads(telecharger(f"{ESMA_CBDIF}?{params}"))["response"]["docs"])
         time.sleep(0.5)
         if i // 100 % 20 == 19:
@@ -362,11 +369,12 @@ def main():
         " *   [gestion, parapluie, politique (A actions, O obligations, M mixte, I immobilier, C crédit, H alternatif,\n"
         " *    N infrastructures, P matières premières, X autre), ETF (1/0), UCITS (1/0), tranche d'encours (1 à 8), création, maître]\n"
         " * liquidite : ISIN → [montant moyen échangé par jour en bourse dans l'UE (M€), liquide (1/0), année du calcul si ≠ fitrs]\n"
-        " * notifFR : LEI notifiés pour la commercialisation en France (ESMA, registre de la commercialisation transfrontière) ; esma : date du relevé */\n"
+        " * notifFR : LEI des OPCVM actifs notifiés pour la commercialisation en France (ESMA, registre de la commercialisation\n"
+        " *   transfrontière) ; esma : date du relevé */\n"
         "const IDENTITE = " + json.dumps(contenu, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
     print(f"\n✓ {len(fonds)} fonds (BCE : {sum(1 for x in leis if x in bce)}, parapluie GLEIF : "
           f"{sum(1 for x in leis if 'parapluie' in liens.get(x, {}))}, nourriciers : {sum(1 for x in leis if 'maitre' in liens.get(x, {}))}), "
-          f"liquidité de {len(liq)} parts, {len(notif)} notifiés pour la France (ESMA) → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
+          f"liquidité de {len(liq)} parts, {len(notif)} OPCVM actifs notifiés pour la France (ESMA) → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
 
     print("5/5 AMF – sociétés de gestion agréées…")
     mettre_a_jour_societes()

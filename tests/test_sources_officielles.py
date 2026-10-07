@@ -31,10 +31,32 @@ class Commercialisation(unittest.TestCase):
 
     def test_notifies_france(self):
         docs = json.loads(self.brut)["response"]["docs"]
-        self.assertEqual(ci.notifies_france(docs), {"5493003BFED2MWDBYH64"})
+        self.assertEqual(ci.notifies_france(docs), {"5493003BFED2MWDBYH64"})   # OPCVM actif notifié FR : gardé
 
     def test_notifies_france_sans_pays(self):
         self.assertEqual(ci.notifies_france([{"funds_lei": "X"}]), set())
+
+    def doc_reel(self, lei, **changements):
+        """Document de l'extrait réel, modifié pour les cas absents de l'extrait."""
+        doc = next(d for d in json.loads(self.brut)["response"]["docs"] if d["funds_lei"] == lei)
+        return {**doc, **changements}
+
+    def test_notifies_france_fia_exclu(self):
+        # FIA (directive AIFM) notifié pour la France : réservé aux investisseurs professionnels, pas retenu
+        fia = self.doc_reel("529900APEXTPT6RN1778", funds_host_country_codes=["DE", "FR"])
+        self.assertEqual(fia["funds_legal_framework_name"], "AIF")
+        self.assertEqual(ci.notifies_france([fia]), set())
+        for cadre in ["ELTIF", "EuVECA", "EuSEF", None]:
+            self.assertEqual(ci.notifies_france([self.doc_reel("5493003BFED2MWDBYH64", funds_legal_framework_name=cadre)]), set(), cadre)
+
+    def test_notifies_france_opcvm_inactif_exclu(self):
+        for statut in ["INAC", None]:
+            self.assertEqual(ci.notifies_france([self.doc_reel("5493003BFED2MWDBYH64", funds_status_code=statut)]), set(), statut)
+
+    def test_notifies_france_opcvm_actif_garde(self):
+        doc = {"funds_lei": "LEI-TEST", "funds_host_country_codes": ["FR"], "funds_legal_framework_name": "UCITS", "funds_status_code": "ACTV"}
+        self.assertEqual(ci.notifies_france([doc]), {"LEI-TEST"})
+        self.assertEqual(ci.notifies_france([{**doc, "funds_host_country_codes": ["DE"]}]), set())
 
     def test_commercialisation_par_lots_de_100(self):
         leis = {f"LEI{i:017d}" for i in range(250)} | {"5493003BFED2MWDBYH64"}
@@ -49,12 +71,13 @@ class Commercialisation(unittest.TestCase):
             params = urllib.parse.parse_qs(requete.query)
             self.assertEqual(params["wt"], ["json"])
             self.assertEqual(params["rows"], ["1000"])
-            self.assertEqual(params["fl"], ["funds_lei,funds_host_country_codes"])
+            self.assertEqual(params["fl"], ["funds_lei,funds_host_country_codes,funds_legal_framework_name,funds_status_code"])
             q = params["q"][0]
             self.assertTrue(q.startswith("funds_lei:(") and q.endswith(")"), q)
             lot = q[len("funds_lei:("):-1].split(" OR ")
             lots.append(lot)
-            docs = [{"funds_lei": lei, "funds_host_country_codes": ["DE", "FR"] if lei in notifies else ["DE"]} for lei in lot]
+            docs = [{"funds_lei": lei, "funds_host_country_codes": ["DE", "FR"] if lei in notifies else ["DE"],
+                     "funds_legal_framework_name": "UCITS", "funds_status_code": "ACTV"} for lei in lot]
             return json.dumps({"response": {"docs": docs}}).encode()
 
         with mock.patch.object(ci, "telecharger", side_effect=registre) as t, mock.patch.object(ci.time, "sleep"):
