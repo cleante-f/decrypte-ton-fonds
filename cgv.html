@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Conditions générales de vente · Décrypte ton fonds</title>
   <meta name="description" content="Conditions générales de vente du simulateur de Décrypte ton fonds : simulations offertes, abonnement, résiliation, rétractation.">
+  <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +18,7 @@
       <a href="simulateur.html" data-page="simulateur.html" data-fonds>Simulateur</a>
     </nav>
     <div class="entete-actions">
-      <a class="btn-compte" id="lien-compte" href="connexion.html">Se connecter</a>
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="connexion.html">Se connecter</a>
       <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
     </div>
   </header>
@@ -115,7 +116,7 @@
       Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
       prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
     <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.</p>
-    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <a href="cgv.html">CGV</a> · <a href="confidentialite.html">Confidentialité</a></p>
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span><a href="confidentialite.html">Confidentialité</a></p>
   </footer>
 
   <script src="js/outils.js"></script>

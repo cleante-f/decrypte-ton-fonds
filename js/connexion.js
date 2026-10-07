@@ -1,5 +1,5 @@
 // Page connexion.html : inscription, connexion, mot de passe oublié et nouveau mot de passe (après le lien reçu par e-mail).
-// Vérification anti-robot Cloudflare Turnstile, chargée seulement sur cette page.
+// Vérification anti-robot Cloudflare Turnstile, chargée seulement sur cette page et seulement en mode comptes.
 const jetonsCaptcha = new Map();
 const message = document.getElementById("message-compte");
 const retour = (() => {
@@ -33,6 +33,18 @@ window.captchaPret = () => {
     zone.dataset.widget = id;
   });
 };
+// Le script Turnstile n'est ajouté qu'en mode comptes : en mode gratuit, aucun appel à challenges.cloudflare.com.
+// En mode gratuit, js/mode-site.js renvoie déjà cette page vers l'accueil ; ce test garde la règle même si ce renvoi échouait.
+// Même adresse qu'avant, sans empreinte (integrity) : Cloudflare met ce fichier à jour sans changer son adresse.
+function chargerTurnstile() {
+  if (modeSite(location.hostname) === "comptes") {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=captchaPret";
+    s.async = true;
+    document.head.appendChild(s);
+  }
+}
+chargerTurnstile();
 function captcha(form) {
   const jeton = jetonsCaptcha.get(form.id);
   if (!jeton) throw new Compte.ErreurCompte("captcha_absent", "Patiente une seconde : la vérification anti-robot se charge.");
