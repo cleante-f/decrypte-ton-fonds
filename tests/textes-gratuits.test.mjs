@@ -98,5 +98,17 @@ test("confidentialité : bouton d'effacement, sources des serveurs et liens exte
   assert.ok(commun.includes('id="effacer-donnees"'), "#effacer-donnees réservé à un mode");
   assert.ok(texte(commun).includes("Ton navigateur ne contacte jamais ces services."), "paragraphe des sources réservé à un mode");
   assert.ok(texte(commun).includes("Les liens vers d'autres sites"), "paragraphe des liens externes réservé à un mode");
-  assert.ok(texte(commun).includes("Page mise à jour le 7 octobre 2026."));
+});
+
+test("un seul hébergeur visible en mode gratuit", () => {
+  for (const nom of ["confidentialite", "mentions-legales"]) {
+    const html = enGratuit(nom);
+    assert.ok(!retirerBlocs(html, "data-si-hebergeur", "cloudflare").includes("Cloudflare, Inc."), `${nom} : Cloudflare, Inc. visible chez GitHub`);
+    assert.ok(!retirerBlocs(html, "data-si-hebergeur", "github").includes("GitHub, Inc."), `${nom} : GitHub, Inc. visible chez Cloudflare`);
+  }
+});
+
+test("date de mise à jour : 7 octobre 2026, commune aux deux modes", () => {
+  for (const nom of ["confidentialite", "mentions-legales"])
+    assert.ok(texte(communATous(nom)).includes("Page mise à jour le 7 octobre 2026."), nom);
 });

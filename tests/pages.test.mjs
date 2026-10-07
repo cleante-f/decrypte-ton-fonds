@@ -101,10 +101,11 @@ test("éléments réservés au mode comptes", () => {
 });
 
 test("CSS de bascule : masquage selon le mode et l'hébergeur", () => {
-  for (const selecteur of ['html[data-site="gratuit"] [data-seulement="comptes"]',
-    'html:not([data-site="gratuit"]) [data-seulement="gratuit"]',
-    'html[data-heberge-par="github"] [data-si-hebergeur="cloudflare"]',
-    'html:not([data-heberge-par="github"]) [data-si-hebergeur="github"]']) {
+  // Sans marquage (sans JavaScript, robots) : version gratuite et hébergeur GitHub, ceux du site public
+  for (const selecteur of ['html:not([data-site="comptes"]) [data-seulement="comptes"]',
+    'html[data-site="comptes"] [data-seulement="gratuit"]',
+    'html[data-heberge-par="cloudflare"] [data-si-hebergeur="github"]',
+    'html:not([data-heberge-par="cloudflare"]) [data-si-hebergeur="cloudflare"]']) {
     const i = CSS.indexOf(selecteur);
     assert.ok(i >= 0, `règle absente : ${selecteur}`);
     const regle = CSS.slice(i).match(/\{[^}]*\}/)[0];

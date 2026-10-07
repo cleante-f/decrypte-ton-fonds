@@ -69,10 +69,11 @@ small, .aide, .source, .total { color: var(--texte-2); }
 /* Un élément « hidden » reste caché même si sa classe lui donne un display (grid, flex…) */
 [hidden] { display: none !important; }
 /* Bascule gratuit / comptes : mode-site.js marque <html data-site> et <html data-heberge-par> ; ces règles masquent ce qui ne vaut pas pour la copie affichée */
-html[data-site="gratuit"] [data-seulement="comptes"] { display: none !important; }
-html:not([data-site="gratuit"]) [data-seulement="gratuit"] { display: none !important; }
-html[data-heberge-par="github"] [data-si-hebergeur="cloudflare"] { display: none !important; }
-html:not([data-heberge-par="github"]) [data-si-hebergeur="github"] { display: none !important; }
+/* Sans marquage (sans JavaScript, robots) : version gratuite et hébergeur GitHub, ceux du site public */
+html:not([data-site="comptes"]) [data-seulement="comptes"] { display: none !important; }
+html[data-site="comptes"] [data-seulement="gratuit"] { display: none !important; }
+html[data-heberge-par="cloudflare"] [data-si-hebergeur="github"] { display: none !important; }
+html:not([data-heberge-par="cloudflare"]) [data-si-hebergeur="cloudflare"] { display: none !important; }
 
 .site-header {
   display: flex; align-items: center; gap: 12px 28px;
