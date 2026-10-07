@@ -415,12 +415,13 @@ const FISCALITE_FR = {
     pfu: "https://www.service-public.gouv.fr/particuliers/vosdroits/F34913",
     av: "https://www.service-public.gouv.fr/particuliers/vosdroits/F22414",
     pea: "https://www.service-public.gouv.fr/particuliers/vosdroits/F2385",
-    pee: "https://www.service-public.gouv.fr/particuliers/vosdroits/F2142"
+    pee: "https://www.service-public.gouv.fr/particuliers/vosdroits/F2142",
+    ps: "https://www.service-public.gouv.fr/particuliers/vosdroits/F2329"
   },
   pfu: { ir: 12.8, ps: 18.6 },                   // prélèvement forfaitaire unique 2026 : 31,4 %
   pea: { ans: 5, ps: 18.6 },
-  // PEE : sommes bloquées 5 ans, gains exonérés d'impôt sur le revenu (service-public, vérifié le 01/01/2026) ;
-  // prélèvements sociaux de 18,6 % sur les gains de l'épargne salariale en 2026 (guide fiscal Malakoff Humanis, juillet 2026, p. 17)
+  // PEE : sommes bloquées au moins 5 ans, gains exonérés d'impôt sur le revenu (service-public F2142, vérifiée le 01/01/2026) ;
+  // prélèvements sociaux de 18,6 % sur les revenus de l'épargne salariale en 2026 (service-public F2329, vérifiée le 30/06/2026)
   pee: { ans: 5, ps: 18.6 },
   av: { ans: 8, ps: 17.2, irAvant: 12.8, irApres: 7.5, irAuDela: 12.8, seuilPrimes: 150000, abattement: 4600, abattementCouple: 9200 }
 };
@@ -614,7 +615,7 @@ function construireScenario(res, t, x) {
   const encaisse = res.reinvestis ? 0 : x.D;                 // dividendes versés (non réinvestis)
   const total = x.V + encaisse;
   // Compte-titres : les dividendes déjà imposés chaque année ne le sont pas une seconde fois à la sortie.
-  // PEA et assurance-vie : les dividendes restent dans l'enveloppe et sont imposés avec les gains, au retrait.
+  // PEA, assurance-vie et PEE : les dividendes restent dans l'enveloppe et sont imposés avec les gains, au retrait.
   const cto = plan.fiscalite && plan.fiscalite.enveloppe === "cto";
   const baseFiscale = verse + (cto && res.reinvestis && x.DI > 0 ? x.D : 0);
   const impot = impotALaSortie(plan.fiscalite, cto ? x.V : total, baseFiscale, annees);

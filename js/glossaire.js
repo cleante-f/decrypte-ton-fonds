@@ -11,7 +11,7 @@ const GLOSSAIRE = {
   isin: "Code unique de 12 caractères qui identifie un fonds (ou une part de fonds) dans le monde entier. Les 2 premières lettres indiquent le pays d'enregistrement.",
   ticker: "Code court utilisé en Bourse pour acheter un ETF (ex. CW8). Un même ETF peut avoir plusieurs tickers selon la place de cotation.",
   societe_gestion: "L'entreprise qui gère le fonds : elle choisit les placements et prélève les frais de gestion.",
-  agrement_amf: "Pour gérer des fonds en France, une société de gestion doit obtenir un agrément de l'AMF (Autorité des marchés financiers), qui la contrôle ensuite. Le numéro (GP…) et la date viennent de la liste officielle des sociétés agréées publiée par l'AMF.",
+  agrement_amf: "Une société de gestion établie en France doit être agréée par l'AMF (Autorité des marchés financiers), qui la contrôle ensuite. Cet agrément ne garantit ni la performance ni le capital des fonds. Le numéro d'agrément et la date viennent de la liste officielle publiée par l'AMF.",
   domicile: "Pays où le fonds est juridiquement enregistré. Il influence la fiscalité et l'éligibilité au PEA.",
   opcvm: "Organisme de placement collectif : l'argent de nombreux épargnants est mis en commun et investi par un gérant. Les SICAV et les FCP sont des OPCVM.",
   etf: "Fonds coté en Bourse, qui s'achète comme une action. Il cherche en général à reproduire un indice, à faible coût.",

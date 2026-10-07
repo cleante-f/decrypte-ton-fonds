@@ -297,18 +297,18 @@ def societes_amf():
 
 
 def repond_en_https(adresse):
-    """Vrai si l'adresse https:// répond (redirection comprise), faux pour toute erreur (certificat, délai, 4xx, 5xx)."""
+    """Vrai si l'adresse https:// répond et que la page finale reste en https:// (redirections suivies).
+    Faux pour toute erreur : certificat, délai, 4xx, 5xx, redirection en boucle ou sans destination, retour vers http://."""
     try:
         with urllib.request.urlopen(urllib.request.Request(adresse, headers=ENTETES), timeout=10) as r:
-            return r.status < 400
-    except urllib.error.HTTPError as e:
-        return 300 <= e.code < 400
+            return r.status < 400 and r.geturl().startswith("https://")
     except Exception:
         return False
 
 
-def passer_en_https(societes, teste=repond_en_https):
+def passer_en_https(societes, teste=None):
     """Copie des sociétés où chaque site publié en http:// devient https:// si cette adresse répond (lien chiffré) ; sinon inchangé."""
+    teste = teste or repond_en_https
     a_tester = {cle: "https://" + v[2][len("http://"):] for cle, v in societes.items() if v[2].startswith("http://")}
     with concurrent.futures.ThreadPoolExecutor(8) as ex:
         reponses = dict(zip(a_tester, ex.map(teste, a_tester.values())))
@@ -336,7 +336,8 @@ def mettre_a_jour_societes(fichier=SORTIE_SOCIETES):
               f"({fichier.stat().st_size / 1e3:.0f} Ko)")
     except Exception as e:
         print(f"! liste AMF non mise à jour ({e}) : ancien fichier gardé", file=sys.stderr)
-        print(f"::warning::Liste AMF des sociétés de gestion non mise à jour ({e}) : ancien fichier gardé")   # visible dans GitHub Actions
+        message = str(e).replace("\n", " ").replace("\r", " ")   # une annotation GitHub tient sur une ligne
+        print(f"::warning::Liste AMF des sociétés de gestion non mise à jour ({message}) : ancien fichier gardé")   # visible dans GitHub Actions
 
 
 def main():

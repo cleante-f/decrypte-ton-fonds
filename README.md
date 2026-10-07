@@ -54,7 +54,7 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
    date de début (si elle est passée, les premiers mois suivent l'historique réel), frais courants (lus dans le DIC),
    frais d'entrée, de courtage, de change et de contrat, dividendes réinvestis ou versés, inflation,
    fiscalité française simplifiée (compte-titres, PEA, assurance-vie, PEE ; règles 2026 de service-public.fr ; pour le PEE,
-   18,6 % de prélèvements sociaux sur les gains d'après le guide fiscal 2026 de Malakoff Humanis, abondement à ajouter au versement).
+   gains exonérés d'impôt sur le revenu et 18,6 % de prélèvements sociaux, chaque somme bloquée au moins 5 ans, abondement à ajouter au versement).
    Le montant après impôts du scénario central est rappelé sous les chiffres principaux.
 5. **Scénarios** : défavorable (rang 10 %), central (médiane), favorable (rang 90 %) et tensions
    (pire baisse sur 12 mois de l'historique, subie pendant la dernière année). **Objectif** : versement, capital ou durée nécessaires pour 1 chance

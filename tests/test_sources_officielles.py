@@ -222,7 +222,8 @@ class Livrets(unittest.TestCase):
 
 
 class SitesHttps(unittest.TestCase):
-    """Sites publiés en http:// par l'AMF : passés en https:// quand cette adresse répond (27 sur 32 le 07/10/2026)."""
+    """Sites publiés en http:// par l'AMF : passés en https:// quand cette adresse répond et reste en https (27 sur 32 le 07/10/2026 ;
+    le nombre peut varier d'un mois à l'autre)."""
 
     def test_passer_en_https(self):
         societes = {"A": ["GP-1", "2000-01-01", "http://www.a.fr", "Vivant"], "B": ["GP-2", "2000-01-01", "http://b.fr/x", "Vivant"],
@@ -239,14 +240,28 @@ class SitesHttps(unittest.TestCase):
         self.assertEqual(res["D"][2], "")
         self.assertEqual(societes["A"][2], "http://www.a.fr")   # la liste reçue n'est pas modifiée
 
-    def reponse(self, code):
+    def reponse(self, code, adresse_finale="https://x.fr/"):
         r = mock.MagicMock()
         r.__enter__.return_value.status = code
+        r.__enter__.return_value.geturl.return_value = adresse_finale
         return r
+
+    def test_mettre_a_jour_societes_passe_les_sites_en_https(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "societes.js"
+            liste = {f"S{i}": [f"GP-{i}", "2000-01-01", "http://s.fr" if i == 0 else "", "Vivant"] for i in range(300)}
+            with mock.patch.object(ci, "repond_en_https", return_value=True) as teste, \
+                    mock.patch.object(ci, "societes_amf", return_value=(liste, "2026-10-07")), mock.patch("sys.stdout", new_callable=io.StringIO):
+                ci.mettre_a_jour_societes(f)
+            self.assertEqual(teste.call_count, 1)
+            self.assertEqual(json.loads(re.search(r"const SOCIETES = (.*?);\n", f.read_text(encoding="utf-8"), re.S).group(1))["societes"]["S0"][2],
+                             "https://s.fr")
 
     def test_repond_en_https(self):
         erreur = lambda code: urllib.error.HTTPError("https://x.fr", code, "", {}, None)
-        cas = [(self.reponse(200), True), (erreur(308), True), (erreur(404), False), (erreur(500), False),
+        # une redirection non suivie (boucle, sans destination) ou qui ramène vers http:// donnerait un lien inutilisable
+        cas = [(self.reponse(200), True), (self.reponse(200, "http://x.fr/"), False), (erreur(308), False), (erreur(302), False),
+               (erreur(404), False), (erreur(500), False),
                (urllib.error.URLError("certificat refusé"), False), (TimeoutError(), False)]
         for effet, attendu in cas:
             with self.subTest(effet=repr(effet)), mock.patch.object(ci.urllib.request, "urlopen", side_effect=[effet]):

@@ -237,7 +237,7 @@ function identiteEsma(e, isin) {
   const notifie = (e.source === "E" || e.source === "U") && notifieFrance(e);
   // la notification vise le fonds (son LEI) : une part en autre devise ou couverte peut ne pas être proposée
   if (notifie) lignes.push([terme("commercialisation", "Commercialisation en France"),
-    "fonds notifié (registre européen de l'ESMA)<br><small>La notification vise le fonds dans son ensemble : vérifie que cette part (devise, couverture) est proposée par ton intermédiaire.</small>"]);
+    "fonds notifié (registre européen de l'ESMA)<br><small>La notification vise le fonds dans son ensemble : vérifie que cette part (devise, couverture) est proposée par ton intermédiaire.</small>", true]);
   const reg = identiteRegistres(e, f && f[0], isin);
   return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
     source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source

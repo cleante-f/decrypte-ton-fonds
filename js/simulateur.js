@@ -381,10 +381,12 @@ function optionsAvancees() {
           <option value="av"${p.enveloppe === "av" ? " selected" : ""}>Assurance-vie</option>
           <option value="pee"${p.enveloppe === "pee" ? " selected" : ""}>PEE (épargne salariale)</option></select></label>
         ${p.enveloppe === "av" ? `<label class="case"><input type="checkbox" data-champ="couple"${p.couple ? " checked" : ""}> Imposition commune (couple)</label>` : ""}
-        ${p.enveloppe === "pee" ? `<p class="aide">PEE : sommes bloquées 5 ans, sauf cas de déblocage anticipé prévus par la loi. Un PEE ne contient que les fonds proposés par ton entreprise (souvent des FCPE).
+        ${p.enveloppe === "pee" ? `<p class="aide">PEE : chaque somme versée reste bloquée au moins 5 ans, sauf cas de déblocage anticipé prévus par la loi. Un PEE ne contient que les fonds proposés par ton entreprise (souvent des FCPE).
+          Les gains sont exonérés d'impôt sur le revenu, mais soumis à 18,6 % de prélèvements sociaux.
           Si ton entreprise abonde (elle ajoute de l'argent à tes versements), ajoute cet abondement à ton versement : il n'est pas calculé à part (la CSG de 9,7 % prélevée dessus n'est pas déduite).
-          <a href="${FISCALITE_FR.liens.pee}" target="_blank" rel="noopener">Source</a></p>` : ""}
-        <p class="aide">Règles en vigueur en 2026 (${esc(FISCALITE_FR.source)}, pages mises à jour le ${dateFr(FISCALITE_FR.maj)}) : prélèvement forfaitaire unique de 31,4 % (12,8 % d'impôt + 18,6 % de prélèvements sociaux) ; PEA de plus de 5 ans : 18,6 % ; assurance-vie : 17,2 % de prélèvements sociaux, et après 8 ans 7,5 % d'impôt après abattement de 4 600 € (9 200 € pour un couple) ; PEE : pas d'impôt sur le revenu, 18,6 % de prélèvements sociaux sur les gains. Calcul simplifié : retrait total à la fin, sans le barème progressif.
+          Sources : service-public.gouv.fr, <a href="${FISCALITE_FR.liens.pee}" target="_blank" rel="noopener">PEE</a> (page vérifiée le 01/01/2026) et
+          <a href="${FISCALITE_FR.liens.ps}" target="_blank" rel="noopener">prélèvements sociaux</a> (vérifiée le 30/06/2026).</p>` : ""}
+        <p class="aide">Règles en vigueur en 2026 (${esc(FISCALITE_FR.source)}, pages mises à jour le ${dateFr(FISCALITE_FR.maj)}) : prélèvement forfaitaire unique de 31,4 % (12,8 % d'impôt + 18,6 % de prélèvements sociaux) ; PEA de plus de 5 ans : 18,6 % ; assurance-vie : 17,2 % de prélèvements sociaux, et après 8 ans 7,5 % d'impôt après abattement de 4 600 € (9 200 € pour un couple). Calcul simplifié : retrait total à la fin, sans le barème progressif.
           <a href="${FISCALITE_FR.liens.pfu}" target="_blank" rel="noopener">Source</a></p>`
         : `<p class="aide">La fiscalité n'est calculée que pour la France : les règles des autres pays ne sont pas intégrées de façon fiable.</p>`}
     </fieldset>
@@ -593,7 +595,8 @@ function notesFiscales(C) {
   if (!fisc) return "";
   const notes = [`Après impôts (${NOMS_ENVELOPPES[fisc.enveloppe]}, retrait total à la fin) : environ <strong>${eurosEstimes(s.valeurNette)}</strong> dans le scénario central (impôts ≈ ${eurosEstimes(s.impot)}).`];
   if (fisc.enveloppe === "cto" && s.impotDividendes > 0) notes.push("Compte-titres : les dividendes sont imposés chaque année (31,4 %) ; cet impôt est déjà déduit de tous les chiffres.");
-  if (fisc.enveloppe === "pee" && C.T < 12 * FISCALITE_FR.pee.ans) notes.push(`PEE : sommes bloquées 5 ans. Sur ${dureeTexte(C.T)}, l'argent ne pourrait être retiré que dans un cas de déblocage anticipé prévu par la loi.`);
+  if (fisc.enveloppe === "pee" && C.T < 12 * FISCALITE_FR.pee.ans) notes.push(`PEE : chaque somme versée reste bloquée au moins 5 ans. Sur ${dureeTexte(C.T)}, l'argent ne pourrait être retiré que dans un cas de déblocage anticipé prévu par la loi.`);
+  else if (fisc.enveloppe === "pee" && C.P.versement) notes.push("PEE : chaque somme versée reste bloquée au moins 5 ans. À la fin, tes versements des dernières années ne seraient donc pas encore disponibles, sauf cas de déblocage anticipé : le montant après impôts suppose que tout peut être retiré.");
   return notes.map(n => `<p class="note">${n}</p>`).join("");
 }
 
@@ -858,7 +861,7 @@ function comprendre(C) {
       <li>Taux d'intérêt (BCE) : ${tauxTexte(t.taux10, "emprunts d'État à 10 ans")} ; ${tauxTexte(t.taux3, "à 3 ans")} ; ${tauxTexte(t.estr, "€STR")}.</li>
       <li>Inflation : ${indicateurCtx("anticipations_inflation") ? `enquête de la BCE auprès des prévisionnistes (${esc(periodeFr(indicateurCtx("anticipations_inflation").date))})` : "valeur par défaut de 2 %"}${S.plan.inflation !== null && S.plan.inflation !== "" ? " — remplacée par ta valeur" : ""}.</li>
       ${livret ? `<li>Repère livret : taux moyen des livrets d'épargne des ménages en France (BCE, données de la Banque de France, ${esc(periodeFr(livret.date))}).</li>` : ""}
-      ${P.fiscalite ? `<li>Fiscalité : règles françaises 2026, ${esc(FISCALITE_FR.source)} (mise à jour le ${dateFr(FISCALITE_FR.maj)})${P.fiscalite.enveloppe === "pee" ? " ; taux des prélèvements sociaux sur les gains de l'épargne salariale : guide fiscal 2026 de Malakoff Humanis" : ""}.</li>` : ""}
+      ${P.fiscalite ? `<li>Fiscalité : règles françaises 2026, ${esc(FISCALITE_FR.source)} (mise à jour le ${dateFr(FISCALITE_FR.maj)})${P.fiscalite.enveloppe === "pee" ? " ; PEE : fiches service-public « Plan d'épargne entreprise » (vérifiée le 01/01/2026) et « Prélèvements sociaux » (vérifiée le 30/06/2026)" : ""}.</li>` : ""}
       <li>Dernière mise à jour des données économiques du site : ${ctx ? new Date(ctx.maj).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "indisponible"}.</li>
     </ul>
     <h3>Hypothèses</h3>
