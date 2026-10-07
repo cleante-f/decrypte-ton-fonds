@@ -8,7 +8,8 @@ Site statique (HTML + CSS + JavaScript, sans framework) qui explique un fonds d'
 ## Lancer le site
 
 Double-clique sur `index.html`. Une connexion Internet est nécessaire pour les fiches des fonds français,
-qui sont chargées en direct depuis la base GECO de l'AMF.
+qui sont chargées en direct depuis la base GECO de l'AMF. Un fichier ouvert ainsi n'a pas d'adresse de site : il s'affiche
+en mode gratuit (voir « Deux modes selon l'adresse »).
 
 ## Les pages
 
@@ -17,8 +18,10 @@ qui sont chargées en direct depuis la base GECO de l'AMF.
 | `index.html` | Accueil : présentation du site, recherche rapide, accès aux trois espaces |
 | `decrypte.html` | **Décrypte ton fonds** : phrase « En bref », puis fiche complète (composition, concentration, risque, pièges, frais) |
 | `performances.html` | **Performances** : graphique interactif (périodes, comparaison avec les marchés ou un autre fonds, performances par année) |
-| `confidentialite.html` | **Confidentialité et mentions légales** : éditeurs, hébergeur, données transmises à des tiers, stockage dans le navigateur, droits (RGPD), bouton d'effacement |
-| `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques) |
+| `confidentialite.html` | **Confidentialité** : responsables, données transmises à des tiers, stockage dans le navigateur, droits (RGPD), bouton d'effacement. Deux versions du texte selon le mode (voir plus bas) |
+| `mentions-legales.html` | **Mentions légales** : éditeurs, hébergeur, contenus et sources. Deux versions du texte selon le mode |
+| `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques). Libre et sans compte en mode gratuit ; réservé aux comptes en mode comptes |
+| `connexion.html`, `compte.html`, `abonnement.html`, `cgv.html` | **Pages de compte** (connexion, espace personnel, abonnement, conditions de vente) : elles ne servent qu'en mode comptes |
 
 Le fonds consulté est dans l'adresse (`#ISIN`) : les onglets et les boutons « Voir le graphique des performances » /
 « Décrypter ce fonds » passent d'une page à l'autre sans le perdre. Depuis l'accueil, la recherche est transmise
@@ -32,6 +35,62 @@ l'historique antérieur ; les points isolés aberrants sont lissés. Chaque corr
 un connu (description fixe de son contenu, variantes et versions ESG signalées) ; sinon la composition calculée (classes
 d'actifs arrondies à 5 %, région principale) ; sinon la catégorie AMF ; sinon ce que le nom laisse deviner, présenté
 comme tel (« D'après son nom… ») ; sinon la première phrase de l'objectif du DIC. Rien n'est affiché si aucune source ne suffit.
+
+## Deux modes selon l'adresse
+
+Un seul code sert deux sites. Le navigateur choisit le mode d'après l'adresse de la page (`location.hostname`) ; la règle est dans
+`js/mode-site.js`, chargé en premier dans le `<head>` de chaque page (et importé par `serveur/acces.js`, le contrôle d'accès de Cloudflare).
+
+| Mode | Adresses | Ce que voit le visiteur |
+|---|---|---|
+| **Comptes** | celles de la liste `HOTES_COMPTES` : `comptes.decrypte-ton-fonds.pages.dev` (aperçu Cloudflare) et `localhost` | Pages de compte, bouton « Se connecter », simulateur réservé aux comptes (3 simulations offertes, puis abonnement) |
+| **Gratuit** | toute autre adresse : GitHub Pages (`cleante-f.github.io`), adresse principale de Cloudflare (`decrypte-ton-fonds.pages.dev`), aperçus par commit (`abc123.decrypte-ton-fonds.pages.dev`), `127.0.0.1`, adresse inconnue, fichier ouvert directement | Même design et même contenu, mais simulateur libre et sans aucune trace de compte |
+
+```js
+const HOTES_COMPTES = ["comptes.decrypte-ton-fonds.pages.dev", "localhost"];   // js/mode-site.js : la seule liste à modifier
+```
+
+- `modeSite(hote)` renvoie `"comptes"` si l'adresse est dans la liste, sinon `"gratuit"`. Les majuscules, les espaces autour et un point
+  final sont ignorés (`comptes.decrypte-ton-fonds.pages.dev.` est bien en mode comptes : sinon il sauterait le contrôle d'accès).
+- `hebergeurSite(hote)` renvoie `"github"` pour une adresse en `*.github.io`, sinon `"cloudflare"`.
+- `estPageCompte(chemin)` reconnaît les pages `connexion`, `compte`, `abonnement` et `cgv`, avec ou sans `.html` : GitHub sert
+  `/decrypte-ton-fonds/connexion.html`, Cloudflare sert `/connexion`.
+
+**Ce qui change en mode gratuit**
+- En-tête : le bouton « Se connecter » est masqué. Pied de page : le lien « CGV » est masqué. Accueil : la pastille « 3 simulations offertes »
+  devient « Gratuit ».
+- Les pages de compte renvoient vers l'accueil (`location.replace`, sans rester dans l'historique).
+- Simulateur : libre et illimité, sans décompte, sans enregistrement, sans écran d'abonnement. « Mes simulations enregistrées » est masqué ;
+  un ancien lien `simulateur.html?sim=…#ISIN` s'ouvre normalement sur le fonds (le paramètre `sim` est ignoré). Le simulateur ne garde rien
+  dans le navigateur (seules restent les copies de données publiques, décrites sur `confidentialite.html`).
+- Aucun appel à Supabase (`*.supabase.co`), ni à `challenges.cloudflare.com` : `js/connexion.js` ne charge le contrôle anti-robot Turnstile
+  qu'en mode comptes.
+- Contrôle d'accès de Cloudflare (`functions/_middleware.js`, `serveur/acces.js`) : il laisse tout passer hors mode comptes
+  (le mode est lu dans l'adresse de la requête, pas dans l'en-tête `Host`).
+- `confidentialite.html` et `mentions-legales.html` : texte de la version gratuite (aucun compte, aucun cookie, contact par la
+  [page GitHub du site](https://github.com/cleante-f/decrypte-ton-fonds/issues), jamais par une adresse e-mail personnelle) ;
+  l'hébergeur affiché (GitHub ou Cloudflare) dépend de l'adresse.
+
+**Marquage dans le HTML** : `js/mode-site.js` pose sur `<html>` les attributs `data-site="gratuit|comptes"` et
+`data-heberge-par="github|cloudflare"` avant l'affichage. Un élément se réserve à un mode ou à un hébergeur avec
+`data-seulement="comptes"` ou `data-seulement="gratuit"`, et `data-si-hebergeur="github"` ou `data-si-hebergeur="cloudflare"` ; les règles
+sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Un élément sans marque vaut pour les deux modes. Sans marquage de `<html>`
+(JavaScript désactivé, robots d'indexation), la version gratuite et l'hébergeur GitHub s'affichent.
+
+**Limites connues**
+- Les pages de compte restent dans les fichiers publiés sur GitHub : elles ne renvoient vers l'accueil qu'avec JavaScript, et contiennent
+  encore des valeurs `[[…]]` à compléter (`cgv.html`).
+- Les pages légales contiennent les deux versions du texte dans leur code source ; sans JavaScript, seule la version gratuite s'affiche.
+- Une adresse oubliée dans la liste reste en mode gratuit : sans danger, puisqu'aucune fonction de compte n'y est active.
+
+**Au lancement payant** : ajouter le nouveau domaine à `HOTES_COMPTES` (seule liste à modifier), puis compléter les valeurs `[[…]]`
+des textes légaux (`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`). Ces valeurs ne doivent apparaître que
+dans les pages de compte, dans `js/config-compte.js` et dans les éléments `data-seulement="comptes"` : le contrôle avant publication
+(`/publier-site`, hors du dépôt) refuse les autres.
+
+**Essayer les deux modes en local** : servir le site sur un port (par exemple 8770). `http://127.0.0.1:8770/` est en mode gratuit,
+`http://localhost:8770/` en mode comptes. Les tests (`node --test "tests/*.test.mjs"`) vérifient la règle de bascule, le contrôle d'accès,
+le marquage des pages et les textes de la version gratuite.
 
 ## Le simulateur (méthode)
 
@@ -234,11 +293,15 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 
 ## Données personnelles (RGPD)
 
-Pas de compte, pas de cookie, pas de mesure d'audience. Le navigateur des visiteurs ne contacte que GitHub (hébergeur),
-l'AMF (GECO) et la BCE ; tout le reste est récupéré par la tâche quotidienne. Stockage local (`localStorage`) :
-- plan du simulateur **seulement si** la case « Mémoriser mon plan sur cet appareil » est cochée ;
+**Mode gratuit** (GitHub Pages, adresse principale de Cloudflare) : pas de compte, pas de cookie, pas de mesure d'audience.
+Le navigateur des visiteurs ne contacte que l'hébergeur (GitHub ou Cloudflare), l'AMF (GECO) et la BCE ; tout le reste est
+récupéré par la tâche quotidienne. Stockage local (`localStorage`) :
 - réglages des alertes enregistrés par l'utilisateur ;
 - caches de données publiques, effacés automatiquement une fois périmés (`nettoyerStockage` dans `js/outils.js`).
+
+**Mode comptes** (aperçu, `localhost`) : en plus, un cookie `dtf_session` et la session `compte-session-v1` pour les visiteurs connectés ;
+le navigateur contacte aussi Supabase (comptes, simulations enregistrées), Stripe (paiement) et, sur la page de connexion, Cloudflare
+Turnstile (anti-robot). Brevo envoie les e-mails du compte. Tout est décrit dans la version « comptes » de `confidentialite.html`.
 
 Toute nouvelle clé de stockage doit être ajoutée à `CLES_STOCKAGE_SITE` (`js/outils.js`) et décrite sur `confidentialite.html`.
 Tout nouveau service contacté par le navigateur doit aussi y être décrit.
@@ -275,6 +338,8 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `js/confidentialite.js` | Page de confidentialité : données du site dans ce navigateur et bouton d'effacement |
 | `js/vendor/pdfjs/` | pdf.js 3.11.174 (Mozilla, licence Apache 2.0), hébergé avec le site : aucun appel à un service tiers |
 | `fonts/` | Police IBM Plex Sans 1.1.0 (IBM, SIL Open Font License 1.1, texte dans `fonts/OFL.txt`), alphabet latin, hébergée avec le site : aucun appel à un service tiers |
+| `js/mode-site.js` | Mode gratuit ou comptes selon l'adresse : liste `HOTES_COMPTES`, marquage de `<html>`, renvoi des pages de compte vers l'accueil (voir « Deux modes selon l'adresse ») |
+| `serveur/acces.js` / `functions/_middleware.js` | Contrôle d'accès du simulateur sur Cloudflare : actif en mode comptes seulement |
 | `js/nav.js` | Onglets communs (le fonds suit d'une page à l'autre) |
 | `js/infobulles.js` | Infobulles des termes techniques (toutes les pages) |
 | `js/createur.js` | Bouton « Créateur » et son animation |
