@@ -16,7 +16,7 @@ Le lien se fait par le LEI de chaque part, lu dans data/firds.js (scripts/constr
 
 Lancement (depuis le dossier analyse-fonds, après construire_annuaire.py) :
     python3 scripts/construire_identite.py
-Compter 3 à 5 minutes (deux gros fichiers : BCE ~70 Mo, GLEIF ~25 Mo). Uniquement la bibliothèque standard de Python.
+Compter environ 10 minutes (deux gros fichiers : BCE ~70 Mo, GLEIF ~25 Mo). Uniquement la bibliothèque standard de Python.
 À relancer une fois par mois (tâche .github/workflows/identite.yml).
 """
 import csv
