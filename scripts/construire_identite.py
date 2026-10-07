@@ -19,6 +19,7 @@ Lancement (depuis le dossier analyse-fonds, après construire_annuaire.py) :
 Compter environ 10 minutes (deux gros fichiers : BCE ~70 Mo, GLEIF ~25 Mo). Uniquement la bibliothèque standard de Python.
 À relancer une fois par mois (tâche .github/workflows/identite.yml).
 """
+import concurrent.futures
 import csv
 import io
 import json
@@ -295,6 +296,25 @@ def societes_amf():
     return lire_sgp(telecharger(url).decode("utf-8-sig"))
 
 
+def repond_en_https(adresse):
+    """Vrai si l'adresse https:// répond (redirection comprise), faux pour toute erreur (certificat, délai, 4xx, 5xx)."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(adresse, headers=ENTETES), timeout=10) as r:
+            return r.status < 400
+    except urllib.error.HTTPError as e:
+        return 300 <= e.code < 400
+    except Exception:
+        return False
+
+
+def passer_en_https(societes, teste=repond_en_https):
+    """Copie des sociétés où chaque site publié en http:// devient https:// si cette adresse répond (lien chiffré) ; sinon inchangé."""
+    a_tester = {cle: "https://" + v[2][len("http://"):] for cle, v in societes.items() if v[2].startswith("http://")}
+    with concurrent.futures.ThreadPoolExecutor(8) as ex:
+        reponses = dict(zip(a_tester, ex.map(teste, a_tester.values())))
+    return {cle: v[:2] + [a_tester[cle]] + v[3:] if reponses.get(cle) else list(v) for cle, v in societes.items()}
+
+
 def ecrire_societes(societes, publication, fichier=SORTIE_SOCIETES):
     contenu = {"maj": date.today().isoformat(), "publication": publication, "societes": societes}
     fichier.write_text(
@@ -311,11 +331,12 @@ def mettre_a_jour_societes(fichier=SORTIE_SOCIETES):
         societes, publication = societes_amf()
         if len(societes) < 300:
             raise ValueError(f"seulement {len(societes)} sociétés")
-        ecrire_societes(societes, publication, fichier)
+        ecrire_societes(passer_en_https(societes), publication, fichier)
         print(f"✓ {len(societes)} sociétés de gestion (publication AMF du {publication}) → {fichier.name} "
               f"({fichier.stat().st_size / 1e3:.0f} Ko)")
     except Exception as e:
         print(f"! liste AMF non mise à jour ({e}) : ancien fichier gardé", file=sys.stderr)
+        print(f"::warning::Liste AMF des sociétés de gestion non mise à jour ({e}) : ancien fichier gardé")   # visible dans GitHub Actions
 
 
 def main():

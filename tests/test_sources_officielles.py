@@ -171,10 +171,12 @@ class SocietesAmf(unittest.TestCase):
             with self.subTest(panne=type(panne).__name__), tempfile.TemporaryDirectory() as d:
                 f = Path(d) / "societes.js"
                 f.write_text("ancien contenu\n", encoding="utf-8")
-                _, erreurs = self.mettre_a_jour(f, side_effect=panne)
+                sortie, erreurs = self.mettre_a_jour(f, side_effect=panne)
                 self.assertEqual(f.read_text(encoding="utf-8"), "ancien contenu\n")
                 self.assertIn("liste AMF non mise à jour", erreurs)
                 self.assertIn("ancien fichier gardé", erreurs)
+                # annotation lue par GitHub Actions : la tâche mensuelle affiche un avertissement au lieu de rester verte
+                self.assertTrue(sortie.startswith("::warning::"), sortie)
 
     def test_mettre_a_jour_societes_fiche_sans_ressources(self):
         # une fiche dont « resources » vaut null fait lever TypeError dans societes_amf : rattrapé quand même
@@ -182,10 +184,11 @@ class SocietesAmf(unittest.TestCase):
             f = Path(d) / "societes.js"
             f.write_text("ancien contenu\n", encoding="utf-8")
             with mock.patch.object(ci, "telecharger", return_value=b'{"resources": null}'), \
-                    mock.patch("sys.stderr", new_callable=io.StringIO) as erreurs:
+                    mock.patch("sys.stdout", new_callable=io.StringIO) as sortie, mock.patch("sys.stderr", new_callable=io.StringIO) as erreurs:
                 ci.mettre_a_jour_societes(f)
             self.assertEqual(f.read_text(encoding="utf-8"), "ancien contenu\n")
             self.assertIn("liste AMF non mise à jour", erreurs.getvalue())
+            self.assertTrue(sortie.getvalue().startswith("::warning::"))
 
     def test_mettre_a_jour_societes_seuil_de_300(self):
         def liste(n):
@@ -197,7 +200,7 @@ class SocietesAmf(unittest.TestCase):
             self.assertEqual(f.read_text(encoding="utf-8"), "ancien contenu\n")   # 299 : trop peu, ancien fichier gardé
             self.assertIn("liste AMF non mise à jour", erreurs)
             self.assertIn("299", erreurs)
-            self.assertEqual(sortie, "")
+            self.assertTrue(sortie.startswith("::warning::"), sortie)
             sortie, erreurs = self.mettre_a_jour(f, return_value=(liste(300), "2026-10-06"))
             contenu = self.lire_societes(f)   # 300 : fichier réécrit
             self.assertEqual(contenu["societes"], liste(300))
@@ -216,6 +219,38 @@ class Livrets(unittest.TestCase):
     def test_indicateur_livrets_declare(self):
         self.assertIn(("livrets_fr", "Taux moyen des livrets d'épargne (France, ménages)", "MIR/M.FR.B.L23.D.R.A.2250.EUR.N",
                        "mensuelle", False, "France"), ac.INDICATEURS_BCE)
+
+
+class SitesHttps(unittest.TestCase):
+    """Sites publiés en http:// par l'AMF : passés en https:// quand cette adresse répond (27 sur 32 le 07/10/2026)."""
+
+    def test_passer_en_https(self):
+        societes = {"A": ["GP-1", "2000-01-01", "http://www.a.fr", "Vivant"], "B": ["GP-2", "2000-01-01", "http://b.fr/x", "Vivant"],
+                    "C": ["GP-3", "2000-01-01", "www.c.fr", "Vivant"], "D": ["GP-4", "2000-01-01", "", "Vivant"]}
+        testes = []
+        def teste(adresse):
+            testes.append(adresse)
+            return "a.fr" in adresse
+        res = ci.passer_en_https(societes, teste)
+        self.assertEqual(sorted(testes), ["https://b.fr/x", "https://www.a.fr"])   # seulement les sites en http://
+        self.assertEqual(res["A"][2], "https://www.a.fr")
+        self.assertEqual(res["B"][2], "http://b.fr/x")      # https ne répond pas : adresse de l'AMF gardée
+        self.assertEqual(res["C"][2], "www.c.fr")
+        self.assertEqual(res["D"][2], "")
+        self.assertEqual(societes["A"][2], "http://www.a.fr")   # la liste reçue n'est pas modifiée
+
+    def reponse(self, code):
+        r = mock.MagicMock()
+        r.__enter__.return_value.status = code
+        return r
+
+    def test_repond_en_https(self):
+        erreur = lambda code: urllib.error.HTTPError("https://x.fr", code, "", {}, None)
+        cas = [(self.reponse(200), True), (erreur(308), True), (erreur(404), False), (erreur(500), False),
+               (urllib.error.URLError("certificat refusé"), False), (TimeoutError(), False)]
+        for effet, attendu in cas:
+            with self.subTest(effet=repr(effet)), mock.patch.object(ci.urllib.request, "urlopen", side_effect=[effet]):
+                self.assertIs(ci.repond_en_https("https://x.fr"), attendu)
 
 
 class Telechargement(unittest.TestCase):
