@@ -235,7 +235,9 @@ function identiteEsma(e, isin) {
       + (autres.length > 8 ? ` et ${autres.length - 8} autres` : ""), true]);
   }
   const notifie = (e.source === "E" || e.source === "U") && notifieFrance(e);
-  if (notifie) lignes.push([terme("commercialisation", "Commercialisation en France"), "notifié (registre européen de l'ESMA)"]);
+  // la notification vise le fonds (son LEI) : une part en autre devise ou couverte peut ne pas être proposée
+  if (notifie) lignes.push([terme("commercialisation", "Commercialisation en France"),
+    "fonds notifié (registre européen de l'ESMA)<br><small>La notification vise le fonds dans son ensemble : vérifie que cette part (devise, couverture) est proposée par ton intermédiaire.</small>"]);
   const reg = identiteRegistres(e, f && f[0], isin);
   return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
     source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source
@@ -255,7 +257,7 @@ function ligneAgrement(e) {
   if (!s || s[3] !== "Vivant") return null;   // statut autre : l'alerte de detecterPiegesAuto porte seule l'information
   const [no, debut, site] = s;
   const url = esc(/^https?:\/\//.test(site) ? site : "https://" + site);
-  return [terme("societe_gestion", "Agréée par l'AMF"),
+  return [terme("agrement_amf", "Agréée par l'AMF"),
     `n° ${esc(no)}, depuis le ${dateFr(debut)}${site ? ` · <a href="${url}" target="_blank" rel="noopener">site de la société</a>` : ""}`];
 }
 

@@ -54,7 +54,10 @@ test("ligne d'identité et source ESMA (E et U notifiés seulement)", () => {
   const c = charger(FICHE, { FIRDS: FIRDS_T, IDENTITE: IDENTITE_T });
   for (const src of ["E", "U"]) {
     const r = c.identiteEsma(fonds(src, ["LU1681043599"]), "LU1681043599");
-    assert.ok(JSON.stringify(simple(r.lignes)).includes("notifié (registre européen de l'ESMA)"), src);
+    const lignes = JSON.stringify(simple(r.lignes));
+    assert.ok(lignes.includes("fonds notifié (registre européen de l'ESMA)"), src);
+    // la notification vise le fonds (son LEI), pas forcément chaque part
+    assert.ok(lignes.includes("vérifie que cette part"), src);
     assert.ok(r.source.includes("ESMA – registre de la commercialisation transfrontière des OPCVM et FIA"), src);
   }
   for (const [src, isin] of [["E", "DE000A0F5UF5"], ["N", "LU1681043599"]]) {
@@ -74,6 +77,8 @@ test("ligneAgrement", () => {
   const c = charger(FICHE, { SOCIETES: SOCIETES_T });
   const [libelle, valeur] = simple(c.ligneAgrement(francais("Carmignac Gestion")));
   assert.ok(libelle.includes("Agréée par l&#39;AMF"));
+  assert.ok(libelle.includes('data-terme="agrement_amf"'), "l'infobulle explique l'agrément, pas la société de gestion");
+  assert.match(vm.runInContext('GLOSSAIRE.agrement_amf || ""', c), /agrément/);
   assert.ok(valeur.includes("n° GP97008, depuis le 13/03/1997"));
   assert.ok(valeur.includes('href="https://www.carmignac.com" target="_blank" rel="noopener"'));
   assert.ok(valeur.includes("site de la société"));
