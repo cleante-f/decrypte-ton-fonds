@@ -180,6 +180,9 @@ python3 scripts/construire_identite.py
 régénère `data/identite.js` (3 minutes) : société de gestion, type de fonds et tranche d'encours (liste des fonds de la BCE),
 fonds parapluie et fonds maître (GLEIF), montant moyen échangé en bourse (ESMA FITRS). La tâche `identite.yml` le relance le 20 de chaque mois.
 
+Pour finir, `python3 scripts/tests_annuaire.py` (quelques secondes, sans réseau) vérifie qu'aucun ISIN de fonds français
+n'a été rattaché par erreur à un autre fonds.
+
 ## Cours des fonds étrangers
 
 `scripts/actualiser_cours.py` relève chaque jour le cours de clôture des fonds étrangers de l'annuaire : enchère de clôture
@@ -239,6 +242,7 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `scripts/actualiser_marches.py` | Marchés et devises du jour : sources par ordre de préférence, repli, cache |
 | `scripts/sources/` | Un module par API (format commun dans `commun.py`) |
 | `scripts/tests_sources.py` / `scripts/sonder_api.py` | Tests des sources ; sonde de la structure des API à clé |
+| `scripts/tests_annuaire.py` | Tests de l'annuaire, sans réseau : un ISIN n'ouvre qu'un seul fonds |
 | `js/marches.js` | Tableau « marchés et devises » de la fiche et du simulateur |
 | `js/confidentialite.js` | Page de confidentialité : données du site dans ce navigateur et bouton d'effacement |
 | `js/vendor/pdfjs/` | pdf.js 3.11.174 (Mozilla, licence Apache 2.0), hébergé avec le site : aucun appel à un service tiers |
