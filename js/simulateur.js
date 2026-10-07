@@ -378,9 +378,13 @@ function optionsAvancees() {
           <option value="aucune"${p.enveloppe === "aucune" ? " selected" : ""}>Ne pas calculer</option>
           <option value="cto"${p.enveloppe === "cto" ? " selected" : ""}>Compte-titres</option>
           <option value="pea"${p.enveloppe === "pea" ? " selected" : ""}>PEA</option>
-          <option value="av"${p.enveloppe === "av" ? " selected" : ""}>Assurance-vie</option></select></label>
+          <option value="av"${p.enveloppe === "av" ? " selected" : ""}>Assurance-vie</option>
+          <option value="pee"${p.enveloppe === "pee" ? " selected" : ""}>PEE (épargne salariale)</option></select></label>
         ${p.enveloppe === "av" ? `<label class="case"><input type="checkbox" data-champ="couple"${p.couple ? " checked" : ""}> Imposition commune (couple)</label>` : ""}
-        <p class="aide">Règles en vigueur en 2026 (${esc(FISCALITE_FR.source)}, pages mises à jour le ${dateFr(FISCALITE_FR.maj)}) : prélèvement forfaitaire unique de 31,4 % (12,8 % d'impôt + 18,6 % de prélèvements sociaux) ; PEA de plus de 5 ans : 18,6 % ; assurance-vie : 17,2 % de prélèvements sociaux, et après 8 ans 7,5 % d'impôt après abattement de 4 600 € (9 200 € pour un couple). Calcul simplifié : retrait total à la fin, sans le barème progressif.
+        ${p.enveloppe === "pee" ? `<p class="aide">PEE : sommes bloquées 5 ans, sauf cas de déblocage anticipé prévus par la loi. Un PEE ne contient que les fonds proposés par ton entreprise (souvent des FCPE).
+          Si ton entreprise abonde (elle ajoute de l'argent à tes versements), ajoute cet abondement à ton versement : il n'est pas calculé à part (la CSG de 9,7 % prélevée dessus n'est pas déduite).
+          <a href="${FISCALITE_FR.liens.pee}" target="_blank" rel="noopener">Source</a></p>` : ""}
+        <p class="aide">Règles en vigueur en 2026 (${esc(FISCALITE_FR.source)}, pages mises à jour le ${dateFr(FISCALITE_FR.maj)}) : prélèvement forfaitaire unique de 31,4 % (12,8 % d'impôt + 18,6 % de prélèvements sociaux) ; PEA de plus de 5 ans : 18,6 % ; assurance-vie : 17,2 % de prélèvements sociaux, et après 8 ans 7,5 % d'impôt après abattement de 4 600 € (9 200 € pour un couple) ; PEE : pas d'impôt sur le revenu, 18,6 % de prélèvements sociaux sur les gains. Calcul simplifié : retrait total à la fin, sans le barème progressif.
           <a href="${FISCALITE_FR.liens.pfu}" target="_blank" rel="noopener">Source</a></p>`
         : `<p class="aide">La fiscalité n'est calculée que pour la France : les règles des autres pays ne sont pas intégrées de façon fiable.</p>`}
     </fieldset>
@@ -582,6 +586,17 @@ function repereLivretSimu(C) {
   return ind && !donneeAncienne(ind) && !C.k ? repereLivret(C.P, ind) : null;
 }
 
+// Effet de l'enveloppe choisie, rendu visible en tête (les gros chiffres restent avant impôts)
+const NOMS_ENVELOPPES = { cto: "compte-titres", pea: "PEA", av: "assurance-vie", pee: "PEE" };
+function notesFiscales(C) {
+  const fisc = C.P.fiscalite, s = C.scen.central;
+  if (!fisc) return "";
+  const notes = [`Après impôts (${NOMS_ENVELOPPES[fisc.enveloppe]}, retrait total à la fin) : environ <strong>${eurosEstimes(s.valeurNette)}</strong> dans le scénario central (impôts ≈ ${eurosEstimes(s.impot)}).`];
+  if (fisc.enveloppe === "cto" && s.impotDividendes > 0) notes.push("Compte-titres : les dividendes sont imposés chaque année (31,4 %) ; cet impôt est déjà déduit de tous les chiffres.");
+  if (fisc.enveloppe === "pee" && C.T < 12 * FISCALITE_FR.pee.ans) notes.push(`PEE : sommes bloquées 5 ans. Sur ${dureeTexte(C.T)}, l'argent ne pourrait être retiré que dans un cas de déblocage anticipé prévu par la loi.`);
+  return notes.map(n => `<p class="note">${n}</p>`).join("");
+}
+
 function resume(C) {
   const P = C.P, s = C.scen;
   const plan = [];
@@ -596,6 +611,7 @@ function resume(C) {
       <div class="chiffre-heros accent">${rappelFrais(C)}<span>Scénario central (estimation)</span><strong>${eurosEstimes(s.central.total)}</strong><small class="${s.central.gain >= 0 ? "hausse" : "baisse"}">${eurosSigne(s.central.gain)} · ${pctSigne(s.central.perfAnnualisee)} par an</small></div>
       <div class="chiffre-heros"><span>Fourchette probable (8 chances sur 10)</span><strong>${eurosCourt(s.defavorable.total)} – ${eurosCourt(s.favorable.total)}</strong></div>
     </div>
+    ${notesFiscales(C)}
     ${livret ? `<p class="note">Repère : sur un livret au taux moyen actuel (${pct(livret.taux, 2)} par an), tes versements deviendraient environ ${euros(livret.valeur)}, si ce taux restait constant.</p>` : ""}
     ${C.ajuste ? `<p class="note">L'historique du fonds commence en ${esc(moisAnnee(dateDuMois(C.debut, 0)))} : la simulation démarre à cette date.</p>` : ""}
   </section>`;
@@ -842,7 +858,7 @@ function comprendre(C) {
       <li>Taux d'intérêt (BCE) : ${tauxTexte(t.taux10, "emprunts d'État à 10 ans")} ; ${tauxTexte(t.taux3, "à 3 ans")} ; ${tauxTexte(t.estr, "€STR")}.</li>
       <li>Inflation : ${indicateurCtx("anticipations_inflation") ? `enquête de la BCE auprès des prévisionnistes (${esc(periodeFr(indicateurCtx("anticipations_inflation").date))})` : "valeur par défaut de 2 %"}${S.plan.inflation !== null && S.plan.inflation !== "" ? " — remplacée par ta valeur" : ""}.</li>
       ${livret ? `<li>Repère livret : taux moyen des livrets d'épargne des ménages en France (BCE, données de la Banque de France, ${esc(periodeFr(livret.date))}).</li>` : ""}
-      ${P.fiscalite ? `<li>Fiscalité : règles françaises 2026, ${esc(FISCALITE_FR.source)} (mise à jour le ${dateFr(FISCALITE_FR.maj)}).</li>` : ""}
+      ${P.fiscalite ? `<li>Fiscalité : règles françaises 2026, ${esc(FISCALITE_FR.source)} (mise à jour le ${dateFr(FISCALITE_FR.maj)})${P.fiscalite.enveloppe === "pee" ? " ; taux des prélèvements sociaux sur les gains de l'épargne salariale : guide fiscal 2026 de Malakoff Humanis" : ""}.</li>` : ""}
       <li>Dernière mise à jour des données économiques du site : ${ctx ? new Date(ctx.maj).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "indisponible"}.</li>
     </ul>
     <h3>Hypothèses</h3>
