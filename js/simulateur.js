@@ -374,7 +374,7 @@ function optionsAvancees() {
     </div>
     <fieldset class="fiscalite"><legend>Fiscalité (seulement si les règles sont fiables)</legend>
       <label>Pays <select data-champ="pays"><option value="FR"${p.pays === "FR" ? " selected" : ""}>France</option><option value="autre"${p.pays !== "FR" ? " selected" : ""}>Autre pays</option></select></label>
-      ${p.pays === "FR" ? `<label>Enveloppe <select data-champ="enveloppe">
+      ${p.pays === "FR" ? `<label>${terme("enveloppe_fiscale", "Enveloppe")} <select data-champ="enveloppe">
           <option value="aucune"${p.enveloppe === "aucune" ? " selected" : ""}>Ne pas calculer</option>
           <option value="cto"${p.enveloppe === "cto" ? " selected" : ""}>Compte-titres</option>
           <option value="pea"${p.enveloppe === "pea" ? " selected" : ""}>PEA</option>

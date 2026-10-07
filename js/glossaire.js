@@ -11,6 +11,7 @@ const GLOSSAIRE = {
   isin: "Code unique de 12 caractères qui identifie un fonds (ou une part de fonds) dans le monde entier. Les 2 premières lettres indiquent le pays d'enregistrement.",
   ticker: "Code court utilisé en Bourse pour acheter un ETF (ex. CW8). Un même ETF peut avoir plusieurs tickers selon la place de cotation.",
   societe_gestion: "L'entreprise qui gère le fonds : elle choisit les placements et prélève les frais de gestion.",
+  enveloppe_fiscale: "Impôt sur les gains au retrait (règles 2026). Compte-titres : 31,4 % (12,8 % d'impôt + 18,6 % de prélèvements sociaux), dividendes imposés chaque année. PEA : 31,4 % avant 5 ans, 18,6 % ensuite. Assurance-vie : 30 % avant 8 ans ; ensuite 17,2 % + 7,5 % d'impôt après un abattement de 4 600 € (9 200 € pour un couple). PEE : 18,6 %, sans impôt sur le revenu, sommes bloquées 5 ans.",
   agrement_amf: "Une société de gestion établie en France doit être agréée par l'AMF (Autorité des marchés financiers), qui la contrôle ensuite. Cet agrément ne garantit ni la performance ni le capital des fonds. Le numéro d'agrément et la date viennent de la liste officielle publiée par l'AMF.",
   domicile: "Pays où le fonds est juridiquement enregistré. Il influence la fiscalité et l'éligibilité au PEA.",
   opcvm: "Organisme de placement collectif : l'argent de nombreux épargnants est mis en commun et investi par un gérant. Les SICAV et les FCP sont des OPCVM.",
