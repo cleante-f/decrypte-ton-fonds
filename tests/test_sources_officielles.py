@@ -117,6 +117,16 @@ class SocietesAmf(unittest.TestCase):
                          '\n"GP-2";"MEME NOM";"";"";"";"";"";"";"";"2010-01-01";"";"Vivant";"";"";"";"2026-10-05"\n'
         self.assertEqual(ci.lire_sgp(texte)[0]["MEMENOM"][0], "GP-2")
 
+    def test_lire_sgp_sans_lien_vers_hsbc(self):
+        # ligne synthétique : seul le site change, le n° d'agrément (donnée AMF) reste
+        entete = (DONNEES / "amf_sgp.csv").read_text(encoding="utf-8-sig").splitlines()[0]
+        ligne = '"GP-{}";"Société Test {}";"";"FR";"{}";"";"";"";"";"2000-01-01";"";"Vivant";"";"";"";"2026-10-05"'
+        sites = ["www.hsbc-reim.fr", "https://WWW.HSBC.FR/gestion"]
+        texte = "\n".join([entete] + [ligne.format(i, i, site) for i, site in enumerate(sites)]) + "\n"
+        societes = ci.lire_sgp(texte)[0]
+        self.assertEqual(societes["SOCIETETEST0"], ["GP-0", "2000-01-01", "", "Vivant"])
+        self.assertEqual(societes["SOCIETETEST1"], ["GP-1", "2000-01-01", "", "Vivant"])
+
     def test_ecrire_societes(self):
         with tempfile.TemporaryDirectory() as d:
             f = Path(d) / "societes.js"

@@ -276,7 +276,11 @@ def lire_sgp(texte):
         if no in vus or not cle:
             continue
         vus.add(no)
-        fiche = [no, l.get("date_debut_autorisation") or "", site_propre(l.get("site_internet")), l.get("statut") or ""]
+        site = site_propre(l.get("site_internet"))
+        # Règle du projet : « Données de HSBC Asset Management : interdites sans un accord écrit de leur part » (même un lien)
+        if "hsbc" in re.sub(r"^https?://", "", site).split("/")[0].lower():
+            site = ""
+        fiche = [no, l.get("date_debut_autorisation") or "", site, l.get("statut") or ""]
         if cle not in societes or (societes[cle][3] != "Vivant" and fiche[3] == "Vivant"):
             societes[cle] = fiche
     return societes, publication
