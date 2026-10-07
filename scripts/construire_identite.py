@@ -67,7 +67,7 @@ def telecharger(url, essais=4):
             with urllib.request.urlopen(urllib.request.Request(url, headers=ENTETES), timeout=300) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
-            if e.code != 429 and e.code < 500:
+            if e.code not in (408, 429) and e.code < 500:   # 408 : délai dépassé côté serveur (GLEIF), passager
                 raise
             attente = int(e.headers.get("Retry-After") or 0) or 15 * (essai + 1)
             print(f"    ({e.code}, nouvel essai dans {attente} s)")

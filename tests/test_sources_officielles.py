@@ -5,6 +5,7 @@ import re
 import sys
 import tempfile
 import unittest
+import urllib.error
 import urllib.parse
 from pathlib import Path
 from unittest import mock
@@ -215,6 +216,34 @@ class Livrets(unittest.TestCase):
     def test_indicateur_livrets_declare(self):
         self.assertIn(("livrets_fr", "Taux moyen des livrets d'épargne (France, ménages)", "MIR/M.FR.B.L23.D.R.A.2250.EUR.N",
                        "mensuelle", False, "France"), ac.INDICATEURS_BCE)
+
+
+class Telechargement(unittest.TestCase):
+    """Erreurs passagères (408 du GLEIF le 07/10/2026, 429, 5xx) : nouvel essai ; autres erreurs : arrêt immédiat."""
+
+    def ouvrir(self, *effets):
+        return mock.patch.object(ci.urllib.request, "urlopen", side_effect=list(effets))
+
+    def reponse(self, contenu):
+        r = mock.MagicMock()
+        r.__enter__.return_value.read.return_value = contenu
+        return r
+
+    def erreur(self, code):
+        return urllib.error.HTTPError("https://exemple.test", code, "erreur", {}, None)
+
+    def test_reessaie_sur_408(self):
+        with self.ouvrir(self.erreur(408), self.reponse(b"ok")) as u, mock.patch.object(ci.time, "sleep"), \
+                mock.patch("sys.stdout", new_callable=io.StringIO) as sortie:
+            self.assertEqual(ci.telecharger("https://exemple.test"), b"ok")
+        self.assertEqual(u.call_count, 2)
+        self.assertIn("408", sortie.getvalue())
+
+    def test_arret_immediat_sur_404(self):
+        with self.ouvrir(self.erreur(404)) as u, mock.patch.object(ci.time, "sleep"):
+            with self.assertRaises(urllib.error.HTTPError):
+                ci.telecharger("https://exemple.test")
+        self.assertEqual(u.call_count, 1)
 
 
 if __name__ == "__main__":
