@@ -445,6 +445,21 @@ function versementDuMois(plan, t) {
   return plan.versement * Math.pow(1 + (plan.augmentation || 0) / 100, Math.floor((t - 1) / 12));
 }
 
+// Repère : valeur du même plan placé sur un livret à taux constant (taux annuel en %, composé chaque mois, sans frais ni impôt).
+// Même ordre que appliquerPlan : l'intérêt du mois d'abord, puis le versement du mois.
+function valeurLivret(plan, tauxAnnuel) {
+  const facteurMensuel = Math.pow(1 + tauxAnnuel / 100, 1 / 12);
+  let v = plan.capital;
+  for (let t = 1; t <= plan.mois; t++) v = v * facteurMensuel + versementDuMois(plan, t);
+  return v;
+}
+
+// ind = indicateur « livrets_fr » du contexte ({ valeur: taux en %, date: "AAAA-MM" }) ; null s'il manque ou si le taux est inutilisable
+function repereLivret(plan, ind) {
+  if (!ind || !Number.isFinite(ind.valeur)) return null;
+  return { taux: ind.valeur, valeur: valeurLivret(plan, ind.valeur), date: ind.date };
+}
+
 /*
  * plan = { capital, versement, frequence (1, 3 ou 12 mois), augmentation (%/an), mois,
  *          frais: { courants, garde (%/an), entree, change (% de chaque versement), courtageFixe (€/ordre), courtagePct (%) },

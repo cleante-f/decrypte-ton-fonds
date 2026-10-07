@@ -575,11 +575,19 @@ zoneResultats.addEventListener("click", e => {
 
 // ---------- Résumé en tête ----------
 
+// Repère « livret au taux moyen actuel » : seulement si le taux est récent et si la simulation part d'aujourd'hui
+// (un taux ancien, ou le taux actuel appliqué à des mois déjà passés, donnerait un repère inexact) ; null sinon
+function repereLivretSimu(C) {
+  const ind = indicateurCtx("livrets_fr");
+  return ind && !donneeAncienne(ind) && !C.k ? repereLivret(C.P, ind) : null;
+}
+
 function resume(C) {
   const P = C.P, s = C.scen;
   const plan = [];
   if (P.capital) plan.push(`<strong>${euros(P.capital)}</strong> au départ`);
   if (P.versement) plan.push(`${P.capital ? "puis " : ""}<strong>${euros(P.versement)} ${LIBELLE_FREQUENCE[P.frequence]}</strong>${P.augmentation ? ` (+${pct(P.augmentation, 1)} par an)` : ""}`);
+  const livret = repereLivretSimu(C);
   return `<section class="resume-simu">
     <p class="resume-phrase">Avec ${plan.join(" ") || "aucun versement"}, pendant <strong>${dureeTexte(C.T)}</strong>${C.k ? ` à partir de ${esc(moisAnnee(dateDuMois(C.debut, 0)))}` : ""}, tu verserais au total <strong>${euros(C.res.verse[C.T])}</strong>.
       Selon nos simulations, la valeur pourrait se situer <strong>entre ${eurosEstimes(s.defavorable.total)} et ${eurosEstimes(s.favorable.total)}</strong> (8 chances sur 10), avec un scénario central à <strong>${eurosEstimes(s.central.total)}</strong>.</p>
@@ -588,6 +596,7 @@ function resume(C) {
       <div class="chiffre-heros accent">${rappelFrais(C)}<span>Scénario central (estimation)</span><strong>${eurosEstimes(s.central.total)}</strong><small class="${s.central.gain >= 0 ? "hausse" : "baisse"}">${eurosSigne(s.central.gain)} · ${pctSigne(s.central.perfAnnualisee)} par an</small></div>
       <div class="chiffre-heros"><span>Fourchette probable (8 chances sur 10)</span><strong>${eurosCourt(s.defavorable.total)} – ${eurosCourt(s.favorable.total)}</strong></div>
     </div>
+    ${livret ? `<p class="note">Repère : sur un livret au taux moyen actuel (${pct(livret.taux, 2)} par an), tes versements deviendraient environ ${euros(livret.valeur)}, si ce taux restait constant.</p>` : ""}
     ${C.ajuste ? `<p class="note">L'historique du fonds commence en ${esc(moisAnnee(dateDuMois(C.debut, 0)))} : la simulation démarre à cette date.</p>` : ""}
   </section>`;
 }
@@ -823,6 +832,7 @@ function comprendre(C) {
   const classes = Object.entries(m.classes).filter(([, v]) => v > 0.005)
     .map(([k, v]) => `${{ actions: "actions", oblig10: "obligations longues", oblig3: "obligations courtes", monetaire: "monétaire" }[k]} ${pct(v * 100, 0)} → ${pct(m.composantes[k] * 100, 1)}`).join(" ; ");
   const ctx = typeof CONTEXTE !== "undefined" ? CONTEXTE : null;
+  const livret = repereLivretSimu(C);
   return `<div class="comprendre-contenu">
     <h3>Données utilisées</h3>
     <ul>
@@ -831,6 +841,7 @@ function comprendre(C) {
       <li>Frais : ${A.terSource === "dic" ? `DIC « ${esc(A.dic.document.docName)} » du ${dateFr(A.dic.document.dateEffet)}` : "hypothèse (frais non disponibles automatiquement)"}.</li>
       <li>Taux d'intérêt (BCE) : ${tauxTexte(t.taux10, "emprunts d'État à 10 ans")} ; ${tauxTexte(t.taux3, "à 3 ans")} ; ${tauxTexte(t.estr, "€STR")}.</li>
       <li>Inflation : ${indicateurCtx("anticipations_inflation") ? `enquête de la BCE auprès des prévisionnistes (${esc(periodeFr(indicateurCtx("anticipations_inflation").date))})` : "valeur par défaut de 2 %"}${S.plan.inflation !== null && S.plan.inflation !== "" ? " — remplacée par ta valeur" : ""}.</li>
+      ${livret ? `<li>Repère livret : taux moyen des livrets d'épargne des ménages en France (BCE, données de la Banque de France, ${esc(periodeFr(livret.date))}).</li>` : ""}
       ${P.fiscalite ? `<li>Fiscalité : règles françaises 2026, ${esc(FISCALITE_FR.source)} (mise à jour le ${dateFr(FISCALITE_FR.maj)}).</li>` : ""}
       <li>Dernière mise à jour des données économiques du site : ${ctx ? new Date(ctx.maj).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "indisponible"}.</li>
     </ul>

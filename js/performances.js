@@ -19,7 +19,8 @@ const REFERENCES = [
   { cle: "ref-monde", nom: "Actions monde (MSCI World)", isin: "FR0010315770" },
   { cle: "ref-usa", nom: "Actions États-Unis (S&P 500)", isin: "FR0011871128" },
   { cle: "ref-euro", nom: "Actions zone euro (Euro Stoxx 50)", isin: "FR0012739431" },
-  { cle: "ref-monetaire", nom: "Placement monétaire (€STR)", bce: "EST/B.EU000A2X2A25.WT" }
+  { cle: "ref-monetaire", nom: "Placement monétaire (€STR)", bce: "EST/B.EU000A2X2A25.WT" },
+  { cle: "ref-livrets", nom: "Livrets d'épargne (taux moyen, France)", bce: "MIR/M.FR.B.L23.D.R.A.2250.EUR.N" }
 ];
 const MAX_COMPARAISONS = 2;
 
@@ -57,21 +58,11 @@ function serieReference(ref) {
         const h = await historiquePart(e, ref.isin);
         return { dates: h.dates, valeurs: h.valeurs };
       }
-      // €STR : on reconstitue la valeur d'un placement rémunéré au jour le jour (base 100)
+      // Référence BCE (€STR, livrets) : on reconstitue la valeur d'un placement rémunéré à ce taux (base 100)
       const texte = await (await fetch(`${BCE_API}${ref.bce}?format=csvdata&detail=dataonly&startPeriod=2019-10-01`)).text();
-      const lignes = texte.trim().split(/\r?\n/);
-      const entete = lignes[0].split(",");
-      const iD = entete.indexOf("TIME_PERIOD"), iV = entete.indexOf("OBS_VALUE");
-      const dates = [], valeurs = [];
-      let niveau = 100, precedent = null;
-      for (const l of lignes.slice(1)) {
-        const c = l.split(","), d = new Date(c[iD] + "T00:00:00"), taux = parseFloat(c[iV]);
-        if (isNaN(taux)) continue;
-        if (precedent) niveau *= 1 + precedent.taux / 100 * ((d - precedent.d) / 864e5) / 360;
-        dates.push(d); valeurs.push(niveau);
-        precedent = { d, taux };
-      }
-      return { dates, valeurs };
+      const serie = serieDepuisCsvBce(texte, new Date());   // les livrets sont publiés avec retard : dernier taux appliqué, jour par jour, jusqu'à aujourd'hui
+      if (serie.dates.length < 2) throw new Error("série BCE indisponible");
+      return serie;
     })().catch(err => { cacheSeries.delete(ref.cle); throw err; }));
   }
   return cacheSeries.get(ref.cle);
@@ -287,6 +278,13 @@ function majSurvol() {
 
 // ---------- Rendu de la page ----------
 
+// Suite de la mention « Données brutes : … (base GECO) » : une source BCE par référence comparée
+function sourcesBce(comparaisons) {
+  const compare = cle => comparaisons.some(c => c.cle === cle);
+  return (compare("ref-monetaire") ? " et €STR de la Banque centrale européenne" : "")
+    + (compare("ref-livrets") ? " et taux moyen des livrets (BCE, données de la Banque de France ; dernier taux publié appliqué aux mois pas encore publiés)" : "");
+}
+
 function majLegendeEtChiffres() {
   const series = ETAT_PERF.affichees || [];
   const leg = document.getElementById("legende-perf");
@@ -307,6 +305,8 @@ function majLegendeEtChiffres() {
       + tuile("Volatilité", c.vol === null ? "—" : pct(c.vol), "volatilite")
       + tuile("Perte maximale", pct(c.perteMax), "max_drawdown");
   }
+  const sources = document.getElementById("sources-bce");
+  if (sources) sources.textContent = sourcesBce(ETAT_PERF.comparaisons);
   document.querySelectorAll(".periodes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.periode === ETAT_PERF.periode)));
   document.querySelectorAll("[data-reference]").forEach(b => b.setAttribute("aria-pressed", String(ETAT_PERF.comparaisons.some(c => c.cle === b.dataset.reference))));
 }
@@ -379,7 +379,7 @@ function afficherSquelette(entree, isin, principal) {
         ${distribuante ? "<strong>Part distribuante :</strong> les revenus versés ne sont pas inclus, la performance réelle est donc un peu supérieure." : ""}
         Les performances passées ne préjugent pas des performances futures.</p>
       ${principal.corrections && principal.corrections.length ? `<p class="aide">Historique corrigé par ce site : ${principal.corrections.map(c => `${esc(c.type)} le ${c.date.toLocaleDateString("fr-FR")}`).join(", ")} (les valeurs publiées ne sont pas ajustées).</p>` : ""}
-      <p class="source">Données brutes : valeurs liquidatives publiées par l'AMF (base GECO)${ETAT_PERF.comparaisons.some(c => c.cle === "ref-monetaire") ? " et €STR de la Banque centrale européenne" : ""}. Calculs : ce site.</p>
+      <p class="source">Données brutes : valeurs liquidatives publiées par l'AMF (base GECO)<span id="sources-bce">${sourcesBce(ETAT_PERF.comparaisons)}</span>. Calculs : ce site.</p>
     </section>
   </article>`;
   brancherEvenements();

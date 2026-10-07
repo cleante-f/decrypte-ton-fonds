@@ -204,6 +204,14 @@ function enBref(e, d) {
 
 // ---------- Identité officielle dans le registre européen FIRDS (data/firds.js, ESMA) ----------
 
+// Fonds notifié pour la France d'après le registre ESMA (data/identite.js, liste des LEI) ; faux si les données manquent
+let _notifFR = null;   // ensemble des LEI, construit une seule fois
+function notifieFrance(e) {
+  if (typeof FIRDS === "undefined" || typeof IDENTITE === "undefined" || !IDENTITE.notifFR) return false;
+  if (!_notifFR) _notifFR = new Set(IDENTITE.notifFR);
+  return e.isins.some(i => { const f = FIRDS.fonds[i]; return !!(f && f[0] && _notifFR.has(f[0])); });
+}
+
 // Fonds étrangers seulement : les fonds français ont déjà la fiche complète de l'AMF
 function identiteEsma(e, isin) {
   if (typeof FIRDS === "undefined" || e.source === "G") return { lignes: [], devise: "", source: "" };
@@ -226,9 +234,29 @@ function identiteEsma(e, isin) {
     lignes.push([terme("part", "Autres parts cotées"), autres.slice(0, 8).map(i => `<a href="#${esc(i)}">${esc(i)}</a>`).join(", ")
       + (autres.length > 8 ? ` et ${autres.length - 8} autres` : ""), true]);
   }
+  const notifie = (e.source === "E" || e.source === "U") && notifieFrance(e);
+  if (notifie) lignes.push([terme("commercialisation", "Commercialisation en France"), "notifié (registre européen de l'ESMA)"]);
   const reg = identiteRegistres(e, f && f[0], isin);
   return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
-    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source };
+    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source
+      + (notifie ? source({ document: "ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source)", date: IDENTITE.esma }) : "") };
+}
+
+// ---------- Agrément de la société de gestion (data/societes.js, liste AMF) ----------
+
+// [n° AMF, début d'autorisation, site internet, statut] de la société, ou null (données absentes, nom vide ou inconnu)
+function societeAmf(nom) {
+  if (typeof SOCIETES === "undefined") return null;
+  return SOCIETES.societes[cleSociete(nom)] || null;
+}
+
+function ligneAgrement(e) {
+  const s = societeAmf(e.gestionnaire);
+  if (!s || s[3] !== "Vivant") return null;   // statut autre : l'alerte de detecterPiegesAuto porte seule l'information
+  const [no, debut, site] = s;
+  const url = esc(/^https?:\/\//.test(site) ? site : "https://" + site);
+  return [terme("societe_gestion", "Agréée par l'AMF"),
+    `n° ${esc(no)}, depuis le ${dateFr(debut)}${site ? ` · <a href="${url}" target="_blank" rel="noopener">site de la société</a>` : ""}`];
 }
 
 // ---------- Registres publics BCE et GLEIF (data/identite.js), reliés au fonds par son LEI ----------
@@ -307,8 +335,14 @@ function detecterPiegesAuto(e, d) {
   // Où le fonds peut être vendu
   if (horsEee(e)) p.push({ niveau: "alerte", terme: "dic", titre: `Fonds de droit non européen (${PAYS[e.pays] || e.pays})`,
     texte: "Ce fonds n'a pas de DIC européen : les banques et courtiers ne peuvent en général pas le proposer aux particuliers en France, et il n'offre pas les protections des fonds européens (règles UCITS). Cherche plutôt un ETF ou un fonds européen qui suit le même indice." });
+  else if (e.source === "U" && notifieFrance(e)) p.push({ niveau: "info", terme: "commercialisation", titre: "Notifié pour la commercialisation en France (registre européen)",
+    texte: "D'après le registre européen de l'ESMA, ce fonds est déclaré pour être proposé en France, mais nous ne l'avons pas trouvé dans la base GECO de l'AMF sous cet ISIN. Vérifie auprès de ton intermédiaire qu'il le propose et que son DIC existe en français." });
   else if (e.source === "U") p.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds absent de la liste des fonds vendus en France",
     texte: "Ce fonds est coté sur une bourse européenne, mais nous ne l'avons pas trouvé parmi les fonds étrangers déclarés à l'AMF (base GECO) : il n'est peut-être pas proposé en France. Ton intermédiaire peut refuser l'ordre, et ses documents sont souvent en anglais ou en allemand seulement." });
+
+  const agrement = societeAmf(e.gestionnaire);
+  if (agrement && agrement[3] !== "Vivant") p.push({ niveau: "attention", terme: "societe_gestion", titre: `Agrément de la société de gestion : ${agrement[3]}`,
+    texte: "La liste des sociétés de gestion agréées publiée par l'AMF indique ce statut pour la société qui gère ce fonds. Renseigne-toi auprès de ton intermédiaire avant d'investir." });
 
   if (e.source !== "G" && RESERVE_AVERTIS.test(e.nom)) p.push({ niveau: "attention", terme: "opcvm", titre: "Fonds réservé aux investisseurs avertis",
     texte: "D'après son nom, c'est un fonds spécialisé (SIF ou RAIF luxembourgeois, ou fonds « spécial » allemand) : il est réservé aux investisseurs professionnels ou avertis, avec en général un montant minimum élevé (au moins 125 000 € pour un SIF luxembourgeois)." });
@@ -593,6 +627,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const srcGeco = { document: "AMF – base GECO (en direct)", date: aujourdHui };
   const srcAnnuaire = { document: e.source === "E" ? "ESMA (registre FIRDS), liste Xetra et OpenFIGI" : e.source === "U" ? "ESMA (registre FIRDS) et GLEIF (registre des LEI)" : "AMF – base GECO", date: ANNUAIRE_DATE };
   const esma = identiteEsma(e, isin);
+  const agrement = ligneAgrement(e);
   const srcDic = dic ? { document: `DIC « ${dic.document.docName} »${dic.autrePart ? ` (part ${dic.autrePart})` : ""}`, date: dic.document.dateEffet } : null;
 
   // Types
@@ -631,6 +666,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       e.tickers.length && [terme("ticker", "Ticker(s)"), esc(e.tickers.slice(0, 6).join(", "))],
       e.marches && ["Cotation", esc(e.marches)],
       e.gestionnaire && [terme("societe_gestion", "Société de gestion"), esc(e.gestionnaire)],
+      agrement,
       [terme("domicile", "Domiciliation"), esc(PAYS[e.pays] || e.pays || "n.d.")],
       [`Devise${part ? " de la part" : ""}`, esc((part && part.parRefDevCode) || e.devise || esma.devise || "n.d.")],
       e.nature && ["Forme juridique", esc(e.nature)],
@@ -642,7 +678,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       ...esma.lignes
     ])}
     ${e.source === "G" ? `<p class="aide"><a href="${LIENS.geco(e)}" target="_blank" rel="noopener">Voir la fiche officielle sur GECO (AMF)</a></p>` : ""}
-    ${source(srcAnnuaire)}${esma.source}
+    ${source(srcAnnuaire)}${esma.source}${agrement ? source({ document: "AMF – liste des sociétés de gestion de portefeuille agréées, data.gouv.fr (Licence Ouverte 2.0)", date: SOCIETES.publication }) : ""}
   </section>`;
 
   // ----- 2 et 3. Composition calculée par nos deux moteurs (voir composition.js) -----

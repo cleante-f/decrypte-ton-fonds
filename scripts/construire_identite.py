@@ -9,18 +9,23 @@ Sources (publiques, gratuites et réutilisables) :
      un compartiment, fonds maître d'un fonds nourricier, date de création de l'entité.
   3. ESMA – registre FITRS des calculs de transparence MiFID (réutilisation autorisée en citant la source) :
      montant moyen échangé chaque jour en bourse dans l'Union européenne et caractère « liquide ».
+  4. ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) :
+     OPCVM actifs notifiés pour la France.
+  5. AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr, Licence Ouverte 2.0) → data/societes.js
 Le lien se fait par le LEI de chaque part, lu dans data/firds.js (scripts/construire_annuaire.py).
 
 Lancement (depuis le dossier analyse-fonds, après construire_annuaire.py) :
     python3 scripts/construire_identite.py
-Compter 3 à 5 minutes (deux gros fichiers : BCE ~70 Mo, GLEIF ~25 Mo). Uniquement la bibliothèque standard de Python.
+Compter environ 10 minutes (deux gros fichiers : BCE ~70 Mo, GLEIF ~25 Mo). Uniquement la bibliothèque standard de Python.
 À relancer une fois par mois (tâche .github/workflows/identite.yml).
 """
 import csv
 import io
 import json
 import re
+import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -31,11 +36,14 @@ from pathlib import Path
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 SORTIE = DATA / "identite.js"
+SORTIE_SOCIETES = DATA / "societes.js"
 ENTETES = {"User-Agent": "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)"}
 BCE_PAGE = "https://www.ecb.europa.eu/stats/financial_corporations/list_of_financial_institutions/html/index.en.html"
 GLEIF_COPIES = "https://leidata-preview.gleif.org/api/v2/golden-copies/publishes/latest"
 GLEIF_API = "https://api.gleif.org/api/v1/lei-records"
 FITRS = "https://registers.esma.europa.eu/solr/esma_registers_fitrs_equities/select"
+ESMA_CBDIF = "https://registers.esma.europa.eu/solr/esma_registers_funds_cbdif/select"
+SGP_FICHE = "https://www.data.gouv.fr/api/1/datasets/liste-des-societes-de-gestion-de-portefeuille-sgp-agreees-par-lamf/"
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
 # Codes courts (le site les traduit en français : js/fiche-auto.js)
@@ -92,6 +100,16 @@ def joli(nom):
     # chaque partie d'un mot composé à part : « SICAV-SIF » reste en capitales, « NON-FINANCIAL » → « Non-Financial »
     mots = ["-".join(partie(x) for x in m.split("-")) for m in nom.split()]
     return re.sub(r" (PLC|Public Limited Company)$", " plc", " ".join(mots))
+
+
+def cle_societe(nom):
+    """Clé commune de normalisation des noms de sociétés de gestion : accents retirés, majuscules, [A-Z0-9] uniquement.
+    « Société Générale » → « SOCIETEGENERALE », None → « »."""
+    s = unicodedata.normalize("NFD", nom or "")
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    s = s.upper()
+    s = re.sub(r"[^A-Z0-9]", "", s)
+    return s
 
 
 # ---------- 1. BCE : liste des fonds d'investissement ----------
@@ -207,6 +225,99 @@ def liquidite(isins):
     return res
 
 
+# ---------- 4. ESMA : commercialisation transfrontière (OPCVM actifs notifiés pour la France) ----------
+# Valeurs vues dans le registre le 07/10/2026 : cadre UCITS, AIF, EuVECA, ELTIF, EuSEF ; statut ACTV ou INAC.
+OPCVM, ACTIF = "UCITS", "ACTV"
+
+
+def notifies_france(docs):
+    """LEI des OPCVM actifs notifiés pour la France (documents du registre ESMA) : « FR » parmi les pays d'accueil,
+    cadre juridique OPCVM (UCITS) et statut actif. Un FIA notifié n'est commercialisable en France qu'auprès
+    d'investisseurs professionnels : il n'est pas retenu."""
+    return {d["funds_lei"] for d in docs if d.get("funds_lei") and "FR" in (d.get("funds_host_country_codes") or [])
+            and d.get("funds_legal_framework_name") == OPCVM and d.get("funds_status_code") == ACTIF}
+
+
+def commercialisation(leis):
+    """LEI des OPCVM actifs notifiés pour la commercialisation en France, parmi les LEI donnés (100 par requête).
+    Un LEI absent du registre, sans « FR », qui n'est pas un OPCVM ou qui n'est plus actif n'est pas retenu."""
+    res, liste = set(), sorted(leis)
+    for i in range(0, len(liste), 100):
+        lot = liste[i:i + 100]
+        params = urllib.parse.urlencode({
+            "q": f"funds_lei:({' OR '.join(lot)})", "wt": "json", "rows": 1000,
+            "fl": "funds_lei,funds_host_country_codes,funds_legal_framework_name,funds_status_code"})
+        res |= notifies_france(json.loads(telecharger(f"{ESMA_CBDIF}?{params}"))["response"]["docs"])
+        time.sleep(0.5)
+        if i // 100 % 20 == 19:
+            print(f"  ESMA : {i + 100}/{len(liste)}")
+    return res
+
+
+# ---------- 5. AMF : sociétés de gestion de portefeuille agréées ----------
+def site_propre(texte):
+    """Adresse de site internet saisie par l'AMF, ou « » si ce n'en est pas une (« NA », e-mail, « Under%20construction »…).
+    Le « _ » est refusé dans le nom de domaine : le lien serait cassé (« www.access_capital_partners.com »)."""
+    texte = (texte or "").strip()
+    return texte if re.match(r"^(https?://)?[A-Za-z0-9.-]+\.[A-Za-z]{2,}(/\S*)?$", texte) else ""
+
+
+def lire_sgp(texte):
+    """Lit le CSV de l'AMF (texte déjà décodé). Renvoie ({clé du nom: [n° AMF, début d'autorisation, site, statut]}, date de publication).
+    Une entrée par n° AMF (première ligne gardée) ; si deux n° AMF ont le même nom normalisé, celui qui est « Vivant » l'emporte."""
+    lecteur = csv.DictReader(io.StringIO(texte), delimiter=";")
+    if "no_amf" not in (lecteur.fieldnames or []):
+        raise ValueError("format du fichier AMF inattendu : colonne no_amf absente")
+    vus, societes, publication = set(), {}, ""
+    for l in lecteur:
+        publication = max(publication, l.get("date_de_publication") or "")
+        no = l["no_amf"]
+        cle = cle_societe(l.get("entite_nom"))
+        if no in vus or not cle:
+            continue
+        vus.add(no)
+        site = site_propre(l.get("site_internet"))
+        # Règle du projet : « Données de HSBC Asset Management : interdites sans un accord écrit de leur part » (même un lien)
+        if "hsbc" in re.sub(r"^https?://", "", site).split("/")[0].lower():
+            site = ""
+        fiche = [no, l.get("date_debut_autorisation") or "", site, l.get("statut") or ""]
+        if cle not in societes or (societes[cle][3] != "Vivant" and fiche[3] == "Vivant"):
+            societes[cle] = fiche
+    return societes, publication
+
+
+def societes_amf():
+    """Liste des sociétés de gestion agréées publiée sur data.gouv.fr → (sociétés, date de publication)."""
+    fiche = json.loads(telecharger(SGP_FICHE))
+    url = next((r["url"] for r in fiche["resources"] if r.get("format") == "csv"), None)
+    if not url:
+        raise ValueError("aucune ressource CSV dans la fiche data.gouv.fr")
+    return lire_sgp(telecharger(url).decode("utf-8-sig"))
+
+
+def ecrire_societes(societes, publication, fichier=SORTIE_SOCIETES):
+    contenu = {"maj": date.today().isoformat(), "publication": publication, "societes": societes}
+    fichier.write_text(
+        "/* Généré par scripts/construire_identite.py — ne pas modifier à la main.\n"
+        " * Source : AMF – liste des sociétés de gestion de portefeuille agréées, data.gouv.fr (Licence Ouverte 2.0).\n"
+        " * societes : clé du nom (cle_societe) → [n° AMF, début d'autorisation, site internet, statut] */\n"
+        "const SOCIETES = " + json.dumps(contenu, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + ";\n", encoding="utf-8")
+
+
+def mettre_a_jour_societes(fichier=SORTIE_SOCIETES):
+    """Réécrit la liste des sociétés agréées. Quoi qu'il arrive (panne de data.gouv.fr, fichier au format changé, liste trop courte…),
+    l'ancien fichier est gardé et l'erreur seulement signalée : une panne de l'AMF ne doit jamais empêcher d'écrire identite.js."""
+    try:
+        societes, publication = societes_amf()
+        if len(societes) < 300:
+            raise ValueError(f"seulement {len(societes)} sociétés")
+        ecrire_societes(societes, publication, fichier)
+        print(f"✓ {len(societes)} sociétés de gestion (publication AMF du {publication}) → {fichier.name} "
+              f"({fichier.stat().st_size / 1e3:.0f} Ko)")
+    except Exception as e:
+        print(f"! liste AMF non mise à jour ({e}) : ancien fichier gardé", file=sys.stderr)
+
+
 def main():
     annuaire = lire_js("annuaire.js", "ANNUAIRE")
     firds = lire_js("firds.js", "FIRDS")
@@ -215,14 +326,16 @@ def main():
     leis = set(lei_de.values())
     print(f"{len(isins)} parts de fonds étrangers, {len(leis)} LEI distincts")
 
-    print("1/3 BCE – liste des fonds d'investissement…")
+    print("1/5 BCE – liste des fonds d'investissement…")
     bce = liste_bce()
-    print("2/3 GLEIF – fonds parapluies, fonds maîtres, dates de création…")
+    print("2/5 GLEIF – fonds parapluies, fonds maîtres, dates de création…")
     liens, date_gleif, _ = liens_gleif(leis)
     autres = {x for l in liens.values() for x in l.values()}
     fiches = fiches_gleif(leis | autres)
-    print("3/3 ESMA FITRS – montants échangés en bourse…")
+    print("3/5 ESMA FITRS – montants échangés en bourse…")
     liq = liquidite(isins)
+    print("4/5 ESMA – commercialisation transfrontière des fonds…")
+    notif = commercialisation(leis)
 
     # Table des noms (sociétés de gestion, parapluies, maîtres) pour alléger le fichier
     noms, index_noms = [], {}
@@ -252,18 +365,24 @@ def main():
     annee_fitrs = max(set(annees), key=annees.count) if annees else 0
     liq = {i: v if v[2] != annee_fitrs else v[:2] for i, v in liq.items()}
     contenu = {"maj": date.today().isoformat(), "bce": dates_bce[-1] if dates_bce else "", "gleif": date_gleif, "fitrs": annee_fitrs,
-               "noms": noms, "fonds": fonds, "liquidite": {i: v for i, v in sorted(liq.items())}}
+               "esma": date.today().isoformat(), "noms": noms, "fonds": fonds, "liquidite": {i: v for i, v in sorted(liq.items())},
+               "notifFR": sorted(notif)}
     SORTIE.write_text(
         "/* Généré par scripts/construire_identite.py — ne pas modifier à la main.\n"
         " * Sources : BCE (liste des fonds d'investissement), GLEIF (licence CC0), ESMA (registre FITRS).\n"
         " * fonds : LEI → [société de gestion, fonds parapluie, fonds maître (index dans noms) : voir l'ordre ci-dessous]\n"
         " *   [gestion, parapluie, politique (A actions, O obligations, M mixte, I immobilier, C crédit, H alternatif,\n"
         " *    N infrastructures, P matières premières, X autre), ETF (1/0), UCITS (1/0), tranche d'encours (1 à 8), création, maître]\n"
-        " * liquidite : ISIN → [montant moyen échangé par jour en bourse dans l'UE (M€), liquide (1/0), année du calcul si ≠ fitrs] */\n"
+        " * liquidite : ISIN → [montant moyen échangé par jour en bourse dans l'UE (M€), liquide (1/0), année du calcul si ≠ fitrs]\n"
+        " * notifFR : LEI des OPCVM actifs notifiés pour la commercialisation en France (ESMA, registre de la commercialisation\n"
+        " *   transfrontière) ; esma : date du relevé */\n"
         "const IDENTITE = " + json.dumps(contenu, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
     print(f"\n✓ {len(fonds)} fonds (BCE : {sum(1 for x in leis if x in bce)}, parapluie GLEIF : "
           f"{sum(1 for x in leis if 'parapluie' in liens.get(x, {}))}, nourriciers : {sum(1 for x in leis if 'maitre' in liens.get(x, {}))}), "
-          f"liquidité de {len(liq)} parts → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
+          f"liquidité de {len(liq)} parts, {len(notif)} OPCVM actifs notifiés pour la France (ESMA) → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
+
+    print("5/5 AMF – sociétés de gestion agréées…")
+    mettre_a_jour_societes()
 
 
 if __name__ == "__main__":

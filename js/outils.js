@@ -13,6 +13,54 @@ function normaliser(texte) {
   return String(texte || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 }
 
+// même règle que cle_societe dans scripts/construire_identite.py
+function cleSociete(nom) {
+  return String(nom || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+// Valeur d'un placement rémunéré au taux d'une série BCE (texte CSV de l'API), base 100 au départ.
+// Chaque période applique le taux de la période précédente jusqu'à la date courante.
+//  - série mensuelle (AAAA-MM, ex. livrets) : un point par jour (à minuit) entre deux mois publiés, chaque jour
+//    multipliant la valeur par (1 + taux du mois)^(1/365) ; le 1er de chaque mois garde donc la valeur du taux annuel
+//    composé sur le nombre exact de jours, base 365. Un point par jour : le graphique peut couper la série à n'importe
+//    quelle date (« Cette année » part du 31 décembre, pas du 1er décembre) ;
+//  - série quotidienne (AAAA-MM-JJ, ex. €STR) : intérêts simples, base 360.
+// `jusqua` (Date, facultatif) : pour une série mensuelle, ajoute un point par jour (à minuit) jusqu'à cette date incluse,
+// en appliquant le dernier taux publié : il couvre les mois pas encore publiés. Sans effet sur une série quotidienne.
+// Renvoie { dates: Date[], valeurs: number[] } ; les lignes sans valeur sont ignorées.
+function serieDepuisCsvBce(texte, jusqua) {
+  const lignes = texte.trim().split(/\r?\n/);
+  const entete = lignes[0].split(",");
+  const iD = entete.indexOf("TIME_PERIOD"), iV = entete.indexOf("OBS_VALUE");
+  const dates = [], valeurs = [];
+  let niveau = 100, precedent = null;
+  // Un point par jour après `depuis`, jusqu'à `fin` incluse, au taux annuel `taux` (base 365).
+  // setDate : on avance de jour calendaire en jour calendaire (pas de 24 h), donc toujours à minuit malgré le changement d'heure
+  const jourParJour = (depuis, fin, taux) => {
+    const parJour = (1 + taux / 100) ** (1 / 365);
+    for (const j = new Date(depuis.getFullYear(), depuis.getMonth(), depuis.getDate() + 1); j <= fin; j.setDate(j.getDate() + 1)) {
+      niveau *= parJour;
+      dates.push(new Date(j)); valeurs.push(niveau);
+    }
+  };
+  for (const l of lignes.slice(1)) {
+    const c = l.split(","), periode = c[iD], taux = parseFloat(c[iV]);
+    if (isNaN(taux)) continue;
+    const mensuelle = /^\d{4}-\d{2}$/.test(periode);
+    const d = mensuelle ? new Date(+periode.slice(0, 4), +periode.slice(5, 7) - 1, 1) : new Date(periode + "T00:00:00");
+    if (mensuelle && precedent) jourParJour(precedent.d, d, precedent.taux);   // le dernier point ajouté est le 1er du mois `d`
+    else {
+      if (precedent) niveau *= 1 + precedent.taux / 100 * ((d - precedent.d) / 864e5) / 360;
+      dates.push(d); valeurs.push(niveau);
+    }
+    precedent = { d, taux, mensuelle };
+  }
+  if (jusqua && precedent && precedent.mensuelle) {
+    jourParJour(precedent.d, new Date(jusqua.getFullYear(), jusqua.getMonth(), jusqua.getDate()), precedent.taux);
+  }
+  return { dates, valeurs };
+}
+
 function pct(valeur, decimales = 1) {
   if (valeur === null || valeur === undefined) return "n.d.";
   return valeur.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales }) + " %";

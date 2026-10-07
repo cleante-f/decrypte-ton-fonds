@@ -73,7 +73,7 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
 
 `scripts/actualiser_contexte.py`, lancé chaque matin par GitHub Actions (`.github/workflows/contexte.yml`), écrit :
 - `data/contexte.js` : indicateurs de la BCE (taux, inflation, anticipations, chômage, croissance, dette, change,
-  stress financier), de la Fed de New York, du Trésor américain et du BLS, prévisions du FMI (World Economic Outlook)
+  stress financier, taux moyen des livrets en France), de la Fed de New York, du Trésor américain et du BLS, prévisions du FMI (World Economic Outlook)
   et titres d'actualité classés par thème (Le Monde, Franceinfo, France 24, RFI, Le Figaro, BBC, New York Times,
   The Guardian, BCE, Fed, Commission européenne) ;
 - `data/references.js` : séries des fonds de référence, pour que chaque visiteur n'ait pas à les télécharger.
@@ -118,10 +118,10 @@ n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jou
 
 | Type de fonds | Nombre | Source | Données disponibles |
 |---|---|---|---|
-| Fonds de droit français (FCP, SICAV, FCPE, FCPI…) | ≈ 11 400 | AMF – base GECO | Identité, parts, encours, historique sur 10 ans (volatilité, perte maximale, performance), documents officiels, **DIC lu automatiquement** (SRI, frais, durée, objectif…) et **composition calculée** (voir ci-dessous) |
-| ETF étrangers cotés en Europe | ≈ 7 900 (dont ≈ 2 400 américains, signalés comme inaccessibles aux particuliers) | ESMA (registres FIRDS et FITRS) + Xetra, OpenFIGI, BCE, GLEIF, cours Deutsche Börse | Identité officielle (LEI, devise, places de cotation dans l'UE, société de gestion, compartiment, type, tranche d'encours), tickers, cours de clôture relevé chaque jour (Xetra), montant échangé en bourse, et composition estimée via un fonds français « jumeau » qui suit le même indice |
+| Fonds de droit français (FCP, SICAV, FCPE, FCPI…) | ≈ 11 400 | AMF – base GECO | Identité, parts, encours, historique sur 10 ans (volatilité, perte maximale, performance), documents officiels, **DIC lu automatiquement** (SRI, frais, durée, objectif…) et **composition calculée** (voir ci-dessous), **agrément de la société de gestion** (liste AMF, data.gouv.fr) |
+| ETF étrangers cotés en Europe | ≈ 7 900 (dont ≈ 2 400 américains, signalés comme inaccessibles aux particuliers) | ESMA (registres FIRDS et FITRS) + Xetra, OpenFIGI, BCE, GLEIF, cours Deutsche Börse | Identité officielle (LEI, devise, places de cotation dans l'UE, société de gestion, compartiment, type, tranche d'encours), tickers, cours de clôture relevé chaque jour (Xetra), montant échangé en bourse, **notification pour la France** (registre ESMA), et composition estimée via un fonds français « jumeau » qui suit le même indice |
 | Fonds étrangers commercialisés en France | ≈ 8 500 | AMF – base GECO, + ESMA (FIRDS), BCE, GLEIF, cours Deutsche Börse | Identité ; pour ceux qui sont cotés dans l'UE, ISIN retrouvés par leur LEI ou par le nom (noms des bourses dans FIRDS ou nom officiel GLEIF : correspondance prudente, signalée « à vérifier dans le DIC »), et cours relevé chaque jour à la Bourse de Francfort quand il existe |
-| Autres fonds cotés en Europe, absents de la liste de l'AMF | ≈ 2 700 | ESMA (FIRDS), GLEIF, BCE, cours Deutsche Börse | Identité (nom officiel GLEIF, parts regroupées par compartiment grâce au LEI), cours quand il existe ; alerte « peut-être pas proposé en France », et alerte plus forte pour les fonds de droit non européen (sans DIC européen) |
+| Autres fonds cotés en Europe, absents de la liste de l'AMF | ≈ 2 700 | ESMA (FIRDS), GLEIF, BCE, cours Deutsche Börse | Identité (nom officiel GLEIF, parts regroupées par compartiment grâce au LEI), **notification pour la France** (registre ESMA), cours quand il existe ; alerte « peut-être pas proposé en France », et alerte plus forte pour les fonds de droit non européen (sans DIC européen) |
 
 ## Comment on calcule « Où est investi l'argent ? » (méthode maison)
 
@@ -177,8 +177,12 @@ Une mise à jour par mois suffit. Ensuite :
 python3 scripts/construire_identite.py
 ```
 
-régénère `data/identite.js` (3 minutes) : société de gestion, type de fonds et tranche d'encours (liste des fonds de la BCE),
-fonds parapluie et fonds maître (GLEIF), montant moyen échangé en bourse (ESMA FITRS). La tâche `identite.yml` le relance le 20 de chaque mois.
+régénère `data/identite.js` et `data/societes.js` (environ 10 minutes). `identite.js` : société de gestion, type de fonds et tranche
+d'encours (liste des fonds de la BCE), fonds parapluie et fonds maître (GLEIF), montant moyen échangé en bourse (ESMA FITRS) et
+notification pour la France (registre de la commercialisation transfrontière des OPCVM et FIA de l'ESMA : 2 048 OPCVM (UCITS) actifs
+notifiés au 07/10/2026, dont 308 fonds hors liste de l'AMF et 612 ETF). `societes.js` : la liste des sociétés de gestion de portefeuille agréées
+par l'AMF (data.gouv.fr, Licence Ouverte 2.0 : 667 sociétés, environ 96 % des fonds français rattachés à leur agrément).
+La tâche `identite.yml` les relance le 20 de chaque mois.
 
 Pour finir, `python3 scripts/tests_annuaire.py` (quelques secondes, sans réseau) vérifie qu'aucun ISIN de fonds français
 n'a été rattaché par erreur à un autre fonds.
@@ -203,6 +207,16 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
   les cours différés de gettex et de la Bourse de Stuttgart (usage privé seulement), Swiss Fund Data (accord écrit requis),
   les offres gratuites de Twelve Data, Marketstack, EODHD et Finnhub (affichage public interdit).
   Demandes d'autorisation préparées pour Euronext, Alpha Vantage et HSBC AM (brouillons à envoyer par les éditeurs).
+
+## Sources officielles réutilisées en citant la source (décisions du 06/10/2026)
+
+| Source | Usage sur le site | Condition | Décision |
+|---|---|---|---|
+| ESMA – registre de la commercialisation transfrontière des OPCVM et FIA | OPCVM (UCITS) actifs notifiés pour la France seulement (un FIA notifié ne peut être proposé qu'aux investisseurs professionnels) : ligne « Commercialisation en France » sur la fiche des ETF et des fonds étrangers absents de la liste de l'AMF ; pour ces derniers, l'information « Notifié… » (section 5) remplace l'alerte « absent de la liste ». Affirmation positive seulement : un fonds absent du registre n'est pas déclaré « non commercialisé » | Reproduction autorisée en citant la source (comme FIRDS et FITRS) | Retenue |
+| AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr) | « Agréée par l'AMF : n° …, depuis le … » et lien vers le site de la société, sur la fiche des fonds français dont la société est dans la liste (`data/societes.js`) | Licence Ouverte 2.0 : citer la source et la date de publication | Retenue |
+| BCE – taux moyen des livrets d'épargne en France (statistique compilée par la Banque de France) | Indicateur `livrets_fr` (Contexte & risques), repère « livret au taux moyen actuel » dans le simulateur, référence « Livrets d'épargne » dans Performances (le dernier taux publié est prolongé jour par jour jusqu'à la dernière valeur du fonds) | Réutilisation libre en citant la BCE | Retenue |
+| Webstat (Banque de France) | Aucun | Valeurs accessibles seulement avec un compte développeur et une clé (vérifié le 06/10/2026) | Écartée : la même statistique est diffusée sans clé par la BCE |
+| Eurostat | Aucun | — | Écartée : l'inflation est déjà lue à la BCE (même indice) |
 
 ## Données personnelles (RGPD)
 
@@ -250,6 +264,8 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `js/infobulles.js` | Infobulles des termes techniques (toutes les pages) |
 | `js/createur.js` | Bouton « Créateur » et son animation |
 | `data/resume.js` | Chiffres de l'annuaire affichés sur l'accueil (générés par le script) |
+| `data/societes.js` | Sociétés de gestion agréées par l'AMF : n° d'agrément, début d'autorisation, site (générée par `scripts/construire_identite.py`) |
+| `tests/` | Tests des sources officielles : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `sources-officielles.test.mjs` (`node --test tests/sources-officielles.test.mjs`) et de vrais extraits dans `tests/donnees/` |
 
 ## Feuille de route
 
