@@ -6,7 +6,11 @@
  * Le cookie « dtf_session » contient le jeton d'accès Supabase ; c'est Supabase qui vérifie sa signature en exécutant
  * droit_acces() avec ce jeton (un jeton faux, expiré ou révoqué est refusé). Décision gardée 60 s par jeton.
  * Adresse et clé publique de Supabase : variables de Cloudflare si elles existent, sinon celles de js/config-compte.js.
+ * Ce contrôle ne vaut qu'en mode « comptes » (aperçu « comptes » de Cloudflare, localhost) : sur toute autre adresse
+ * (adresse principale de Cloudflare, adresses inconnues), le simulateur est libre et tout passe (règle : js/mode-site.js).
  */
+import "../js/mode-site.js";   // pose globalThis.modeSite (la même règle que dans les pages)
+
 export const CHEMINS_PROTEGES = ["/simulateur", "/simulateur.html", "/js/simulateur.js", "/js/projection.js", "/js/graphiques-simu.js",
   "/js/contexte-fonds.js", "/data/contexte.js"];
 const PROTEGES = new Set(CHEMINS_PROTEGES.map(c => c.toLowerCase()));
@@ -66,6 +70,7 @@ const vers = (url, chemin) => new Response(null, { status: 302, headers: { Locat
 
 export async function controlerAcces(requete, env, suivant, { fetchImpl = fetch, cache = null } = {}) {
   const url = new URL(requete.url);
+  if (globalThis.modeSite(url.hostname) !== "comptes") return suivant();   // mode gratuit : simulateur libre
   const chemin = cheminCanonique(url.pathname);
   if (chemin === null) return texte("Adresse invalide.", 400);
   if (!PROTEGES.has(chemin)) return suivant();

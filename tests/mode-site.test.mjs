@@ -12,7 +12,8 @@ function charger(fichiers, globales = {}) {
 
 test("modeSite : comptes seulement sur la liste", () => {
   const { modeSite } = charger(["js/mode-site.js"]);
-  for (const h of ["comptes.decrypte-ton-fonds.pages.dev", "localhost", "COMPTES.Decrypte-Ton-Fonds.pages.dev"]) assert.equal(modeSite(h), "comptes", h);
+  for (const h of ["comptes.decrypte-ton-fonds.pages.dev", "localhost", "COMPTES.Decrypte-Ton-Fonds.pages.dev",
+    "comptes.decrypte-ton-fonds.pages.dev.", "localhost.", " localhost "]) assert.equal(modeSite(h), "comptes", h);
   for (const h of ["cleante-f.github.io", "decrypte-ton-fonds.pages.dev", "2d427da0.decrypte-ton-fonds.pages.dev", "127.0.0.1", "exemple.org", "", undefined])
     assert.equal(modeSite(h), "gratuit", String(h));
 });

@@ -26,8 +26,11 @@
   }
 
   // "comptes" seulement si l'adresse est dans HOTES_COMPTES ; "gratuit" pour tout le reste (y compris vide ou absente).
+  // Les espaces autour et UN point final (nom de domaine absolu : « comptes.decrypte-ton-fonds.pages.dev. ») sont retirés
+  // avant la comparaison : sinon une requête écrite avec le point final sauterait le contrôle d'accès de Cloudflare.
   function modeSite(hote) {
-    return HOTES_COMPTES.includes(enMinuscules(hote)) ? "comptes" : "gratuit";
+    const nom = enMinuscules(hote).trim().replace(/\.$/, "");
+    return HOTES_COMPTES.includes(nom) ? "comptes" : "gratuit";
   }
 
   // "github" pour *.github.io, "cloudflare" pour tout le reste (pages.dev, localhost…).
