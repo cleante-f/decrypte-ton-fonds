@@ -5,7 +5,8 @@
  *
  * Pour passer un nouveau domaine en mode comptes (par exemple le vrai domaine au lancement payant), il faut
  * l'ajouter à HOTES_COMPTES : c'est la seule liste des adresses en mode comptes. Au lancement payant, il faut aussi ajouter
- * l'adresse dans ORIGINES de .github/workflows/supabase.yml (adresses autorisées à appeler les fonctions Supabase).
+ * l'adresse EN PREMIÈRE position de ORIGINES dans .github/workflows/supabase.yml (adresses autorisées à appeler les fonctions
+ * Supabase ; la première sert de lien vers le site dans les e-mails).
  *
  * Ce fichier est chargé en premier dans le <head> de chaque page (script classique, avant tout autre script),
  * et importé par serveur/acces.js (contrôle d'accès de Cloudflare), qui y lit la même règle. Pas d'export/import ici :

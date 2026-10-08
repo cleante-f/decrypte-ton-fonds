@@ -84,8 +84,8 @@ sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Un élément s
 - Une adresse oubliée dans la liste reste en mode gratuit : sans danger, puisqu'aucune fonction de compte n'y est active.
 
 **Au lancement payant** : ajouter le nouveau domaine à `HOTES_COMPTES` (la seule liste des adresses en mode comptes), ajouter aussi son adresse
-dans `ORIGINES` de `.github/workflows/supabase.yml` (adresses autorisées à appeler les fonctions Supabase ; la première sert de lien vers le site
-dans les e-mails), puis compléter les valeurs `[[…]]`
+EN PREMIÈRE position de `ORIGINES` dans `.github/workflows/supabase.yml` (adresses autorisées à appeler les fonctions Supabase ; la première sert
+de lien vers le site dans les e-mails, elle doit donc être en mode comptes), puis compléter les valeurs `[[…]]`
 des textes légaux (`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`). Ces valeurs ne doivent apparaître que
 dans les pages de compte, dans `js/config-compte.js` et dans les éléments `data-seulement="comptes"` : le contrôle avant publication
 (`/publier-site`, hors du dépôt) refuse les autres.
