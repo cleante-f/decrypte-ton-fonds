@@ -25,28 +25,35 @@
   </header>
 
   <main class="page-compte">
-    <h1>Mon compte</h1>
-    <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
-    <section class="carte" id="bloc-acces"><p class="chargement">Chargement…</p></section>
-    <section class="carte" id="simulations">
-      <h2>Mes simulations</h2>
-      <ul class="liste-simulations" id="liste-simulations"><li class="chargement">Chargement…</li></ul>
-    </section>
-    <section class="carte">
-      <h2>Mes informations</h2>
-      <form id="form-email" class="formulaire-compte formulaire-ligne">
-        <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
-        <button type="submit" class="btn btn-secondaire">Changer d'adresse</button>
-      </form>
-      <form id="form-mdp" class="formulaire-compte formulaire-ligne">
-        <label>Nouveau mot de passe <input type="password" name="mdp" autocomplete="new-password" minlength="10" required></label>
-        <button type="submit" class="btn btn-secondaire">Changer le mot de passe</button>
-      </form>
-      <p class="actions-compte">
-        <button type="button" class="btn btn-secondaire" id="exporter">Télécharger mes données</button>
-        <button type="button" class="btn btn-secondaire" id="deconnecter">Me déconnecter</button>
-        <button type="button" class="btn-danger" id="supprimer">Supprimer mon compte</button>
-      </p>
+    <div data-seulement="comptes">
+      <h1>Mon compte</h1>
+      <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
+      <section class="carte" id="bloc-acces"><p class="chargement">Chargement…</p></section>
+      <section class="carte" id="simulations">
+        <h2>Mes simulations</h2>
+        <ul class="liste-simulations" id="liste-simulations"><li class="chargement">Chargement…</li></ul>
+      </section>
+      <section class="carte">
+        <h2>Mes informations</h2>
+        <form id="form-email" class="formulaire-compte formulaire-ligne">
+          <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
+          <button type="submit" class="btn btn-secondaire">Changer d'adresse</button>
+        </form>
+        <form id="form-mdp" class="formulaire-compte formulaire-ligne">
+          <label>Nouveau mot de passe <input type="password" name="mdp" autocomplete="new-password" minlength="10" required></label>
+          <button type="submit" class="btn btn-secondaire">Changer le mot de passe</button>
+        </form>
+        <p class="actions-compte">
+          <button type="button" class="btn btn-secondaire" id="exporter">Télécharger mes données</button>
+          <button type="button" class="btn btn-secondaire" id="deconnecter">Me déconnecter</button>
+          <button type="button" class="btn-danger" id="supprimer">Supprimer mon compte</button>
+        </p>
+      </section>
+    </div>
+    <section class="carte" data-seulement="gratuit">
+      <h1>Page indisponible</h1>
+      <p>Cette page n'existe pas dans la version gratuite du site.</p>
+      <p><a href="index.html">Revenir à l'accueil</a></p>
     </section>
   </main>
 

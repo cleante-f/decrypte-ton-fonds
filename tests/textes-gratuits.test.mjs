@@ -112,3 +112,45 @@ test("date de mise à jour : 7 octobre 2026, commune aux deux modes", () => {
   for (const nom of ["confidentialite", "mentions-legales"])
     assert.ok(texte(communATous(nom)).includes("Page mise à jour le 7 octobre 2026."), nom);
 });
+
+// ---- Pages de compte (connexion, compte, abonnement, cgv) : elles n'existent qu'en mode comptes ----
+// Sans JavaScript (robots, mode lecture, script bloqué), la page s'affiche en version gratuite : aucun formulaire
+// (un envoi sans « method » mettrait l'e-mail et le mot de passe dans l'adresse), aucune offre payante, aucune valeur « [[…]] ».
+const PAGES_COMPTE = ["connexion", "compte", "abonnement", "cgv"];
+const contenuMain = html => html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)[1];
+// Texte du <body>, sans les scripts (le <title> et les <meta> du <head> ne s'affichent pas dans la page)
+const texteVisible = html => texte(html.match(/<body[^>]*>([\s\S]*)<\/body>/)[1].replace(/<script\b[\s\S]*?<\/script>/g, " "));
+
+test("pages de compte : jamais indexées par les moteurs de recherche", () => {
+  for (const nom of PAGES_COMPTE) assert.match(lirePage(nom), /<meta name="robots" content="noindex">/, nom);
+});
+
+test("pages de compte en version gratuite (sans JavaScript) : « Page indisponible », ni formulaire, ni offre, ni valeur à compléter", () => {
+  for (const nom of PAGES_COMPTE) {
+    const html = enGratuit(nom);
+    assert.ok(!html.includes("<form"), `${nom} : formulaire visible en mode gratuit`);
+    assert.ok(!html.includes("[["), `${nom} : valeur [[…]] visible en mode gratuit`);
+    assert.ok(!texteVisible(html).toLowerCase().includes("abonnement"), `${nom} : « abonnement » visible en mode gratuit`);
+    assert.ok(texteVisible(html).includes("n'existe pas dans la version gratuite"), `${nom} : message de page indisponible absent`);
+    assert.equal(texte(contenuMain(html)).trim(),
+      "Page indisponible Cette page n'existe pas dans la version gratuite du site. Revenir à l'accueil", `${nom} : <main> en mode gratuit`);
+    assert.match(contenuMain(html), /<a href="index\.html">Revenir à l'accueil<\/a>/, `${nom} : lien vers l'accueil absent`);
+  }
+});
+
+test("pages de compte en mode comptes : tout le contenu de <main> dans un seul bloc réservé au mode comptes", () => {
+  for (const nom of PAGES_COMPTE) {
+    const main = contenuMain(enComptes(nom)).trim();
+    const blocs = trouverBlocs(main, "data-seulement", "comptes");
+    assert.equal(blocs.length, 1, `${nom} : un seul bloc data-seulement="comptes" attendu dans <main>`);
+    assert.equal(main, blocs[0], `${nom} : contenu de <main> hors du bloc réservé au mode comptes`);
+  }
+  const reperes = {
+    connexion: ['id="titre-compte"', 'id="message-compte"', 'id="form-inscription"', 'id="form-connexion"', 'id="form-oubli"', 'id="form-nouveau-mdp"'],
+    compte: ['id="message-compte"', 'id="bloc-acces"', 'id="liste-simulations"', 'id="form-email"', 'id="form-mdp"', 'id="exporter"', 'id="deconnecter"', 'id="supprimer"'],
+    abonnement: ['class="garanties"', 'id="offre"', 'id="message-compte"', "Que pourrait devenir ton investissement ?"],
+    cgv: ["Conditions générales de vente", "[[PRIX]]", "[[MEDIATEUR_SITE]]", "1. Objet et vendeur", "11. Droit applicable"]
+  };
+  for (const [nom, attendus] of Object.entries(reperes))
+    for (const attendu of attendus) assert.ok(contenuMain(enComptes(nom)).includes(attendu), `${nom} : « ${attendu} » absent en mode comptes`);
+});

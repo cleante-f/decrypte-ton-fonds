@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Abonnement au simulateur · Décrypte ton fonds</title>
   <meta name="description" content="Le simulateur de Décrypte ton fonds : 3 simulations offertes avec un compte gratuit, puis un abonnement résiliable à tout moment.">
+  <meta name="robots" content="noindex">
   <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -24,23 +25,30 @@
   </header>
 
   <main class="page-compte">
-    <p class="surtitre">Simulateur d'investissement</p>
-    <h1>Que pourrait devenir ton investissement ?</h1>
-    <p class="sous-titre">Projection sur plusieurs scénarios, frais et inflation compris, crises rejouées, objectif à atteindre,
-      comparaison de fonds et portefeuille. Un outil pédagogique : jamais une promesse, jamais un conseil.</p>
-    <ul class="liste-avantages">
-      <li>7 onglets : projection, objectif, contexte et risque, crises, comparaison, réduction du risque, portefeuille.</li>
-      <li>Tes simulations enregistrées dans ton compte, sur tous tes appareils.</li>
-      <li><strong>3 simulations offertes</strong> à la création du compte.</li>
-    </ul>
-    <ul class="garanties">
-      <li><span aria-hidden="true">✓</span> 3 simulations offertes, sans carte bancaire</li>
-      <li><span aria-hidden="true">✓</span> Résiliable à tout moment depuis « Mon compte »</li>
-      <li><span aria-hidden="true">✓</span> Paiement sécurisé par Stripe : tes données de carte ne passent jamais par ce site</li>
-      <li><span aria-hidden="true">✓</span> 14 jours pour te rétracter (<a href="cgv.html">voir les CGV</a>)</li>
-    </ul>
-    <section class="carte" id="offre"><p class="chargement">Chargement…</p></section>
-    <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
+    <div data-seulement="comptes">
+      <p class="surtitre">Simulateur d'investissement</p>
+      <h1>Que pourrait devenir ton investissement ?</h1>
+      <p class="sous-titre">Projection sur plusieurs scénarios, frais et inflation compris, crises rejouées, objectif à atteindre,
+        comparaison de fonds et portefeuille. Un outil pédagogique : jamais une promesse, jamais un conseil.</p>
+      <ul class="liste-avantages">
+        <li>7 onglets : projection, objectif, contexte et risque, crises, comparaison, réduction du risque, portefeuille.</li>
+        <li>Tes simulations enregistrées dans ton compte, sur tous tes appareils.</li>
+        <li><strong>3 simulations offertes</strong> à la création du compte.</li>
+      </ul>
+      <ul class="garanties">
+        <li><span aria-hidden="true">✓</span> 3 simulations offertes, sans carte bancaire</li>
+        <li><span aria-hidden="true">✓</span> Résiliable à tout moment depuis « Mon compte »</li>
+        <li><span aria-hidden="true">✓</span> Paiement sécurisé par Stripe : tes données de carte ne passent jamais par ce site</li>
+        <li><span aria-hidden="true">✓</span> 14 jours pour te rétracter (<a href="cgv.html">voir les CGV</a>)</li>
+      </ul>
+      <section class="carte" id="offre"><p class="chargement">Chargement…</p></section>
+      <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
+    </div>
+    <section class="carte" data-seulement="gratuit">
+      <h1>Page indisponible</h1>
+      <p>Cette page n'existe pas dans la version gratuite du site.</p>
+      <p><a href="index.html">Revenir à l'accueil</a></p>
+    </section>
   </main>
 
   <footer class="site-footer">
