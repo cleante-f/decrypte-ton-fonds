@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mentions légales · Décrypte ton fonds</title>
   <meta name="description" content="Qui édite et héberge le site Décrypte ton fonds, et d'où viennent ses données.">
+  <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +18,7 @@
       <a href="simulateur.html" data-page="simulateur.html" data-fonds>Simulateur</a>
     </nav>
     <div class="entete-actions">
-      <a class="btn-compte" id="lien-compte" href="connexion.html">Se connecter</a>
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="connexion.html">Se connecter</a>
       <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
     </div>
   </header>
@@ -27,16 +28,30 @@
 
     <section class="carte">
       <h2>Éditeur</h2>
-      <p>« Décrypte ton fonds » est édité par <strong>[[NOM_EXPLOITANT]]</strong>, entrepreneur individuel (micro-entreprise),
-        SIRET [[SIRET]], [[ADRESSE]]. Contact : <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
-      <p>Directeurs de la publication : Cléante Aupetit et Maëlys Richard.</p>
-      <p>TVA : [[TVA]].</p>
+      <div data-seulement="comptes">
+        <p>« Décrypte ton fonds » est édité par <strong>[[NOM_EXPLOITANT]]</strong>, entrepreneur individuel (micro-entreprise),
+          SIRET [[SIRET]], [[ADRESSE]]. Contact : <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+        <p>Directeurs de la publication : Cléante Aupetit et Maëlys Richard.</p>
+        <p>TVA : [[TVA]].</p>
+      </div>
+      <div data-seulement="gratuit">
+        <p>« Décrypte ton fonds » est un site personnel et gratuit, édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>. Rien n'y est vendu.</p>
+        <p>Directeurs de la publication : Cléante Aupetit et Maëlys Richard.</p>
+        <p>Contact : ouvre un ticket sur la <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a>
+          (bouton « New issue », compte GitHub gratuit nécessaire). Les tickets sont publics : n'y écris pas d'informations personnelles.</p>
+      </div>
     </section>
 
     <section class="carte">
       <h2>Hébergement</h2>
-      <p>Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis (site, contrôle d'accès au simulateur, vérification anti-robot).
-        Les comptes et les simulations enregistrées sont hébergés par Supabase, sur des serveurs situés dans l'Union européenne.</p>
+      <div data-seulement="comptes">
+        <p>Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis (site, contrôle d'accès au simulateur, vérification anti-robot).
+          Les comptes et les simulations enregistrées sont hébergés par Supabase, sur des serveurs situés dans l'Union européenne.</p>
+      </div>
+      <div data-seulement="gratuit">
+        <p data-si-hebergeur="github">GitHub, Inc. (service GitHub Pages), 88 Colin P. Kelly Jr. St., San Francisco, CA 94107, États-Unis.</p>
+        <p data-si-hebergeur="cloudflare">Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis.</p>
+      </div>
     </section>
 
     <section class="carte">
@@ -52,7 +67,7 @@
     <section class="carte">
       <h2>Données personnelles</h2>
       <p>Voir la page <a href="confidentialite.html">Confidentialité</a>.</p>
-      <p class="source">Page mise à jour le 1<sup>er</sup> octobre 2026.</p>
+      <p class="source">Page mise à jour le 7 octobre 2026.</p>
     </section>
   </main>
 
@@ -62,7 +77,7 @@
       Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
       prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
     <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.</p>
-    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <a href="cgv.html">CGV</a> · <a href="confidentialite.html">Confidentialité</a></p>
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span><a href="confidentialite.html">Confidentialité</a></p>
   </footer>
 
   <script src="js/outils.js"></script>

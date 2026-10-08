@@ -7,6 +7,9 @@
  * Les calculs sont dans projection.js ; le contexte (macro, géopolitique, risques) dans contexte-fonds.js.
  */
 
+// Mode gratuit (GitHub Pages, adresse principale) : simulateur libre et illimité, sans compte, sans décompte, sans appel à Compte.
+const SIMU_GRATUIT = modeSite(location.hostname) === "gratuit";
+
 const HORIZONS = [1, 2, 5, 10, 20];
 const MOIS_COURANT = moisDe(new Date());
 const PLAN_DEFAUT = {
@@ -78,6 +81,7 @@ function ecranAbonnement() {
 }
 
 async function assurerSimulation() {
+  if (SIMU_GRATUIT) return true;   // ni décompte ni enregistrement : S.simulation reste null, donc programmerEnregistrement() ne fait rien
   const { entree, isin } = S.chargement;
   const fonds = cleEntree(entree, isin);
   if (S.simulation && S.simulation.fonds === fonds) return true;
@@ -1520,7 +1524,10 @@ let minuterieRedimSimu = 0;
 window.addEventListener("resize", () => { clearTimeout(minuterieRedimSimu); minuterieRedimSimu = setTimeout(() => { if (S.calc) apresRendu(); }, 150); });
 document.addEventListener("click", e => { if (!e.target.closest(".ajout-fonds")) document.querySelectorAll(".ajout-fonds .suggestions").forEach(l => { l.hidden = true; }); });
 window.addEventListener("hashchange", afficherDepuisAdresse);
-if (!Compte.session()) {
+if (SIMU_GRATUIT) {
+  // Mode gratuit : pas de compte. Un ancien lien « ?sim=… » est ignoré (le fonds reste dans le #), et attendreAbonnement n'est pas appelé.
+  afficherDepuisAdresse();
+} else if (!Compte.session()) {
   // Défense en profondeur : sur le site en ligne, le serveur a déjà renvoyé vers abonnement.html
   location.replace("abonnement.html");
 } else {

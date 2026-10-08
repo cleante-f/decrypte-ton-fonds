@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Abonnement au simulateur · Décrypte ton fonds</title>
   <meta name="description" content="Le simulateur de Décrypte ton fonds : 3 simulations offertes avec un compte gratuit, puis un abonnement résiliable à tout moment.">
+  <meta name="robots" content="noindex">
+  <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,29 +19,36 @@
       <a href="simulateur.html" data-page="simulateur.html" data-fonds aria-current="page">Simulateur</a>
     </nav>
     <div class="entete-actions">
-      <a class="btn-compte" id="lien-compte" href="connexion.html">Se connecter</a>
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="connexion.html">Se connecter</a>
       <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
     </div>
   </header>
 
   <main class="page-compte">
-    <p class="surtitre">Simulateur d'investissement</p>
-    <h1>Que pourrait devenir ton investissement ?</h1>
-    <p class="sous-titre">Projection sur plusieurs scénarios, frais et inflation compris, crises rejouées, objectif à atteindre,
-      comparaison de fonds et portefeuille. Un outil pédagogique : jamais une promesse, jamais un conseil.</p>
-    <ul class="liste-avantages">
-      <li>7 onglets : projection, objectif, contexte et risque, crises, comparaison, réduction du risque, portefeuille.</li>
-      <li>Tes simulations enregistrées dans ton compte, sur tous tes appareils.</li>
-      <li><strong>3 simulations offertes</strong> à la création du compte.</li>
-    </ul>
-    <ul class="garanties">
-      <li><span aria-hidden="true">✓</span> 3 simulations offertes, sans carte bancaire</li>
-      <li><span aria-hidden="true">✓</span> Résiliable à tout moment depuis « Mon compte »</li>
-      <li><span aria-hidden="true">✓</span> Paiement sécurisé par Stripe : tes données de carte ne passent jamais par ce site</li>
-      <li><span aria-hidden="true">✓</span> 14 jours pour te rétracter (<a href="cgv.html">voir les CGV</a>)</li>
-    </ul>
-    <section class="carte" id="offre"><p class="chargement">Chargement…</p></section>
-    <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
+    <div data-seulement="comptes">
+      <p class="surtitre">Simulateur d'investissement</p>
+      <h1>Que pourrait devenir ton investissement ?</h1>
+      <p class="sous-titre">Projection sur plusieurs scénarios, frais et inflation compris, crises rejouées, objectif à atteindre,
+        comparaison de fonds et portefeuille. Un outil pédagogique : jamais une promesse, jamais un conseil.</p>
+      <ul class="liste-avantages">
+        <li>7 onglets : projection, objectif, contexte et risque, crises, comparaison, réduction du risque, portefeuille.</li>
+        <li>Tes simulations enregistrées dans ton compte, sur tous tes appareils.</li>
+        <li><strong>3 simulations offertes</strong> à la création du compte.</li>
+      </ul>
+      <ul class="garanties">
+        <li><span aria-hidden="true">✓</span> 3 simulations offertes, sans carte bancaire</li>
+        <li><span aria-hidden="true">✓</span> Résiliable à tout moment depuis « Mon compte »</li>
+        <li><span aria-hidden="true">✓</span> Paiement sécurisé par Stripe : tes données de carte ne passent jamais par ce site</li>
+        <li><span aria-hidden="true">✓</span> 14 jours pour te rétracter (<a href="cgv.html">voir les CGV</a>)</li>
+      </ul>
+      <section class="carte" id="offre"><p class="chargement">Chargement…</p></section>
+      <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
+    </div>
+    <section class="carte" data-seulement="gratuit">
+      <h1>Page indisponible</h1>
+      <p>Cette page n'existe pas dans la version gratuite du site.</p>
+      <p><a href="index.html">Revenir à l'accueil</a></p>
+    </section>
   </main>
 
   <footer class="site-footer">
@@ -48,7 +57,7 @@
       Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
       prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
     <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.</p>
-    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <a href="cgv.html">CGV</a> · <a href="confidentialite.html">Confidentialité</a></p>
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span><a href="confidentialite.html">Confidentialité</a></p>
   </footer>
 
   <script src="js/outils.js"></script>
