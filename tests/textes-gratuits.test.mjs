@@ -74,6 +74,11 @@ test("hébergeur selon l'adresse : GitHub, Inc. et Cloudflare, Inc. visibles en 
     assert.ok(trouverBlocs(html, "data-si-hebergeur", "github").some(b => b.includes("GitHub, Inc.")), `${nom} : GitHub, Inc. absent`);
     assert.ok(trouverBlocs(html, "data-si-hebergeur", "cloudflare").some(b => b.includes("Cloudflare, Inc.")), `${nom} : Cloudflare, Inc. absent`);
   }
+  // Tableau des organismes contactés : lien vers la politique de confidentialité de chaque hébergeur
+  const html = enGratuit("confidentialite");
+  assert.ok(trouverBlocs(html, "data-si-hebergeur", "github").some(b => b.includes(">Politique de GitHub</a>")), "lien Politique de GitHub absent");
+  assert.ok(trouverBlocs(html, "data-si-hebergeur", "cloudflare").some(b =>
+    b.includes('<a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Politique de Cloudflare</a>')), "lien Politique de Cloudflare absent");
 });
 
 test("version comptes intacte", () => {
