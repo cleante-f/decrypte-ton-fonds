@@ -59,14 +59,15 @@ const HOTES_COMPTES = ["comptes.decrypte-ton-fonds.pages.dev", "localhost"];   /
 **Ce qui change en mode gratuit**
 - En-tête : le bouton « Se connecter » est masqué. Pied de page : le lien « CGV » est masqué. Accueil : la pastille « 3 simulations offertes »
   devient « Gratuit ».
-- Les pages de compte renvoient vers l'accueil (`location.replace`, sans rester dans l'historique).
+- Les pages de compte renvoient vers l'accueil (`location.replace`, sans rester dans l'historique) ; leurs scripts ne démarrent pas
+  (ni session, ni appel à Supabase). Sans JavaScript, elles n'affichent que « Page indisponible » : tout leur contenu est réservé au mode comptes.
 - Simulateur : libre et illimité, sans décompte, sans enregistrement, sans écran d'abonnement. « Mes simulations enregistrées » est masqué ;
   un ancien lien `simulateur.html?sim=…#ISIN` s'ouvre normalement sur le fonds (le paramètre `sim` est ignoré). Le simulateur ne garde rien
   dans le navigateur (seules restent les copies de données publiques, décrites sur `confidentialite.html`).
 - Aucun appel à Supabase (`*.supabase.co`), ni à `challenges.cloudflare.com` : `js/connexion.js` ne charge le contrôle anti-robot Turnstile
   qu'en mode comptes.
 - Contrôle d'accès de Cloudflare (`functions/_middleware.js`, `serveur/acces.js`) : il laisse tout passer hors mode comptes
-  (le mode est lu dans l'adresse de la requête, pas dans l'en-tête `Host`).
+  (le mode est lu dans l'adresse de la requête : `new URL(requete.url).hostname`).
 - `confidentialite.html` et `mentions-legales.html` : texte de la version gratuite (aucun compte, aucun cookie, contact par la
   [page GitHub du site](https://github.com/cleante-f/decrypte-ton-fonds/issues), jamais par une adresse e-mail personnelle) ;
   l'hébergeur affiché (GitHub ou Cloudflare) dépend de l'adresse.
@@ -79,17 +80,17 @@ sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Une fois la pa
 (JavaScript désactivé, robots d'indexation), la version gratuite et l'hébergeur GitHub s'affichent.
 
 **Limites connues**
-- Les pages de compte restent dans les fichiers publiés sur GitHub : elles ne renvoient vers l'accueil qu'avec JavaScript, et contiennent
-  encore des valeurs `[[…]]` à compléter (`cgv.html`).
+- Les pages de compte restent dans les fichiers publiés sur GitHub : elles ne renvoient vers l'accueil qu'avec JavaScript (sans JavaScript,
+  « Page indisponible »), ne sont pas indexées (`noindex`), et leur code source contient encore des valeurs `[[…]]` à compléter (`cgv.html`).
 - Les pages légales contiennent les deux versions du texte dans leur code source ; sans JavaScript, seule la version gratuite s'affiche.
 - Une adresse oubliée dans la liste reste en mode gratuit : sans danger, puisqu'aucune fonction de compte n'y est active.
 
 **Au lancement payant** : ajouter le nouveau domaine à `HOTES_COMPTES` (la seule liste des adresses en mode comptes), ajouter aussi son adresse
 EN PREMIÈRE position de `ORIGINES` dans `.github/workflows/supabase.yml` (adresses autorisées à appeler les fonctions Supabase ; la première sert
-de lien vers le site dans les e-mails, elle doit donc être en mode comptes), puis compléter les valeurs `[[…]]`
-des textes légaux (`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`). Ces valeurs ne doivent apparaître que
-dans les pages de compte, dans `js/config-compte.js` et dans les éléments `data-seulement="comptes"` : le contrôle avant publication
-(`/publier-site`, hors du dépôt) refuse les autres.
+de lien vers le site dans les e-mails, elle doit donc être en mode comptes), retirer le `noindex` de `cgv.html` et `abonnement.html`
+(pages à faire connaître ; `connexion.html` et `compte.html` le gardent), puis compléter les valeurs `[[…]]` des textes légaux
+(`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`). Le contrôle avant publication admet les `[[…]]` seulement
+dans les pages de compte, dans `js/config-compte.js` et dans les éléments `data-seulement="comptes"`.
 
 **Essayer les deux modes en local** : servir le site sur un port (par exemple 8770). `http://127.0.0.1:8770/` est en mode gratuit,
 `http://localhost:8770/` en mode comptes. Les tests (`node --test "tests/*.test.mjs"`) vérifient la règle de bascule, le contrôle d'accès,
@@ -348,7 +349,7 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `js/createur.js` | Bouton « Créateur » et son animation |
 | `data/resume.js` | Chiffres de l'annuaire affichés sur l'accueil (générés par le script) |
 | `data/societes.js` | Sociétés de gestion agréées par l'AMF : n° d'agrément, début d'autorisation, site (générée par `scripts/construire_identite.py`) |
-| `tests/` | Tests des sources officielles : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `sources-officielles.test.mjs` (`node --test tests/sources-officielles.test.mjs`) et de vrais extraits dans `tests/donnees/` |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 
