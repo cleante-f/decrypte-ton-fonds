@@ -29,14 +29,65 @@ test("estPageCompte : GitHub, Cloudflare (sans .html), jamais l'accueil", () => 
   for (const c of ["/", "/index.html", "/decrypte-ton-fonds/", "/simulateur.html", "/mentions-legales.html", "/confidentialite"])
     assert.equal(estPageCompte(c), false, c);
 });
+// Navigateur simulé : un faux document (marquage de <html>, querySelectorAll sur des sélecteurs d'attribut, écouteurs, readyState)
+// avec un élément de chaque sorte, et une fausse adresse qui note les renvois.
+function naviguer(hostname, pathname, readyState = "loading") {
+  const ecouteurs = {}, renvois = [];
+  const element = (attribut, valeur) => ({ attribut, valeur, hidden: false, getAttribute: n => (n === attribut ? valeur : null) });
+  const elements = {
+    comptes: element("data-seulement", "comptes"), gratuit: element("data-seulement", "gratuit"),
+    github: element("data-si-hebergeur", "github"), cloudflare: element("data-si-hebergeur", "cloudflare")
+  };
+  const document = {
+    documentElement: { dataset: {} }, readyState,
+    addEventListener: (type, fn) => { ecouteurs[type] = fn; },
+    querySelectorAll: selecteurs => {
+      const attributs = selecteurs.split(",").map(s => s.trim().match(/^\[([\w-]+)\]$/)?.[1]);
+      assert.ok(attributs.every(Boolean), `sélecteur non simulé : ${selecteurs}`);
+      return Object.values(elements).filter(e => attributs.includes(e.attribut));
+    }
+  };
+  charger(["js/mode-site.js"], { document, location: { hostname, pathname, replace: u => renvois.push(u) } });
+  const masques = () => Object.keys(elements).filter(nom => elements[nom].hidden);
+  return { document, ecouteurs, renvois, masques };
+}
+
 test("marquage de la page et renvoi des pages de compte (navigateur simulé)", () => {
-  const remplace = [];
-  const doc = { documentElement: { dataset: {} } };
-  charger(["js/mode-site.js"], { document: doc, location: { hostname: "cleante-f.github.io", pathname: "/decrypte-ton-fonds/compte.html", replace: u => remplace.push(u) } });
-  assert.deepEqual({ ...doc.documentElement.dataset }, { site: "gratuit", hebergePar: "github" });
-  assert.deepEqual(remplace, ["index.html"]);
-  const doc2 = { documentElement: { dataset: {} } }, remplace2 = [];
-  charger(["js/mode-site.js"], { document: doc2, location: { hostname: "localhost", pathname: "/compte.html", replace: u => remplace2.push(u) } });
-  assert.equal(doc2.documentElement.dataset.site, "comptes");
-  assert.deepEqual(remplace2, []);
+  const github = naviguer("cleante-f.github.io", "/decrypte-ton-fonds/compte.html");
+  assert.deepEqual({ ...github.document.documentElement.dataset }, { site: "gratuit", hebergePar: "github" });
+  assert.deepEqual(github.renvois, ["index.html"]);
+  const local = naviguer("localhost", "/compte.html");
+  assert.equal(local.document.documentElement.dataset.site, "comptes");
+  assert.deepEqual(local.renvois, []);
+});
+
+test("page publique en mode gratuit : aucun renvoi", () => {
+  for (const chemin of ["/decrypte-ton-fonds/index.html", "/simulateur.html", "/decrypte-ton-fonds/"])
+    assert.deepEqual(naviguer("cleante-f.github.io", chemin).renvois, [], chemin);
+});
+
+test("Cloudflare, /connexion sans .html, en mode gratuit : renvoi vers l'accueil, hébergeur Cloudflare", () => {
+  const page = naviguer("decrypte-ton-fonds.pages.dev", "/connexion");
+  assert.deepEqual(page.renvois, ["index.html"]);
+  assert.deepEqual({ ...page.document.documentElement.dataset }, { site: "gratuit", hebergePar: "cloudflare" });
+});
+
+// Le mode lecture des navigateurs ignore la feuille de style : l'attribut « hidden » cache aussi l'autre version
+test("attribut hidden au chargement de la page : gratuit chez GitHub", () => {
+  const page = naviguer("cleante-f.github.io", "/decrypte-ton-fonds/confidentialite.html");
+  assert.equal(typeof page.ecouteurs.DOMContentLoaded, "function", "rien n'attend DOMContentLoaded");
+  page.ecouteurs.DOMContentLoaded();
+  assert.deepEqual(page.masques(), ["comptes", "cloudflare"]);
+});
+
+test("attribut hidden au chargement de la page : comptes chez Cloudflare", () => {
+  const page = naviguer("comptes.decrypte-ton-fonds.pages.dev", "/confidentialite");
+  page.ecouteurs.DOMContentLoaded();
+  assert.deepEqual(page.masques(), ["gratuit", "github"]);
+});
+
+test("attribut hidden tout de suite si la page est déjà chargée", () => {
+  const page = naviguer("decrypte-ton-fonds.pages.dev", "/mentions-legales", "interactive");
+  assert.deepEqual(page.masques(), ["comptes", "github"]);
+  assert.equal(page.ecouteurs.DOMContentLoaded, undefined);
 });

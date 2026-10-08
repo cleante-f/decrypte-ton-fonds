@@ -12,8 +12,9 @@
  * et importé par serveur/acces.js (contrôle d'accès de Cloudflare), qui y lit la même règle. Pas d'export/import ici :
  * tout est rangé dans globalThis pour fonctionner dans les deux cas.
  *
- * Dans un navigateur seulement, il marque aussi la page (<html data-site="gratuit|comptes" data-heberge-par="github|cloudflare">)
- * et, en mode gratuit, renvoie les pages de compte vers l'accueil.
+ * Dans un navigateur seulement, il marque aussi la page (<html data-site="gratuit|comptes" data-heberge-par="github|cloudflare">),
+ * en mode gratuit, renvoie les pages de compte vers l'accueil et, une fois la page lue, pose l'attribut « hidden » sur les éléments
+ * de l'autre mode et de l'autre hébergeur (pour le mode lecture, qui ignore la feuille de style).
  */
 (function () {
   // Adresses en mode comptes (en minuscules). Toute autre adresse est en mode gratuit.
@@ -55,9 +56,21 @@
   // Effets dans un navigateur seulement (ni document ni location côté serveur ni dans les tests sans page simulée).
   if (typeof document !== "undefined") {
     const mode = modeSite(location.hostname);
+    const hebergeur = hebergeurSite(location.hostname);
     document.documentElement.dataset.site = mode;
-    document.documentElement.dataset.hebergePar = hebergeurSite(location.hostname);
+    document.documentElement.dataset.hebergePar = hebergeur;
     // Page de compte en mode gratuit : retour à l'accueil, sans garder la page dans l'historique.
     if (mode === "gratuit" && estPageCompte(location.pathname)) location.replace("index.html");
+
+    // Le mode lecture des navigateurs ignore la feuille de style : il afficherait les deux versions des pages légales.
+    // L'attribut « hidden », qu'il respecte, cache donc aussi les éléments de l'autre mode et de l'autre hébergeur.
+    // Jamais retiré : un élément de ce mode peut être caché pour une autre raison.
+    const masquerAutreVersion = () => {
+      document.querySelectorAll("[data-seulement]").forEach(el => { if (el.getAttribute("data-seulement") !== mode) el.hidden = true; });
+      document.querySelectorAll("[data-si-hebergeur]").forEach(el => { if (el.getAttribute("data-si-hebergeur") !== hebergeur) el.hidden = true; });
+    };
+    // Ce script est lu dans le <head>, avant le contenu de la page : on attend qu'elle soit lue en entier.
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", masquerAutreVersion);
+    else masquerAutreVersion();
   }
 })();

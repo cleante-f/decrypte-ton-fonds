@@ -74,7 +74,8 @@ const HOTES_COMPTES = ["comptes.decrypte-ton-fonds.pages.dev", "localhost"];   /
 **Marquage dans le HTML** : `js/mode-site.js` pose sur `<html>` les attributs `data-site="gratuit|comptes"` et
 `data-heberge-par="github|cloudflare"` avant l'affichage. Un élément se réserve à un mode ou à un hébergeur avec
 `data-seulement="comptes"` ou `data-seulement="gratuit"`, et `data-si-hebergeur="github"` ou `data-si-hebergeur="cloudflare"` ; les règles
-sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Un élément sans marque vaut pour les deux modes. Sans marquage de `<html>`
+sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Une fois la page lue, `js/mode-site.js` pose aussi l'attribut `hidden` sur les
+éléments de l'autre mode et de l'autre hébergeur (le mode lecture des navigateurs ignore la feuille de style). Un élément sans marque vaut pour les deux modes. Sans marquage de `<html>`
 (JavaScript désactivé, robots d'indexation), la version gratuite et l'hébergeur GitHub s'affichent.
 
 **Limites connues**
