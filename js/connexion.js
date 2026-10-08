@@ -86,13 +86,17 @@ document.getElementById("form-nouveau-mdp").addEventListener("submit", e => {
   soumettre(e.target, async d => { await Compte.changerMotDePasse(d.get("mdp")); afficher("Mot de passe changé. Redirection…"); setTimeout(() => { location.href = "compte.html"; }, 1200); });
 });
 
-(async () => {
-  const r = await Compte.lireRetourEmail();
-  if (r && r.erreur) { afficher(r.erreur, "erreur"); vue("connexion"); return; }
-  if (r && r.type === "recovery") { vue("nouveau-mdp"); return; }
-  if (r && r.type === "signup") { location.href = "compte.html?bienvenue=1"; return; }
-  if (Compte.session()) {   // déjà connecté (ou session rafraîchissable) : retour direct
-    if (await Compte.jetonValide()) { location.replace(retour); return; }
-  }
-  vue(new URLSearchParams(location.search).get("vue") === "inscription" ? "inscription" : "connexion");
-})();
+// Démarrage, en mode comptes seulement. En mode gratuit, js/mode-site.js renvoie cette page vers l'accueil, mais pas immédiatement :
+// sans ce test, le retour d'un e-mail (#access_token=…) serait lu et la session écrite (avec son cookie) sur une adresse gratuite.
+if (modeSite(location.hostname) === "comptes") {
+  (async () => {
+    const r = await Compte.lireRetourEmail();
+    if (r && r.erreur) { afficher(r.erreur, "erreur"); vue("connexion"); return; }
+    if (r && r.type === "recovery") { vue("nouveau-mdp"); return; }
+    if (r && r.type === "signup") { location.href = "compte.html?bienvenue=1"; return; }
+    if (Compte.session()) {   // déjà connecté (ou session rafraîchissable) : retour direct
+      if (await Compte.jetonValide()) { location.replace(retour); return; }
+    }
+    vue(new URLSearchParams(location.search).get("vue") === "inscription" ? "inscription" : "connexion");
+  })();
+}

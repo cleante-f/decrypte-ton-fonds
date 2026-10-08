@@ -44,4 +44,7 @@ zoneOffre.addEventListener("click", async e => {
     e.target.disabled = false;
   }
 });
-afficherOffre();
+// Démarrage, en mode comptes seulement (en mode gratuit, js/mode-site.js renvoie cette page vers l'accueil, mais pas immédiatement).
+if (modeSite(location.hostname) === "comptes") {
+  afficherOffre();
+}

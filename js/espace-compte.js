@@ -7,8 +7,6 @@ function annoncer(texte, erreur) { msg.hidden = !texte; msg.textContent = texte 
 const protege = fn => async e => { try { await fn(e); } catch (err) { annoncer(err.message, true); } };
 const action = fn => protege(e => { e.preventDefault(); return fn(e); });
 
-if (!Compte.session()) location.replace("connexion.html?vue=connexion&retour=compte.html");
-
 function blocAcces(d) {
   if (d.abonne) {
     return `<h2>Abonnement actif</h2>
@@ -76,5 +74,10 @@ document.getElementById("supprimer").addEventListener("click", action(async () =
   location.href = "index.html?compte=supprime";
 }));
 
-if (new URLSearchParams(location.search).get("bienvenue")) annoncer("Bienvenue ! Ton compte est activé : tes 3 simulations offertes t'attendent.");
-rafraichirEspace().catch(err => { if (err.code === "non_connecte") location.replace("connexion.html?vue=connexion&retour=compte.html"); else annoncer(err.message, true); });
+// Démarrage, en mode comptes seulement (en mode gratuit, js/mode-site.js renvoie cette page vers l'accueil, mais pas immédiatement) :
+// sans session, renvoi vers la connexion ; puis lecture de l'accès, des simulations et de l'adresse e-mail.
+if (modeSite(location.hostname) === "comptes") {
+  if (!Compte.session()) location.replace("connexion.html?vue=connexion&retour=compte.html");
+  if (new URLSearchParams(location.search).get("bienvenue")) annoncer("Bienvenue ! Ton compte est activé : tes 3 simulations offertes t'attendent.");
+  rafraichirEspace().catch(err => { if (err.code === "non_connecte") location.replace("connexion.html?vue=connexion&retour=compte.html"); else annoncer(err.message, true); });
+}
