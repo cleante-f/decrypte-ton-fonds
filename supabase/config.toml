@@ -1,0 +1,9 @@
+# Réglages lus par la CLI Supabase (déploiement : .github/workflows/supabase.yml)
+project_id = "decrypte-ton-fonds"
+
+# Appelées par Stripe et par la tâche quotidienne, sans jeton d'utilisateur : elles vérifient leur propre secret
+[functions.webhook-stripe]
+verify_jwt = false
+
+[functions.entretien]
+verify_jwt = false

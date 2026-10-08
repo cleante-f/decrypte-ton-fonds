@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion · Décrypte ton fonds</title>
+  <meta name="description" content="Crée ton compte Décrypte ton fonds (3 simulations offertes) ou connecte-toi.">
+  <meta name="robots" content="noindex">
+  <script src="js/mode-site.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="index.html" class="logo">Décrypte ton fonds</a>
+    <nav class="onglets" aria-label="Pages du site">
+      <a href="index.html" data-page="index.html">Accueil</a>
+      <a href="decrypte.html" data-page="decrypte.html" data-fonds>Décrypte<span class="texte-long"> ton fonds</span></a>
+      <a href="performances.html" data-page="performances.html" data-fonds>Performances</a>
+      <a href="simulateur.html" data-page="simulateur.html" data-fonds>Simulateur</a>
+    </nav>
+    <div class="entete-actions">
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="connexion.html" aria-current="page">Se connecter</a>
+      <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
+    </div>
+  </header>
+
+  <main class="page-compte">
+    <div data-seulement="comptes">
+      <h1 id="titre-compte">Se connecter</h1>
+      <p id="message-compte" class="note" role="status" aria-live="polite" hidden></p>
+
+      <form id="form-inscription" class="carte formulaire-compte" data-vue="inscription" hidden>
+        <p class="resume">Crée ton compte gratuitement : <strong>3 simulations offertes</strong>, enregistrées et retrouvables sur tous tes appareils.</p>
+        <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
+        <label>Mot de passe <small>(10 caractères au moins)</small> <input type="password" name="mdp" autocomplete="new-password" minlength="10" required></label>
+        <label class="case"><input type="checkbox" name="majeur" required> J'ai 18 ans ou plus.</label>
+        <label class="case"><input type="checkbox" name="cgv" required> J'accepte les <a href="cgv.html" target="_blank">conditions générales de vente</a>
+          et j'ai lu la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</label>
+        <div class="captcha" data-captcha></div>
+        <button type="submit" class="btn">Créer mon compte</button>
+        <p class="bascule-compte">Tu as déjà un compte ? <button type="button" class="lien-bouton" data-vers="connexion">Se connecter</button></p>
+      </form>
+
+      <form id="form-connexion" class="carte formulaire-compte" data-vue="connexion">
+        <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
+        <label>Mot de passe <input type="password" name="mdp" autocomplete="current-password" required></label>
+        <div class="captcha" data-captcha></div>
+        <button type="submit" class="btn">Me connecter</button>
+        <button type="button" class="lien-bouton" data-vers="oubli">Mot de passe oublié ?</button>
+        <p class="bascule-compte">Pas encore de compte ? <button type="button" class="lien-bouton" data-vers="inscription">Créer un compte</button>
+          <small>(3 simulations offertes)</small></p>
+      </form>
+
+      <form id="form-oubli" class="carte formulaire-compte" data-vue="oubli" hidden>
+        <p>Indique ton adresse : tu recevras un lien pour choisir un nouveau mot de passe.</p>
+        <label>Adresse e-mail <input type="email" name="email" autocomplete="email" required></label>
+        <div class="captcha" data-captcha></div>
+        <button type="submit" class="btn">Recevoir le lien</button>
+        <p class="bascule-compte"><button type="button" class="lien-bouton" data-vers="connexion">Retour à la connexion</button></p>
+      </form>
+
+      <form id="form-nouveau-mdp" class="carte formulaire-compte" data-vue="nouveau-mdp" hidden>
+        <p>Choisis ton nouveau mot de passe.</p>
+        <label>Nouveau mot de passe <small>(10 caractères au moins)</small> <input type="password" name="mdp" autocomplete="new-password" minlength="10" required></label>
+        <button type="submit" class="btn">Enregistrer</button>
+      </form>
+    </div>
+    <section class="carte" data-seulement="gratuit">
+      <h1>Page indisponible</h1>
+      <p>Cette page n'existe pas dans la version gratuite du site.</p>
+      <p><a href="index.html">Revenir à l'accueil</a></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p><strong>Mention légale :</strong> ce site fournit une information générale et pédagogique. Il ne constitue
+      <strong>ni un conseil en investissement, ni une recommandation</strong> d'acheter ou de vendre un produit financier.
+      Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
+      prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
+    <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.</p>
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span><a href="confidentialite.html">Confidentialité</a></p>
+  </footer>
+
+  <script src="js/outils.js"></script>
+  <script src="js/config-compte.js"></script>
+  <script src="js/compte.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/createur.js"></script>
+  <script src="js/connexion.js"></script>
+</body>
+</html>

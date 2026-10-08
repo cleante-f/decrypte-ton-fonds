@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Décrypte ton fonds</title>
   <meta name="description" content="Comprendre en quelques minutes où est investi un fonds (OPCVM, SICAV, FCP, ETF), ses risques et ses pièges.">
+  <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +18,7 @@
       <a href="simulateur.html" data-page="simulateur.html" data-fonds>Simulateur</a>
     </nav>
     <div class="entete-actions">
-      <button type="button" class="btn-link" id="btn-reglages" aria-expanded="false" aria-controls="panneau-reglages">Réglages<span class="texte-long"> des alertes</span></button>
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="connexion.html">Se connecter</a>
       <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
     </div>
   </header>
@@ -32,6 +33,7 @@
         <button type="submit" class="btn">Analyser</button>
       </form>
       <div id="exemples" class="exemples"></div>
+      <p class="reglages-alertes"><button type="button" class="btn-link" id="btn-reglages" aria-expanded="false" aria-controls="panneau-reglages">Réglages des alertes</button></p>
     </section>
 
     <section id="panneau-reglages" class="panneau" hidden aria-label="Réglages des seuils d'alerte"></section>
@@ -44,7 +46,8 @@
       <strong>ni un conseil en investissement, ni une recommandation</strong> d'acheter ou de vendre un produit financier.
       Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
       prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
-    <p class="liens-pied"><a href="confidentialite.html">Confidentialité et mentions légales</a></p>
+    <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.</p>
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span><a href="confidentialite.html">Confidentialité</a></p>
   </footer>
 
   <!-- Infobulle unique, déplacée par le JS -->
@@ -68,6 +71,8 @@
   <script src="js/marches.js"></script>
   <script src="js/cours.js"></script>
   <script src="js/fiche-auto.js"></script>
+  <script src="js/config-compte.js"></script>
+  <script src="js/compte.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/app.js"></script>
   <script src="js/infobulles.js"></script>

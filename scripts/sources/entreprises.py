@@ -4,6 +4,7 @@ Entreprises dont on suit l'actualité : celles qu'on retrouve le plus souvent pa
 
   cle : (nom affiché, mot cherché dans les titres par NewsData, symboles MarketAux, repère des lignes de fonds)
 Les symboles MarketAux ont été vérifiés un par un le 30/09/2026 (symbols=…&filter_entities=true).
+MarketAux a été retiré le 01/10/2026 (usage commercial interdit) : ces symboles ne servent plus, ils restent pour mémoire.
 Le repère est une expression régulière (syntaxe commune à Python et JavaScript) appliquée au nom des lignes
 d'un fonds en majuscules, par exemple « NVIDIA CORP » ou « ASML HOLDING NV ».
 """

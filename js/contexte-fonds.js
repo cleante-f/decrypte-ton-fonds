@@ -219,18 +219,6 @@ function facteursMacro(A, p) {
   return f;
 }
 
-// Croissance par grande région (FMI) : zones utiles pour ce fonds
-function zonesFmiPertinentes(p) {
-  const z = ["WEOWORLD"];
-  if (p.usa >= 10) z.push("USA");
-  if (p.euro >= 10 || p.france >= 10 || p.obligLongues + p.obligCourtes >= 10) z.push("EURO");
-  if (p.france >= 15) z.push("FRA");
-  if (p.europe >= 10) z.push("GBR");
-  if (p.japon >= 5) z.push("JPN");
-  if (p.emergents >= 5) z.push("OEMDC", "CHN", "IND");
-  return z;
-}
-
 // ---------- Géopolitique et politique ----------
 
 function risquesGeopolitiques(A, p, themes) {

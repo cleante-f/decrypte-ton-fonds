@@ -8,7 +8,8 @@ Site statique (HTML + CSS + JavaScript, sans framework) qui explique un fonds d'
 ## Lancer le site
 
 Double-clique sur `index.html`. Une connexion Internet est nécessaire pour les fiches des fonds français,
-qui sont chargées en direct depuis la base GECO de l'AMF.
+qui sont chargées en direct depuis la base GECO de l'AMF. Un fichier ouvert ainsi n'a pas d'adresse de site : il s'affiche
+en mode gratuit (voir « Deux modes selon l'adresse »).
 
 ## Les pages
 
@@ -17,8 +18,10 @@ qui sont chargées en direct depuis la base GECO de l'AMF.
 | `index.html` | Accueil : présentation du site, recherche rapide, accès aux trois espaces |
 | `decrypte.html` | **Décrypte ton fonds** : phrase « En bref », puis fiche complète (composition, concentration, risque, pièges, frais) |
 | `performances.html` | **Performances** : graphique interactif (périodes, comparaison avec les marchés ou un autre fonds, performances par année) |
-| `confidentialite.html` | **Confidentialité et mentions légales** : éditeurs, hébergeur, données transmises à des tiers, stockage dans le navigateur, droits (RGPD), bouton d'effacement |
-| `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques) |
+| `confidentialite.html` | **Confidentialité** : responsables, données transmises à des tiers, stockage dans le navigateur, droits (RGPD), bouton d'effacement. Deux versions du texte selon le mode (voir plus bas) |
+| `mentions-legales.html` | **Mentions légales** : éditeurs, hébergeur, contenus et sources. Deux versions du texte selon le mode |
+| `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques). Libre et sans compte en mode gratuit ; réservé aux comptes en mode comptes |
+| `connexion.html`, `compte.html`, `abonnement.html`, `cgv.html` | **Pages de compte** (connexion, espace personnel, abonnement, conditions de vente) : elles ne servent qu'en mode comptes |
 
 Le fonds consulté est dans l'adresse (`#ISIN`) : les onglets et les boutons « Voir le graphique des performances » /
 « Décrypter ce fonds » passent d'une page à l'autre sans le perdre. Depuis l'accueil, la recherche est transmise
@@ -32,6 +35,66 @@ l'historique antérieur ; les points isolés aberrants sont lissés. Chaque corr
 un connu (description fixe de son contenu, variantes et versions ESG signalées) ; sinon la composition calculée (classes
 d'actifs arrondies à 5 %, région principale) ; sinon la catégorie AMF ; sinon ce que le nom laisse deviner, présenté
 comme tel (« D'après son nom… ») ; sinon la première phrase de l'objectif du DIC. Rien n'est affiché si aucune source ne suffit.
+
+## Deux modes selon l'adresse
+
+Un seul code sert deux sites. Le navigateur choisit le mode d'après l'adresse de la page (`location.hostname`) ; la règle est dans
+`js/mode-site.js`, chargé en premier dans le `<head>` de chaque page (et importé par `serveur/acces.js`, le contrôle d'accès de Cloudflare).
+
+| Mode | Adresses | Ce que voit le visiteur |
+|---|---|---|
+| **Comptes** | celles de la liste `HOTES_COMPTES` : `comptes.decrypte-ton-fonds.pages.dev` (aperçu Cloudflare) et `localhost` | Pages de compte, bouton « Se connecter », simulateur réservé aux comptes (3 simulations offertes, puis abonnement) |
+| **Gratuit** | toute autre adresse : GitHub Pages (`cleante-f.github.io`), adresse principale de Cloudflare (`decrypte-ton-fonds.pages.dev`), aperçus par commit (`abc123.decrypte-ton-fonds.pages.dev`), `127.0.0.1`, adresse inconnue, fichier ouvert directement | Même design et même contenu, mais simulateur libre et sans aucune trace de compte |
+
+```js
+const HOTES_COMPTES = ["comptes.decrypte-ton-fonds.pages.dev", "localhost"];   // js/mode-site.js : la seule liste des adresses en mode comptes
+```
+
+- `modeSite(hote)` renvoie `"comptes"` si l'adresse est dans la liste, sinon `"gratuit"`. Les majuscules, les espaces autour et un point
+  final sont ignorés (`comptes.decrypte-ton-fonds.pages.dev.` est bien en mode comptes : sinon il sauterait le contrôle d'accès).
+- `hebergeurSite(hote)` renvoie `"github"` pour une adresse en `*.github.io`, sinon `"cloudflare"`.
+- `estPageCompte(chemin)` reconnaît les pages `connexion`, `compte`, `abonnement` et `cgv`, avec ou sans `.html` : GitHub sert
+  `/decrypte-ton-fonds/connexion.html`, Cloudflare sert `/connexion`.
+
+**Ce qui change en mode gratuit**
+- En-tête : le bouton « Se connecter » est masqué. Pied de page : le lien « CGV » est masqué. Accueil : la pastille « 3 simulations offertes »
+  devient « Gratuit ».
+- Les pages de compte renvoient vers l'accueil (`location.replace`, sans rester dans l'historique) ; leurs scripts ne démarrent pas
+  (ni session, ni appel à Supabase). Sans JavaScript, elles n'affichent que « Page indisponible » : tout leur contenu est réservé au mode comptes.
+- Simulateur : libre et illimité, sans décompte, sans enregistrement, sans écran d'abonnement. « Mes simulations enregistrées » est masqué ;
+  un ancien lien `simulateur.html?sim=…#ISIN` s'ouvre normalement sur le fonds (le paramètre `sim` est ignoré). Le simulateur ne garde rien
+  dans le navigateur (seules restent les copies de données publiques, décrites sur `confidentialite.html`).
+- Aucun appel à Supabase (`*.supabase.co`), ni à `challenges.cloudflare.com` : `js/connexion.js` ne charge le contrôle anti-robot Turnstile
+  qu'en mode comptes.
+- Contrôle d'accès de Cloudflare (`functions/_middleware.js`, `serveur/acces.js`) : il laisse tout passer hors mode comptes
+  (le mode est lu dans l'adresse de la requête : `new URL(requete.url).hostname`).
+- `confidentialite.html` et `mentions-legales.html` : texte de la version gratuite (aucun compte, aucun cookie, contact par la
+  [page GitHub du site](https://github.com/cleante-f/decrypte-ton-fonds/issues), jamais par une adresse e-mail personnelle) ;
+  l'hébergeur affiché (GitHub ou Cloudflare) dépend de l'adresse.
+
+**Marquage dans le HTML** : `js/mode-site.js` pose sur `<html>` les attributs `data-site="gratuit|comptes"` et
+`data-heberge-par="github|cloudflare"` avant l'affichage. Un élément se réserve à un mode ou à un hébergeur avec
+`data-seulement="comptes"` ou `data-seulement="gratuit"`, et `data-si-hebergeur="github"` ou `data-si-hebergeur="cloudflare"` ; les règles
+sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Une fois la page lue, `js/mode-site.js` pose aussi l'attribut `hidden` sur les
+éléments de l'autre mode et de l'autre hébergeur (le mode lecture des navigateurs ignore la feuille de style). Un élément sans marque vaut pour les deux modes. Sans marquage de `<html>`
+(JavaScript désactivé, robots d'indexation), la version gratuite et l'hébergeur GitHub s'affichent.
+
+**Limites connues**
+- Les pages de compte restent dans les fichiers publiés sur GitHub : elles ne renvoient vers l'accueil qu'avec JavaScript (sans JavaScript,
+  « Page indisponible »), ne sont pas indexées (`noindex`), et leur code source contient encore des valeurs `[[…]]` à compléter (`cgv.html`).
+- Les pages légales contiennent les deux versions du texte dans leur code source ; sans JavaScript, seule la version gratuite s'affiche.
+- Une adresse oubliée dans la liste reste en mode gratuit : sans danger, puisqu'aucune fonction de compte n'y est active.
+
+**Au lancement payant** : ajouter le nouveau domaine à `HOTES_COMPTES` (la seule liste des adresses en mode comptes), ajouter aussi son adresse
+EN PREMIÈRE position de `ORIGINES` dans `.github/workflows/supabase.yml` (adresses autorisées à appeler les fonctions Supabase ; la première sert
+de lien vers le site dans les e-mails, elle doit donc être en mode comptes), retirer le `noindex` de `cgv.html` et `abonnement.html`
+(pages à faire connaître ; `connexion.html` et `compte.html` le gardent), puis compléter les valeurs `[[…]]` des textes légaux
+(`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`). Le contrôle avant publication admet les `[[…]]` seulement
+dans les pages de compte, dans `js/config-compte.js` et dans les éléments `data-seulement="comptes"`.
+
+**Essayer les deux modes en local** : servir le site sur un port (par exemple 8770). `http://127.0.0.1:8770/` est en mode gratuit,
+`http://localhost:8770/` en mode comptes. Les tests (`node --test "tests/*.test.mjs"`) vérifient la règle de bascule, le contrôle d'accès,
+le marquage des pages et les textes de la version gratuite.
 
 ## Le simulateur (méthode)
 
@@ -67,17 +130,16 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
    qui a le plus réduit les variations sur le passé (entre 50 et 80 % pour le fonds de départ). Suivent un comparatif
    des risques et des performances passées, sans et avec ce fonds. Exemple pédagogique, pas un conseil.
 7. **Contexte** (`js/contexte-fonds.js`) : tableau de bord des risques (marché, géopolitique, change, secteur,
-   concentration, taux, réglementation), indicateurs économiques pertinents pour le fonds, prévisions de croissance
-   du FMI, risques géopolitiques illustrés par des titres de presse récents (datés, sourcés), exposition aux
+   concentration, taux, réglementation), indicateurs économiques pertinents pour le fonds, risques géopolitiques illustrés par des titres de presse récents (datés, sourcés), exposition aux
    tendances technologiques (opportunité / risque, sans recommandation).
 
 ### Données mises à jour automatiquement chaque jour
 
 `scripts/actualiser_contexte.py`, lancé chaque matin par GitHub Actions (`.github/workflows/contexte.yml`), écrit :
 - `data/contexte.js` : indicateurs de la BCE (taux, inflation, anticipations, chômage, croissance, dette, change,
-  stress financier, taux moyen des livrets en France), de la Fed de New York, du Trésor américain et du BLS, prévisions du FMI (World Economic Outlook)
-  et titres d'actualité classés par thème (Le Monde, Franceinfo, France 24, RFI, Le Figaro, BBC, New York Times,
-  The Guardian, BCE, Fed, Commission européenne) ;
+  stress financier, taux moyen des livrets en France), de la Fed de New York, du Trésor américain et du BLS (prévisions du FMI retirées le 01/10/2026 :
+  usage commercial soumis à autorisation) et titres d'actualité classés par thème (BCE, Fed, Commission européenne ; flux des médias retirés le 01/10/2026,
+  leurs conditions excluant l'usage commercial) ;
 - `data/references.js` : séries des fonds de référence, pour que chaque visiteur n'ait pas à les télécharger.
 
 Chaque donnée garde sa date et sa source ; une donnée en retard sur son rythme de publication est signalée.
@@ -98,7 +160,7 @@ n'appelle aucune API : il lit ce fichier du site. Un module par source dans `scr
 |---|---|---|---|---|
 | Taux de change (USD, GBP, CHF, JPY, CNY) | BCE, sans clé | Frankfurter (taux BCE), sans clé | Currency-api (fawazahmed0), sans clé | 6 h |
 | Marchés (S&P 500, Nasdaq-100, Euro Stoxx 50, Europe hors UEM, Topix, émergents, MSCI World) | Valeurs liquidatives de fonds indiciels (AMF – GECO), sans clé | — (aucune source gratuite n'autorise un site public : Alpha Vantage retiré le 01/10/2026) | Dernière valeur connue | 6 h |
-| Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | MarketAux, clé `MARKETAUX_KEY` (23 requêtes sur 100 par jour ; usage non commercial) | — | 6 h |
+| Actualités de 23 grandes entreprises souvent détenues (`scripts/sources/entreprises.py`) | NewsData.io, clé `NEWSDATA_KEY` (28 requêtes au plus : 60 par fenêtre, 200 crédits par jour) | — (MarketAux retiré le 01/10/2026 : usage commercial interdit) | — | 6 h |
 
 Les actualités s'affichent sous les principales lignes d'un fonds (fiche, section 2) et dans « Contexte & risques », pour
 les entreprises reconnues parmi ses lignes. Filtres : titres générés automatiquement (déclarations de positions,
@@ -210,6 +272,19 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
   les offres gratuites de Twelve Data, Marketstack, EODHD et Finnhub (affichage public interdit).
   Demandes d'autorisation préparées pour Euronext, Alpha Vantage et HSBC AM (brouillons à envoyer par les éditeurs).
 
+## Licences pour un site avec abonnement (vérifiées le 01/10/2026)
+
+| Source | Usage commercial | Décision |
+|---|---|---|
+| MarketAux | Interdit (usage non commercial) | Retirée |
+| FMI (World Economic Outlook) | Sur autorisation (copyright@imf.org), téléchargement automatique interdit sans accord | Retirée du contexte et du simulateur |
+| Flux RSS des médias (Le Monde, Franceinfo, France 24, RFI, Le Figaro, BBC, New York Times, The Guardian) | Usage personnel, ou autorisation requise | Retirés ; seuls restent les communiqués de la BCE, de la Fed et de la Commission européenne |
+| NewsData.io | Autorisé (« personal or commercial purposes », dans le respect du droit d'auteur) | Gardé |
+| Currency-api (fawazahmed0) | Licence CC0 | Gardé |
+| AMF (base GECO) | « Toute utilisation à des fins commerciales ou publicitaires est exclue », sauf accord | **Demande d'autorisation à envoyer avant d'ouvrir l'abonnement** (formulaire « Nous contacter ») |
+| Deutsche Börse (cours différés, fiches gratuites) | Gratuit hors revente | Demande de confirmation envoyée à data.services@deutsche-boerse.com |
+| BCE, ESMA, GLEIF, OpenFIGI, BLS, Trésor et Fed de New York | Autorisé (en citant la source) | Gardés |
+
 ## Sources officielles réutilisées en citant la source (décisions du 06/10/2026)
 
 | Source | Usage sur le site | Condition | Décision |
@@ -222,11 +297,15 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 
 ## Données personnelles (RGPD)
 
-Pas de compte, pas de cookie, pas de mesure d'audience. Le navigateur des visiteurs ne contacte que GitHub (hébergeur),
-l'AMF (GECO) et la BCE ; tout le reste est récupéré par la tâche quotidienne. Stockage local (`localStorage`) :
-- plan du simulateur **seulement si** la case « Mémoriser mon plan sur cet appareil » est cochée ;
+**Mode gratuit** (GitHub Pages, adresse principale de Cloudflare) : pas de compte, pas de cookie, pas de mesure d'audience.
+Le navigateur des visiteurs ne contacte que l'hébergeur (GitHub ou Cloudflare), l'AMF (GECO) et la BCE ; tout le reste est
+récupéré par la tâche quotidienne. Stockage local (`localStorage`) :
 - réglages des alertes enregistrés par l'utilisateur ;
 - caches de données publiques, effacés automatiquement une fois périmés (`nettoyerStockage` dans `js/outils.js`).
+
+**Mode comptes** (aperçu, `localhost`) : en plus, un cookie `dtf_session` et la session `compte-session-v1` pour les visiteurs connectés ;
+le navigateur contacte aussi Supabase (comptes, simulations enregistrées), Stripe (paiement) et, sur la page de connexion, Cloudflare
+Turnstile (anti-robot). Brevo envoie les e-mails du compte. Tout est décrit dans la version « comptes » de `confidentialite.html`.
 
 Toute nouvelle clé de stockage doit être ajoutée à `CLES_STOCKAGE_SITE` (`js/outils.js`) et décrite sur `confidentialite.html`.
 Tout nouveau service contacté par le navigateur doit aussi y être décrit.
@@ -262,12 +341,15 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `js/marches.js` | Tableau « marchés et devises » de la fiche et du simulateur |
 | `js/confidentialite.js` | Page de confidentialité : données du site dans ce navigateur et bouton d'effacement |
 | `js/vendor/pdfjs/` | pdf.js 3.11.174 (Mozilla, licence Apache 2.0), hébergé avec le site : aucun appel à un service tiers |
+| `fonts/` | Police IBM Plex Sans 1.1.0 (IBM, SIL Open Font License 1.1, texte dans `fonts/OFL.txt`), alphabet latin, hébergée avec le site : aucun appel à un service tiers |
+| `js/mode-site.js` | Mode gratuit ou comptes selon l'adresse : liste `HOTES_COMPTES`, marquage de `<html>`, renvoi des pages de compte vers l'accueil (voir « Deux modes selon l'adresse ») |
+| `serveur/acces.js` / `functions/_middleware.js` | Contrôle d'accès du simulateur sur Cloudflare : actif en mode comptes seulement |
 | `js/nav.js` | Onglets communs (le fonds suit d'une page à l'autre) |
 | `js/infobulles.js` | Infobulles des termes techniques (toutes les pages) |
 | `js/createur.js` | Bouton « Créateur » et son animation |
 | `data/resume.js` | Chiffres de l'annuaire affichés sur l'accueil (générés par le script) |
 | `data/societes.js` | Sociétés de gestion agréées par l'AMF : n° d'agrément, début d'autorisation, site (générée par `scripts/construire_identite.py`) |
-| `tests/` | Tests des sources officielles : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `sources-officielles.test.mjs` (`node --test tests/sources-officielles.test.mjs`) et de vrais extraits dans `tests/donnees/` |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 

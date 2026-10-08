@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Simulateur · Décrypte ton fonds</title>
   <meta name="description" content="Simule ce que pourrait devenir ton investissement dans un ETF ou un fonds : scénarios défavorable, central et favorable, Monte Carlo, frais, inflation, crises, objectif et portefeuille.">
+  <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="page-simu">
@@ -17,6 +18,7 @@
       <a href="simulateur.html" data-page="simulateur.html" data-fonds aria-current="page">Simulateur</a>
     </nav>
     <div class="entete-actions">
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="connexion.html">Se connecter</a>
       <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
     </div>
   </header>
@@ -32,20 +34,25 @@
         <input id="champ-recherche" type="search" placeholder="ex. FR0011871128, CW8 ou « S&P 500 »" required>
         <button type="submit" class="btn">Choisir</button>
       </form>
+      <p class="aide" data-seulement="comptes"><a href="compte.html#simulations">Mes simulations enregistrées</a></p>
+      <p id="etat-enregistrement" class="aide" aria-live="polite"></p>
       <div id="exemples" class="exemples"></div>
     </section>
 
     <div id="fonds-simu" aria-live="polite"></div>
     <section id="assistant" class="assistant" aria-label="Ton plan d'investissement" hidden></section>
     <div id="resultats-simu" aria-live="polite"></div>
+    <p class="rappel-legal"><strong>Cette simulation repose sur des hypothèses et des données historiques. Elle ne constitue pas une
+      garantie de performance future ni un conseil en investissement.</strong></p>
   </main>
 
   <footer class="site-footer">
-    <p><strong>Cette simulation repose sur des hypothèses et des données historiques. Elle ne constitue pas une garantie de performance future ni un conseil en investissement.</strong></p>
     <p><strong>Mention légale :</strong> ce site fournit une information générale et pédagogique. Il ne constitue
       <strong>ni un conseil en investissement, ni une recommandation</strong> d'acheter ou de vendre un produit financier.
-      Les performances passées ne préjugent pas des performances futures. Vérifie toujours le DIC et le prospectus officiels.</p>
-    <p class="liens-pied"><a href="confidentialite.html">Confidentialité et mentions légales</a></p>
+      Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
+      prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
+    <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.</p>
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span><a href="confidentialite.html">Confidentialité</a></p>
   </footer>
 
   <div id="infobulle" role="tooltip" hidden></div>
@@ -68,6 +75,8 @@
   <script src="js/projection.js"></script>
   <script src="js/contexte-fonds.js"></script>
   <script src="js/graphiques-simu.js"></script>
+  <script src="js/config-compte.js"></script>
+  <script src="js/compte.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/simulateur.js"></script>
   <script src="js/infobulles.js"></script>

@@ -191,7 +191,7 @@ function valeurFinale(capital, tauxAnnuel, annees) {
 // Toutes les clés que le site peut écrire. L'adresse cleante-f.github.io est partagée avec d'autres sites
 // du même compte GitHub : on ne touche jamais aux autres clés.
 const CLE_CACHE_COMPO = "composition-v8-";   // v8 : les lignes gardent leur ISIN (liens vers les fonds détenus)
-const CLES_STOCKAGE_SITE = [/^composition-v\d+-/, /^serie-/, /^longue-v1-/, /^simulateur-plan-v1$/, /^simulateur-memoriser$/, /^seuils-alertes-v1$/];
+const CLES_STOCKAGE_SITE = [/^composition-v\d+-/, /^serie-/, /^longue-v1-/, /^seuils-alertes-v1$/, /^compte-session-v1$/];
 
 function clesStockageSite() {
   try { return Object.keys(localStorage).filter(k => CLES_STOCKAGE_SITE.some(re => re.test(k))); } catch (e) { return []; }
@@ -199,6 +199,7 @@ function clesStockageSite() {
 
 // Copies de données publiques périmées (plus lues, mais jamais effacées jusqu'ici) : supprimées à chaque visite
 function nettoyerStockage() {
+  for (const ancienne of ["simulateur-plan-v1", "simulateur-memoriser"]) { try { localStorage.removeItem(ancienne); } catch (e) { /* stockage indisponible */ } }
   const aujourdHui = new Date().toISOString().slice(0, 10);
   for (const k of clesStockageSite()) {
     try {

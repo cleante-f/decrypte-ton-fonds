@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Décrypte ton fonds</title>
   <meta name="description" content="Comprendre en quelques minutes ce que contient un fonds (OPCVM, SICAV, FCP, ETF), ses risques, ses pièges et ses performances.">
+  <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,77 +18,82 @@
       <a href="simulateur.html" data-page="simulateur.html" data-fonds>Simulateur</a>
     </nav>
     <div class="entete-actions">
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="connexion.html">Se connecter</a>
       <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
     </div>
   </header>
 
   <main class="accueil">
     <section class="accueil-hero">
-      <p class="surtitre">Pour les épargnants qui veulent comprendre ce qu'ils achètent</p>
-      <h1>Découvre ce que contient vraiment ton fonds</h1>
-      <p class="accroche">OPCVM, SICAV, FCP, ETF : en quelques secondes, tu vois où ton argent est investi, les risques, les frais
-        et les pièges, expliqués simplement, sans lire 80 pages de prospectus.</p>
-      <form class="recherche-accueil" action="decrypte.html" method="get" autocomplete="off">
-        <label for="q" class="sr-only">Code ISIN, ticker ou nom du fonds</label>
-        <input id="q" name="q" type="search" placeholder="Code ISIN, ticker ou nom, ex. « Carmignac »" required>
-        <div class="boutons-accueil">
-          <button type="submit" class="btn" formaction="decrypte.html">Décrypter</button>
-          <button type="submit" class="btn btn-contour" formaction="performances.html">Voir les performances</button>
-          <button type="submit" class="btn btn-contour" formaction="simulateur.html">Simuler</button>
-        </div>
-      </form>
+      <div class="accueil-texte">
+        <p class="surtitre">Pour les épargnants qui veulent comprendre ce qu'ils achètent</p>
+        <h1>Découvre ce que contient vraiment ton fonds</h1>
+        <p class="accroche">OPCVM, SICAV, FCP, ETF : en quelques secondes, tu vois où ton argent est investi, les risques, les frais
+          et les pièges, expliqués simplement, sans lire 80 pages de prospectus.</p>
+        <form class="recherche-accueil" action="decrypte.html" method="get" autocomplete="off">
+          <label for="q" class="sr-only">Code ISIN, ticker ou nom du fonds</label>
+          <div class="champ-accueil">
+            <input id="q" name="q" type="search" placeholder="Code ISIN, ticker ou nom, ex. « Carmignac »" required>
+            <button type="submit" class="btn" formaction="decrypte.html">Décrypter</button>
+          </div>
+          <p class="autres-actions">
+            <button type="submit" class="lien-bouton" formaction="performances.html">Voir les performances</button>
+            <span aria-hidden="true">·</span>
+            <button type="submit" class="lien-bouton" formaction="simulateur.html">Simuler un investissement</button>
+          </p>
+        </form>
+      </div>
+      <aside class="chiffres-accueil" aria-label="Le site en chiffres">
+        <dl>
+          <div><dt>Fonds référencés</dt><dd id="nb-total">30 000+</dd></div>
+          <div><dt>Fonds français analysés en direct</dt><dd id="nb-francais">11 000+</dd></div>
+          <div><dt>ETF cotés en Europe</dt><dd id="nb-etf">7 900+</dd></div>
+        </dl>
+        <p class="maj-accueil"><span id="date-maj"></span></p>
+        <p class="sources-chiffres">Sources officielles : AMF, BCE, ESMA, Deutsche Börse.</p>
+      </aside>
     </section>
 
-    <section class="cartes-accueil" aria-label="Les trois espaces du site">
-      <a class="carte-lien" href="decrypte.html">
-        <span class="carte-icone" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="28" height="28"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10.5 7v7M7 10.5h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </span>
-        <h2>Décrypte ton fonds</h2>
-        <p>La fiche complète d'un fonds, en langage simple.</p>
-        <ul>
-          <li>Où est investi l'argent : pays, secteurs, principales lignes</li>
-          <li>Alertes de concentration (vert, orange, rouge)</li>
-          <li>Pièges détectés : frais, fonds nourricier, swap, blocage…</li>
-          <li>Niveau de risque, volatilité, pertes passées</li>
-        </ul>
-        <span class="carte-action">Décrypter un fonds →</span>
-      </a>
-      <a class="carte-lien" href="performances.html">
-        <span class="carte-icone" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="28" height="28"><path d="M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 16l5-5 4 3 7-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6h4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-        <h2>Performances</h2>
-        <p>Un graphique interactif pour voir comment le fonds a évolué.</p>
-        <ul>
-          <li>De 1 mois à tout l'historique disponible (jusqu'à 20 ans)</li>
-          <li>Comparaison avec les actions monde, US, zone euro ou le monétaire</li>
-          <li>Comparaison avec n'importe quel autre fonds</li>
-          <li>Performance, volatilité et perte maximale de la période</li>
-        </ul>
-        <span class="carte-action">Voir les performances →</span>
-      </a>
-      <a class="carte-lien carte-lien-simu" href="simulateur.html">
-        <span class="carte-icone" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="28" height="28"><path d="M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 15l4-3 3 2 4-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 9l5-4M15 9l5 1M15 9l5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1.5 2.5"/></svg>
-        </span>
-        <h2>Simulateur</h2>
-        <p>Que pourrait devenir ton investissement ? Plusieurs scénarios, jamais une promesse.</p>
-        <ul>
-          <li>Scénarios défavorable, central, favorable et de tensions</li>
-          <li>Simulation Monte Carlo, frais, inflation et fiscalité</li>
-          <li>Crises rejouées (2008, Covid, 2022…) et objectif à atteindre</li>
-          <li>Comparaison d'ETF, portefeuille, contexte économique et risques</li>
-        </ul>
-        <span class="carte-action">Simuler un investissement →</span>
-      </a>
-    </section>
-
-    <section class="chiffres-accueil" aria-label="Le site en chiffres">
-      <div><strong id="nb-total">30 000+</strong><span>fonds référencés</span></div>
-      <div><strong id="nb-francais">11 000+</strong><span>fonds français analysés en direct</span></div>
-      <div><strong id="nb-etf">7 900+</strong><span>ETF cotés en Europe</span></div>
-      <div><strong>0 €</strong><span>données publiques et gratuites</span></div>
+    <section class="outils-accueil" aria-labelledby="titre-outils">
+      <p class="titre-section" id="titre-outils">Trois outils</p>
+      <div class="grille-outils">
+        <a class="carte-lien outil-principal" href="decrypte.html">
+          <div class="outil-entete">
+            <span class="carte-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10.5 7v7M7 10.5h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </span>
+            <h2 class="outil-titre">Décrypte ton fonds</h2>
+          </div>
+          <p>La fiche complète d'un fonds, en langage simple.</p>
+          <ul>
+            <li>Où est investi l'argent : pays, secteurs, principales lignes</li>
+            <li>Alertes de concentration (vert, orange, rouge)</li>
+            <li>Pièges détectés : frais, fonds nourricier, swap, blocage…</li>
+            <li>Niveau de risque, volatilité, pertes passées</li>
+          </ul>
+          <div class="outil-pied"><span class="pilule">Gratuit</span><span class="carte-action">Décrypter un fonds →</span></div>
+        </a>
+        <a class="carte-lien" href="performances.html">
+          <div class="outil-entete">
+            <span class="carte-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 16l5-5 4 3 7-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6h4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <h2 class="outil-titre">Performances</h2>
+          </div>
+          <p>Un graphique interactif pour voir comment le fonds a évolué.</p>
+          <div class="outil-pied"><span class="pilule">Gratuit</span><span class="carte-action">Voir les performances →</span></div>
+        </a>
+        <a class="carte-lien" href="simulateur.html">
+          <div class="outil-entete">
+            <span class="carte-icone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 15l4-3 3 2 4-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 9l5-4M15 9l5 1M15 9l5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1.5 2.5"/></svg>
+            </span>
+            <h2 class="outil-titre">Simulateur</h2>
+          </div>
+          <p>Que pourrait devenir ton investissement ? Plusieurs scénarios, jamais une promesse.</p>
+          <div class="outil-pied"><span class="pilule" data-seulement="comptes">3 simulations offertes</span><span class="pilule" data-seulement="gratuit">Gratuit</span><span class="carte-action">Simuler →</span></div>
+        </a>
+      </div>
     </section>
 
     <section class="etapes" aria-labelledby="titre-etapes">
@@ -105,20 +111,23 @@
 
     <section class="sources-accueil">
       <h2>D'où viennent les données ?</h2>
-      <p>AMF (base GECO), Banque centrale européenne, Euronext et Deutsche Börse (Xetra). Chaque fiche indique la source
-        et la date de chaque information. <span id="date-maj"></span></p>
+      <p>AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.
+        Chaque fiche indique la source et la date de chaque information.</p>
     </section>
   </main>
 
   <footer class="site-footer">
     <p><strong>Mention légale :</strong> ce site fournit une information générale et pédagogique. Il ne constitue
       <strong>ni un conseil en investissement, ni une recommandation</strong> d'acheter ou de vendre un produit financier.
-      Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC et le prospectus officiels avant d'investir.
-      Les performances passées ne préjugent pas des performances futures.</p>
-    <p class="liens-pied"><a href="confidentialite.html">Confidentialité et mentions légales</a></p>
+      Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
+      prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
+    <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI.</p>
+    <p class="liens-pied"><a href="mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span><a href="confidentialite.html">Confidentialité</a></p>
   </footer>
 
   <script src="data/resume.js"></script>
+  <script src="js/config-compte.js"></script>
+  <script src="js/compte.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/createur.js"></script>
   <script>

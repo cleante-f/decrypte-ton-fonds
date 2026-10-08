@@ -13,6 +13,7 @@
   bouton.addEventListener("click", () => {
     const cles = clesStockageSite();
     cles.forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* ignoré */ } });
+    document.cookie = "dtf_session=; Path=/; Max-Age=0; Secure; SameSite=Lax";   // la session ne vaut plus rien sans son stockage
     afficher();
     etat.textContent = `C'est fait : ${cles.length} élément${cles.length > 1 ? "s" : ""} effacé${cles.length > 1 ? "s" : ""}. ` + etat.textContent;
   });

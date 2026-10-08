@@ -14,7 +14,6 @@ from sources.commun import AGENT, SourceIndisponible, cle_api
 APPELS = [
     # les appels exacts des modules (voir scripts/sources/)
     ("NewsData.io", "NEWSDATA_KEY", "https://newsdata.io/api/1/latest?apikey={cle}&qInTitle=ASML&language=en,fr"),
-    ("MarketAux", "MARKETAUX_KEY", "https://api.marketaux.com/v1/news/all?api_token={cle}&symbols=ASML&filter_entities=true&language=en,fr&limit=3"),
 ]
 
 
