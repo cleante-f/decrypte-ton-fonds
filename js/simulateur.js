@@ -277,11 +277,20 @@ function calculer(A = S.fonds, plan = S.plan) {
 // ---------- Recherche d'un fonds ----------
 
 const champSimu = document.getElementById("champ-recherche");
-document.getElementById("form-recherche").addEventListener("submit", e => {
+let numeroRecherche = 0;   // évite qu'une ancienne recherche lente écrase une plus récente
+document.getElementById("form-recherche").addEventListener("submit", async e => {
   e.preventDefault();
-  const reels = rechercherAnnuaire(champSimu.value);
-  if (reels.length === 1) location.hash = cleEntree(reels[0], reels[0].isins.includes(champSimu.value.trim().toUpperCase()) ? champSimu.value.trim().toUpperCase() : null);
-  else zoneFonds.innerHTML = afficherListe(champSimu.value, reels);
+  const texte = champSimu.value;
+  const recherche = ++numeroRecherche, ouverture = numeroChargement;
+  const avant = [...zoneFonds.childNodes];
+  zoneFonds.innerHTML = `<div class="carte"><p class="chargement">Recherche dans tous les pays…</p></div>`;
+  const reels = await rechercherPartout(texte);
+  if (recherche !== numeroRecherche || ouverture !== numeroChargement) return;   // autre recherche, ou autre fonds ouvert entre-temps
+  if (reels.length === 1) {
+    const adresse = location.hash;
+    location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (location.hash === adresse) zoneFonds.replaceChildren(...avant);   // fonds déjà ouvert : l'adresse ne change pas, on remet sa carte
+  } else zoneFonds.innerHTML = afficherListe(texte, reels);
 });
 document.getElementById("exemples").innerHTML = "<span>Exemples :</span> " + EXEMPLES_SIMU.filter(([i]) => annuaireParIsin(i))
   .map(([i, n]) => `<a href="#${i}" class="chip">${esc(n)}</a>`).join(" ");
@@ -314,7 +323,17 @@ async function afficherDepuisAdresse() {
   const cle = decodeURIComponent(location.hash.slice(1));
   const numero = ++numeroChargement;
   if (!cle) { zoneFonds.innerHTML = ""; zoneAssistant.hidden = true; zoneResultats.innerHTML = ""; document.title = "Simulateur · Décrypte ton fonds"; return; }
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
+  // Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste
+  if (zoneDeCle(cle) !== "europe") zoneFonds.innerHTML = `<div class="carte"><p class="chargement">Chargement du fonds…</p></div>`;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero !== numeroChargement) return;
+    zoneFonds.innerHTML = `<div class="carte"><p class="non-dispo">Impossible de charger cette liste de fonds : recharge la page.</p></div>`;
+    return;
+  }
+  if (numero !== numeroChargement) return;
   if (!entree) { zoneFonds.innerHTML = afficherListe(cle, []); return; }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Simulateur`;
@@ -1177,10 +1196,11 @@ zoneResultats.addEventListener("input", e => {
   const champ = e.target.closest("[data-recherche-fonds]");
   if (champ) {
     clearTimeout(minuterieRecherche);
-    minuterieRecherche = setTimeout(() => {
+    minuterieRecherche = setTimeout(async () => {
       const liste = document.getElementById("suggestions-" + champ.dataset.rechercheFonds);
       const q = champ.value.trim();
-      const res = q.length < 2 ? [] : rechercherAnnuaire(q, 8).filter(x => x.isins.length || x.source !== "G");
+      const res = q.length < 2 ? [] : (await rechercherPartout(q, 8)).filter(x => x.isins.length || x.source !== "G");
+      if (champ.value.trim() !== q) return;   // le champ a changé pendant la recherche : la réponse suivante affichera les suggestions
       liste.hidden = !res.length;
       liste.innerHTML = res.map(x => `<li><button type="button" data-ajouter-fonds="${esc(cleEntree(x))}" data-cible="${champ.dataset.rechercheFonds}">${esc(x.nom)} <small>${esc(x.isins[0] || "")}</small></button></li>`).join("");
     }, 200);
@@ -1198,8 +1218,15 @@ zoneResultats.addEventListener("input", e => {
 });
 
 async function ajouterFonds(cible, cle) {
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
-  if (!entree) return;
+  const numero = numeroChargement;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero === numeroChargement) alert("Impossible de charger cette liste de fonds : recharge la page.");
+    return;
+  }
+  if (numero !== numeroChargement || !entree) return;   // un autre fonds a été ouvert entre-temps, ou fonds inconnu
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   if (cible === "comparer") {
     if (S.comparaisons.some(c => cleEntree(c.entree, c.isin) === cle) || cle === cleEntree(S.fonds.entree, S.fonds.isin)) return;

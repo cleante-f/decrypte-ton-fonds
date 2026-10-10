@@ -129,3 +129,19 @@ test("_routes.json : js/mode-site.js exclu des Functions", () => {
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   assert.ok(routes.exclude.includes("/js/mode-site.js"));
 });
+
+// ---- Annuaire par zone (fonds américains de la SEC) : scripts des trois outils et fichiers publics ----
+test("décrypte, performances, simulateur : correspondance des fonds américains après l'annuaire, js/zones.js après js/geco.js", () => {
+  for (const nom of ["decrypte", "performances", "simulateur"]) {
+    const scripts = [...lirePage(nom).matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+    const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${nom} : ${src} absent`); return i; };
+    assert.equal(place("data/etats-unis-isin.js"), place("data/annuaire.js") + 1, `${nom} : data/etats-unis-isin.js juste après data/annuaire.js`);
+    assert.equal(place("js/zones.js"), place("js/geco.js") + 1, `${nom} : js/zones.js juste après js/geco.js`);
+    assert.ok(!scripts.includes("data/annuaire-etats-unis.js"), `${nom} : la zone ne se charge qu'à la demande (js/zones.js)`);
+  }
+});
+
+test("_routes.json : annuaire et correspondance des fonds américains, js/zones.js exclus des Functions", () => {
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  for (const chemin of ["/data/annuaire-etats-unis.js", "/data/etats-unis-isin.js", "/js/zones.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
+});

@@ -81,7 +81,9 @@ function rechercherAnnuaire(requete, max = 50) {
 }
 
 // Clé utilisée dans l'adresse de la page (#...)
+// Un fonds américain (source « S », SEC) n'a pas d'ISIN : sa clé est son numéro de série sur 9 chiffres (S000002839)
 function cleEntree(e, isin) {
+  if (e.source === "S") return "S" + String(e.cmpId).padStart(9, "0");
   return isin || e.isins[0] || e.source + e.cmpId;
 }
 

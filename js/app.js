@@ -19,10 +19,19 @@ document.getElementById("exemples").innerHTML =
 
 // ---------- Recherche et navigation ----------
 
-function lancerRecherche(texte) {
-  const reels = rechercherAnnuaire(texte);
+let rechercheEnCours = 0; // évite qu'une ancienne recherche lente écrase une plus récente
+let affichageEnCours = 0; // évite qu'une ancienne réponse lente écrase une fiche plus récente
+
+async function lancerRecherche(texte) {
+  const recherche = ++rechercheEnCours, affichage = affichageEnCours;
+  const avant = [...zoneResultat.childNodes];
+  zoneResultat.innerHTML = `<div class="carte"><p class="chargement">Recherche dans tous les pays…</p></div>`;
+  const reels = await rechercherPartout(texte);
+  if (recherche !== rechercheEnCours || affichage !== affichageEnCours) return; // autre recherche, ou autre fonds ouvert entre-temps
   if (reels.length === 1) {
+    const adresse = location.hash;
     location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (location.hash === adresse) zoneResultat.replaceChildren(...avant); // fonds déjà ouvert : l'adresse ne change pas, on remet sa fiche
   } else {
     zoneResultat.innerHTML = afficherListe(texte, reels);
   }
@@ -33,16 +42,23 @@ document.getElementById("form-recherche").addEventListener("submit", e => {
   lancerRecherche(champ.value);
 });
 
-let affichageEnCours = 0; // évite qu'une ancienne réponse lente écrase une fiche plus récente
-
 async function afficherDepuisAdresse() {
   const cle = decodeURIComponent(location.hash.slice(1));
   const numero = ++affichageEnCours;
   document.title = "Décrypte ton fonds";
   if (!cle) { zoneResultat.innerHTML = ""; return; }
 
-  // Fonds de l'annuaire (fiche générée automatiquement)
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
+  // Fonds de l'annuaire (fiche générée automatiquement). Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste.
+  if (zoneDeCle(cle) !== "europe") zoneResultat.innerHTML = `<div class="carte"><p class="chargement">Chargement du fonds…</p></div>`;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero !== affichageEnCours) return;
+    zoneResultat.innerHTML = `<div class="carte"><p class="non-dispo">Impossible de charger cette liste de fonds : recharge la page.</p></div>`;
+    return;
+  }
+  if (numero !== affichageEnCours) return; // l'utilisateur a changé de fonds entre-temps
   if (!entree) {
     zoneResultat.innerHTML = afficherListe(cle, []);
     return;
@@ -93,6 +109,13 @@ async function afficherDepuisAdresse() {
       }
     }
     await analyserComposition(donnees, entree.nom, cleStyle, historiqueStyle, donnees.documents, donnees.part, progression, rendre);
+    return;
+  }
+
+  // Fonds américain (SEC) : identité seulement pour l'instant, ni cours en bourse ni fonds français comparable
+  if (entree.source === "S") {
+    donnees.composition = { fini: true, c: null };
+    rendre();
     return;
   }
 

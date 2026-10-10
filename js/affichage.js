@@ -184,21 +184,37 @@ function echelleSri(sri) {
     <div class="sri-legende"><span>Risque plus faible</span><span>Risque plus élevé</span></div>`;
 }
 
+// Origine d'un fonds dans les listes : le texte de sa zone (ZONES, js/zones.js) ou, pour l'annuaire européen, d'après sa source
+function origineFonds(e) {
+  const zone = typeof ZONES !== "undefined" ? ZONES.find(z => z.motif.test(cleEntree(e))) : null;
+  if (zone) return zone.origine;
+  return (e.source === "E" ? "ETF" : e.source === "N" ? "Fonds étranger" : e.source === "U" ? "Fonds coté en Europe"
+    : e.etf ? "ETF · France" : "Fonds français") + (horsEee(e) ? ` · ${PAYS[e.pays] || e.pays}, hors Europe` : "");
+}
+
+// Note à placer sous une liste de résultats si rechercherPartout (js/zones.js) n'a pas pu charger certaines zones
+function noteZonesIncompletes(reels) {
+  const echecs = (reels && reels.incomplet) || [];
+  if (!echecs.length) return "";
+  const origines = echecs.map(nom => ((typeof ZONES !== "undefined" && ZONES.find(z => z.nom === nom)) || {}).origine || nom);
+  return `<p class="note">Certains fonds n'ont pas pu être chargés (${esc(origines.join(", "))}) : réessaie dans un instant.</p>`;
+}
+
 function afficherListe(requete, reels) {
   if (!reels.length) {
     return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p>
-      <p class="aide">L'annuaire contient ${ANNUAIRE.length.toLocaleString("fr-FR")} fonds : tous les fonds de droit français (base GECO de l'AMF),
-      les fonds étrangers commercialisés en France, et tous les ETF et fonds cotés en bourse dans l'Union européenne. Essaie avec l'ISIN, le ticker ou quelques mots du nom.</p></div>`;
+      <p class="aide">L'annuaire européen contient ${ANNUAIRE.length.toLocaleString("fr-FR")} fonds : tous les fonds de droit français (base GECO de l'AMF),
+      les fonds étrangers commercialisés en France, et tous les ETF et fonds cotés en bourse dans l'Union européenne. La recherche couvre aussi les fonds américains déclarés à la SEC.
+      Essaie avec l'ISIN, le ticker ou quelques mots du nom.</p>${noteZonesIncompletes(reels)}</div>`;
   }
-  const origine = e => (e.source === "E" ? "ETF" : e.source === "N" ? "Fonds étranger" : e.source === "U" ? "Fonds coté en Europe"
-    : e.etf ? "ETF · France" : "Fonds français") + (horsEee(e) ? ` · ${PAYS[e.pays] || e.pays}, hors Europe` : "");
   const lignes = reels.map(e => {
     const cle = cleEntree(e);
     return `<li><a href="#${esc(cle)}">${esc(e.nom)}</a>
-      <small>${esc(e.isins[0] || "ISIN non publié")} · ${esc(origine(e))}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.classification ? " · " + esc(e.classification) : ""}${e.public ? "" : " · réservé"}</small></li>`;
+      <small>${esc(e.isins[0] || "ISIN non publié")} · ${esc(origineFonds(e))}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.classification ? " · " + esc(e.classification) : ""}${e.public ? "" : " · réservé"}</small></li>`;
   }).join("");
   return `<div class="carte"><h2>${reels.length >= 50 ? "Plus de 50" : reels.length} fonds trouvés</h2>
     ${reels.length >= 50 ? `<p class="aide">Seuls les 50 premiers sont affichés : précise ta recherche.</p>` : ""}
+    ${noteZonesIncompletes(reels)}
     <ul class="similaires resultats">${lignes}</ul></div>`;
 }
 

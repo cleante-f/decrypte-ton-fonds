@@ -417,9 +417,10 @@ function brancherEvenements() {
   let minuterie = 0;
   champ.addEventListener("input", () => {
     clearTimeout(minuterie);
-    minuterie = setTimeout(() => {
+    minuterie = setTimeout(async () => {
       const q = champ.value.trim();
-      const res = q.length < 2 ? [] : rechercherAnnuaire(q, 8).filter(e => e.isins.length || e.source !== "G");
+      const res = q.length < 2 ? [] : (await rechercherPartout(q, 8)).filter(e => e.isins.length || e.source !== "G");
+      if (champ.value.trim() !== q) return;   // le champ a changé pendant la recherche : la réponse suivante affichera les suggestions
       liste.hidden = !res.length;
       liste.innerHTML = res.map(e => `<li><button type="button" data-ajouter="${esc(cleEntree(e))}">${esc(e.nom)} <small>${esc(e.isins[0] || "")}</small></button></li>`).join("");
     }, 200);
@@ -428,7 +429,15 @@ function brancherEvenements() {
     const b = e.target.closest("[data-ajouter]");
     if (!b) return;
     liste.hidden = true; champ.value = "";
-    const entree = annuaireParIsin(b.dataset.ajouter) || annuaireParCle(b.dataset.ajouter);
+    const numero = numeroAffichage;
+    let entree;
+    try {
+      entree = await entreeParCle(b.dataset.ajouter);
+    } catch (err) {
+      if (numero === numeroAffichage) alert("Impossible de charger cette liste de fonds : recharge la page.");
+      return;
+    }
+    if (numero !== numeroAffichage) return;   // un autre fonds a été ouvert entre-temps
     if (entree) await ajouterComparaison("fonds-" + b.dataset.ajouter, entree.nom, () => serieFonds(entree, b.dataset.ajouter));
   });
   document.addEventListener("click", e => { if (!e.target.closest(".comparer-fonds")) liste.hidden = true; });
@@ -474,7 +483,17 @@ async function afficherPerformances() {
   document.title = "Performances · Décrypte ton fonds";
   if (!cle) { zonePerf.innerHTML = ""; return; }
 
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
+  // Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste
+  if (zoneDeCle(cle) !== "europe") zonePerf.innerHTML = `<div class="carte"><p class="chargement">Chargement du fonds…</p></div>`;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero !== numeroAffichage) return;
+    zonePerf.innerHTML = `<div class="carte"><p class="non-dispo">Impossible de charger cette liste de fonds : recharge la page.</p></div>`;
+    return;
+  }
+  if (numero !== numeroAffichage) return;
   if (!entree) { zonePerf.innerHTML = listePerf([], cle); return; }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Performances`;
@@ -505,16 +524,26 @@ async function afficherPerformances() {
 }
 
 function listePerf(resultats, requete) {
-  if (!resultats.length) return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p></div>`;
+  if (!resultats.length) return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p>${noteZonesIncompletes(resultats)}</div>`;
   return `<div class="carte"><h2>${resultats.length >= 50 ? "Plus de 50" : resultats.length} fonds trouvés</h2>
+    ${noteZonesIncompletes(resultats)}
     <ul class="similaires resultats">${resultats.map(e => `<li><a href="#${esc(cleEntree(e))}">${esc(e.nom)}</a>
       <small>${esc(e.isins[0] || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.source !== "G" ? (trouverJumeau(e.nom, false) ? " · via un fonds qui suit le même indice" : " · pas d'historique public") : ""}</small></li>`).join("")}</ul></div>`;
 }
 
-function lancerRecherchePerf(texte) {
-  const reels = rechercherAnnuaire(texte);
-  if (reels.length === 1) location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
-  else zonePerf.innerHTML = listePerf(reels, texte);
+let numeroRecherche = 0;   // évite qu'une ancienne recherche lente écrase une plus récente
+
+async function lancerRecherchePerf(texte) {
+  const recherche = ++numeroRecherche, affichage = numeroAffichage;
+  const avant = [...zonePerf.childNodes];
+  zonePerf.innerHTML = `<div class="carte"><p class="chargement">Recherche dans tous les pays…</p></div>`;
+  const reels = await rechercherPartout(texte);
+  if (recherche !== numeroRecherche || affichage !== numeroAffichage) return;   // autre recherche, ou autre fonds ouvert entre-temps
+  if (reels.length === 1) {
+    const adresse = location.hash;
+    location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (location.hash === adresse) zonePerf.replaceChildren(...avant);   // fonds déjà ouvert : l'adresse ne change pas, on remet son graphique
+  } else zonePerf.innerHTML = listePerf(reels, texte);
 }
 
 document.getElementById("form-recherche").addEventListener("submit", e => { e.preventDefault(); lancerRecherchePerf(champPerf.value); });
