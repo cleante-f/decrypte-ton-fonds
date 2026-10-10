@@ -1,0 +1,112 @@
+{
+ "response": {
+  "docs": [
+   {
+    "id": "2731132",
+    "funds_lei": "5493003BFED2MWDBYH64",
+    "funds_national_name": "AMUNDI INDEX SOLUTIONS-AMUNDI MSCI WORLD SWAP",
+    "funds_legal_framework_name": "UCITS",
+    "funds_manager_lei": "213800VZW861M5FHMD50",
+    "funds_manager_nat_name": "AMUNDI LUXEMBOURG S.A.",
+    "funds_manager_comp_cou_code": "Commission de Surveillance du Secteur Financier (CSSF)",
+    "funds_status_code": "ACTV",
+    "funds_domicile_cou_code": "LU",
+    "funds_ca_cou_code": "LU",
+    "funds_host_country_codes": [
+     "FR",
+     "IT",
+     "NL",
+     "FI",
+     "SE",
+     "ES",
+     "AT",
+     "DE",
+     "IE",
+     "PT",
+     "DK",
+     "NO"
+    ]
+   },
+   {
+    "id": "90728",
+    "funds_national_name": "GAM Star Absolute Return Macro",
+    "funds_legal_framework_name": "UCITS",
+    "funds_manager_nat_name": "GAM Fund Management Limited",
+    "funds_manager_comp_cou_code": "Central Bank of Ireland (CBI)",
+    "funds_status_code": "ACTV",
+    "funds_domicile_cou_code": "IE",
+    "funds_ca_cou_code": "IE",
+    "funds_host_country_codes": [
+     "AT",
+     "DE",
+     "ES",
+     "FR"
+    ]
+   },
+   {
+    "id": "2103246",
+    "funds_lei": "54930037VM06T2XYAY51",
+    "funds_national_name": "QUAESTIO ALTERNATIVE FUNDS ¿ DIVERSIFIED YIELD FUND",
+    "funds_legal_framework_name": "AIF",
+    "funds_manager_lei": "549300R4O3O16JWCZK60",
+    "funds_manager_nat_name": "QUAESTIO CAPITAL SGR S.P.A.",
+    "funds_manager_comp_cou_code": "BANCA D'ITALIA",
+    "funds_status_code": "ACTV",
+    "funds_domicile_cou_code": "LU",
+    "funds_ca_cou_code": "IT",
+    "funds_host_country_codes": [
+     "LU"
+    ]
+   },
+   {
+    "id": "2075934",
+    "funds_national_name": "IPM Global Fund Plc - IPM Systematic Macro Fund (Ireland)",
+    "funds_legal_framework_name": "AIF",
+    "funds_manager_nat_name": "IPM Informed Portfolio Management AB",
+    "funds_manager_comp_cou_code": "Finansinspektionen (FI)",
+    "funds_status_code": "INAC",
+    "funds_domicile_cou_code": "IE",
+    "funds_ca_cou_code": "SE",
+    "funds_host_country_codes": [
+     "AT",
+     "BE",
+     "DE",
+     "DK",
+     "EE",
+     "ES",
+     "FI",
+     "FR",
+     "IE",
+     "IS",
+     "IT",
+     "LI",
+     "LU",
+     "NL",
+     "NO",
+     "PL",
+     "SE"
+    ]
+   },
+   {
+    "id": "2836341",
+    "funds_national_name": "iShares Core MSCI World UCITS ETF",
+    "funds_legal_framework_name": "UCITS",
+    "funds_manager_nat_name": "BlackRock Asset Management Ireland Limited",
+    "funds_manager_comp_cou_code": "Central Bank of Ireland (CBI)",
+    "funds_status_code": "ACTV",
+    "funds_domicile_cou_code": "IE",
+    "funds_ca_cou_code": "IE",
+    "funds_host_country_codes": [
+     "CZ",
+     "EE",
+     "GR",
+     "HU",
+     "LI",
+     "PL",
+     "RO",
+     "SK"
+    ]
+   }
+  ]
+ }
+}
