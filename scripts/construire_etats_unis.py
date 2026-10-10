@@ -31,6 +31,7 @@ from __future__ import annotations
 import csv
 import heapq
 import io
+import math
 import re
 import time
 import urllib.error
@@ -38,6 +39,8 @@ import urllib.request
 import zipfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+
+from actualiser_contexte import lire_serie_bce
 
 UA = "Decrypte ton fonds contact@decrypte-ton-fonds.fr"
 SEC = "https://www.sec.gov"
@@ -49,6 +52,9 @@ PREMIER_TRIMESTRE = "2019q4"
 MORCEAUX = 64   # nombre de fichiers de détails : data/etats-unis/00.js … 63.js
 DERIVES = {"DCO", "DCR", "DE", "DFE", "DIR", "DO"}   # catégories N-PORT des produits dérivés : écartées de la composition
 DATA = Path(__file__).resolve().parent.parent / "data"
+# étiquettes XBRL des prospectus → position dans [brut, net, gestion, entrée, sortie, date]
+ETIQUETTES_FRAIS = {"ExpensesOverAssets": 0, "NetExpensesOverAssets": 1, "ManagementFeesOverAssets": 2,
+                    "MaximumSalesChargeImposedOnPurchasesOverOfferingPrice": 3, "MaximumDeferredSalesChargeOverOther": 4}
 
 PAUSE = 0.2   # secondes avant chaque requête : 5 par seconde au plus (limite de la SEC : 10)
 TAMPON = 8 << 20   # octets demandés à chaque requête par plage
@@ -248,3 +254,123 @@ def isins_des_lignes(identifiants: Iterable[dict], holding_ids: set[str]) -> dic
         if i.get("HOLDING_ID") in holding_ids and i.get("IDENTIFIER_ISIN"):
             isins.setdefault(i["HOLDING_ID"], i["IDENTIFIER_ISIN"])
     return isins
+
+
+# ---------- Rendements mensuels et change ----------
+def _decimal(texte: str | None) -> float | None:
+    """Nombre lu dans un fichier de la SEC ; None si la case est vide ou n'est pas un nombre fini."""
+    try:
+        valeur = float(texte)
+    except (TypeError, ValueError):
+        return None
+    return valeur if math.isfinite(valeur) else None
+
+
+def _mois_decale(mois: str, decalage: int) -> str:
+    """« 2026-04 », -1 → « 2026-03 » (passe d'une année à l'autre)."""
+    rang = int(mois[:4]) * 12 + int(mois[5:7]) - 1 + decalage
+    return f"{rang // 12:04d}-{rang % 12 + 1:02d}"
+
+
+def mois_du_rapport(date_iso: str) -> list[str]:
+    """Les trois mois couverts par un rapport N-PORT, du plus ancien au plus récent : « 2026-06-30 » → 2026-04, 2026-05, 2026-06."""
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])-\d{2}", date_iso):
+        raise ValueError(f"date de rapport inattendue : {date_iso!r}")
+    mois = date_iso[:7]
+    return [_mois_decale(mois, -2), _mois_decale(mois, -1), mois]
+
+
+def ajouter_rendements(cumul: dict, serie_de: dict, soumissions: Iterable[dict], infos: Iterable[dict],
+                       retours: Iterable[dict]) -> None:
+    """Ajoute à `cumul` les rendements mensuels (en % et en dollars, tels que lus) d'un trimestre de jeux N-PORT :
+    cumul[clé][« AAAA-MM »] = (rendement, date de dépôt « AAAA-MM-JJ »). `clé` = CLASS_ID de la part, ou SERIES_ID si la case est
+    vide (ligne ignorée si les deux manquent) ; `serie_de[clé]` = SERIES_ID. MONTHLY_TOTAL_RETURN1, 2 et 3 sont les mois
+    de `mois_du_rapport(REPORT_DATE)`. Une case vide est ignorée. Pour un même mois, le dépôt au FILING_DATE le plus récent
+    l'emporte, y compris sur les valeurs ajoutées par un appel précédent (à date égale : le dernier lu). `soumissions` (SUBMISSION),
+    `infos` (FUND_REPORTED_INFO) et `retours` (MONTHLY_TOTAL_RETURN) sont lus une seule fois, dans cet ordre."""
+    rapports = {}
+    for s in soumissions:
+        rapport = date_sec(s.get("REPORT_DATE") or "")
+        if rapport:
+            rapports[s["ACCESSION_NUMBER"]] = (mois_du_rapport(rapport), date_sec(s.get("FILING_DATE") or ""))
+    series = {i["ACCESSION_NUMBER"]: i.get("SERIES_ID") or "" for i in infos}
+    for r in retours:
+        depot = r.get("ACCESSION_NUMBER")
+        if depot not in rapports:
+            continue
+        mois, depose = rapports[depot]
+        serie = series.get(depot, "")
+        cle = r.get("CLASS_ID") or serie
+        if not cle:
+            continue
+        if serie:
+            serie_de[cle] = serie
+        for m, colonne in zip(mois, ("MONTHLY_TOTAL_RETURN1", "MONTHLY_TOTAL_RETURN2", "MONTHLY_TOTAL_RETURN3")):
+            valeur = _decimal(r.get(colonne))
+            if valeur is None:
+                continue
+            retenus = cumul.setdefault(cle, {})
+            if m not in retenus or depose >= retenus[m][1]:
+                retenus[m] = (valeur, depose)
+
+
+def taux_mensuels(texte_csv: str) -> dict[str, float]:
+    """Taux de change de fin de mois de la BCE (CSV de l'API, série EXR/M.USD.EUR.SP00.E) : « AAAA-MM » → dollars pour un euro."""
+    return dict(lire_serie_bce(texte_csv))
+
+
+def en_euros(r_usd: float, mois: str, taux: dict) -> float | None:
+    """Rendement en % d'un mois, converti de dollars en euros : (1 + r/100) × taux(mois précédent) / taux(mois) − 1, arrondi à
+    2 décimales. None si le taux du mois ou celui du mois précédent manque."""
+    avant, apres = taux.get(_mois_decale(mois, -1)), taux.get(mois)
+    if not avant or not apres:
+        return None
+    return round(((1 + r_usd / 100) * avant / apres - 1) * 100, 2) + 0.0   # + 0.0 : « -0.0 » devient « 0.0 »
+
+
+# ---------- Frais des prospectus ----------
+def _date_compacte(texte: str) -> str:
+    """« 20250924 » → « 2025-09-24 ». Texte vide → texte vide ; autre format → ValueError (la SEC a changé de format)."""
+    texte = texte.strip()
+    if not texte:
+        return ""
+    if not re.fullmatch(r"\d{8}", texte):
+        raise ValueError(f"date de dépôt inattendue : {texte!r}")
+    return f"{texte[:4]}-{texte[4:6]}-{texte[6:]}"
+
+
+def frais_prospectus(num: Iterable[dict], sub: Iterable[dict], classes_par_serie: dict[str, list[str]]) -> dict[str, list]:
+    """Frais des prospectus (jeux « Risk/Return Summary » : `num` = num.tsv, `sub` = sub.tsv), en % :
+    {classe: [brut, net, gestion, entrée, sortie, date du dépôt « AAAA-MM-JJ »]}, None pour une étiquette absente.
+    La part d'une ligne est le « Class= » de `otherdims`, sinon la colonne `series` si elle commence par « C », sinon toutes
+    les parts de la série (`classes_par_serie`) ; une ligne sans part ni série est ignorée. Pour chaque (part, étiquette), le dépôt
+    au `filed` le plus récent l'emporte (à date égale : le dernier lu) ; la date renvoyée est la plus récente des valeurs gardées."""
+    depots = {}
+    for s in sub:
+        depose = _date_compacte(s.get("filed") or "")
+        if depose:
+            depots[s["adsh"]] = depose
+    retenus = {}   # (part, position) → (date de dépôt, valeur en %)
+    for n in num:
+        position = ETIQUETTES_FRAIS.get(n.get("tag"))
+        depose = depots.get(n.get("adsh"))
+        valeur = _decimal(n.get("value"))
+        if position is None or not depose or valeur is None:
+            continue
+        serie = (n.get("series") or "").strip()
+        dimension = re.search(r"Class=([^;]+)", n.get("otherdims") or "")
+        if dimension:
+            classes = [dimension.group(1).strip()]
+        elif serie.startswith("C"):
+            classes = [serie]
+        else:
+            classes = classes_par_serie.get(serie, []) if serie else []
+        for classe in classes:
+            if (classe, position) not in retenus or depose >= retenus[(classe, position)][0]:
+                retenus[(classe, position)] = (depose, round(valeur * 100, 2))
+    frais = {}
+    for (classe, position), (depose, valeur) in retenus.items():
+        ligne = frais.setdefault(classe, [None] * 5 + [""])
+        ligne[position] = valeur
+        ligne[5] = max(ligne[5], depose)
+    return frais
