@@ -1,0 +1,47 @@
+# Mise à jour mensuelle des fonds américains (scripts/construire_etats_unis.py) : annuaire, composition (N-PORT), rendements
+# mensuels en euros et frais des prospectus, d'après les fichiers publics de la SEC (EDGAR), réutilisables sans autorisation.
+# → data/annuaire-etats-unis.js, data/etats-unis/00.js … 63.js, data/etats-unis-isin.js
+# Le script ne fait rien tant que la SEC n'a pas publié un nouveau trimestre (« Rien de nouveau »).
+# Lancement à la main avec l'option « complet » : tout recalculer depuis fin 2019 (long, une à plusieurs dizaines de minutes).
+name: Fonds américains (SEC)
+
+on:
+  schedule:
+    - cron: "37 5 12 * *"   # le 12 de chaque mois, vers 7 h 37, heure de Paris
+  workflow_dispatch:
+    inputs:
+      complet:
+        description: "Tout recalculer depuis fin 2019 (long)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: donnees-simulateur
+  cancel-in-progress: false
+
+jobs:
+  etats-unis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Lire les fichiers de la SEC et de la BCE
+        run: python3 scripts/construire_etats_unis.py ${{ inputs.complet && '--complet' || '' }}
+      - name: Enregistrer les fichiers
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/annuaire-etats-unis.js data/etats-unis data/etats-unis-isin.js
+          if git diff --cached --quiet; then
+            echo "Rien de nouveau."
+          else
+            git commit -m "Fonds américains (SEC) du $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi
