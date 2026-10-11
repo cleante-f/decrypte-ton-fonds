@@ -66,5 +66,8 @@ const GLOSSAIRE = {
   diversification: "Répartir son argent entre des placements qui ne montent et ne baissent pas tous en même temps. Le risque de l'ensemble devient plus faible que la moyenne des risques de chaque placement.",
   correlation: "Mesure, de -1 à 1, à quel point deux placements évoluent ensemble. Proche de 1 : ils montent et baissent en même temps. Proche de 0 ou négatif : ils se compensent en partie.",
   inflation: "Hausse générale des prix. Avec 2 % d'inflation par an, 100 € d'aujourd'hui n'achètent plus que l'équivalent d'environ 82 € dans 10 ans.",
-  performance_annualisee: "Gain (ou perte) moyen par an sur la période. Ex. +5 % annualisé sur 3 ans ≈ +15,8 % au total."
+  performance_annualisee: "Gain (ou perte) moyen par an sur la période. Ex. +5 % annualisé sur 3 ans ≈ +15,8 % au total.",
+  serie_sec: "Numéro donné par la SEC, le gendarme américain de la Bourse, à chaque fonds américain. Un fonds (une « série ») peut avoir plusieurs parts, avec leurs propres frais et tickers.",
+  n_port: "Formulaire que chaque fonds américain dépose auprès de la SEC : la liste de toutes ses positions et ses rendements des trois derniers mois. La SEC le rend public quelques semaines plus tard.",
+  frais_nets: "Frais annuels après les remises que la société de gestion s'est engagée à accorder, souvent pour une durée limitée. Les frais bruts sont ceux d'avant ces remises."
 };

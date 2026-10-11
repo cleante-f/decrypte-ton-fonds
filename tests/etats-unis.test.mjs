@@ -339,18 +339,18 @@ test("compositionDepuisSec : Ashmore", () => {
   const c = simple(compositionDepuisSec(ASHMORE, MAINTENANT));
   assert.equal(c.principale, "sec");
   assert.deepEqual(c.classes, [{ nom: "Obligations", poids: 95.22 }, { nom: "Actions", poids: 0.17 }, { nom: "Liquidités et autres", poids: 4.61 }]);
-  // 17 pays → 11 + « Autres » ; noms français quand NOMS_PAYS les connaît, sinon le code
+  // 17 pays → 11 + « Autres » ; noms français de NOMS_PAYS (tous les codes des données SEC y sont, depuis la fiche américaine)
   assert.equal(c.pays.length, 12);
-  assert.deepEqual(c.pays[0], { nom: "VE", code: "VE", poids: 14.34 });
+  assert.deepEqual(c.pays[0], { nom: "Venezuela", code: "VE", poids: 14.34 });
   assert.deepEqual(c.pays[1], { nom: "Malaisie", code: "MY", poids: 6.53 });
   assert.deepEqual(c.pays[4], { nom: "États-Unis", code: "US", poids: 5.22 });
   assert.equal(c.pays[11].nom, "Autres");
   assert.equal(c.pays[11].code, undefined);
   proche(c.pays[11].poids, 2.7 + 2.69 + 2.38 + 2.23 + 2.16 + 0, 0.011);   // ID, PL, HU, AR, KZ et NL (0)
   const zones = Object.fromEntries(c.zones.map(z => [z.nom, z.poids]));
-  proche(zones["Pays émergents"], 6.53 + 5.81 + 5.37 + 3.74 + 3.4 + 3.29 + 3.22 + 2.7 + 2.23, 0.011);
+  proche(zones["Pays émergents"], 6.53 + 5.81 + 5.37 + 3.74 + 3.4 + 3.29 + 3.22 + 2.7 + 2.23 + 14.34 + 3.83 + 2.16, 0.011, "VE, NG et KZ sont des pays émergents");
   proche(zones["Amérique du Nord"], 5.22, 0.011);
-  proche(zones["Autres"], 14.34 + 3.83 + 2.16, 0.011, "VE, NG et KZ ne sont dans aucune zone");
+  assert.equal(zones["Autres"], undefined);
   proche(zones["Europe hors zone euro"], 3.08 + 2.69 + 2.38, 0.011);   // RO, PL, HU
   assert.deepEqual(c.zones.map(z => z.poids), [...c.zones.map(z => z.poids)].sort((a, b) => b - a));
   assert.equal(c.devises.length, 8);   // 11 devises → 7 + « Autres »

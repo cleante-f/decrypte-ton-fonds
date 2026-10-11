@@ -66,7 +66,8 @@ async function afficherDepuisAdresse() {
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Décrypte ton fonds`;
   const enGeco = entree.source === "G";
-  zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco);
+  const avecSec = entree.source === "S" || (!enGeco && !!serieSecDe(entree, isin));   // fonds américain, ou fonds européen qui est aussi une série américaine
+  zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco || avecSec);
   zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });
 
   let donnees = { erreurs: [] };
@@ -75,7 +76,11 @@ async function afficherDepuisAdresse() {
     const y = window.scrollY;
     try {
       zoneResultat.innerHTML = afficherFicheAuto(entree, isin, donnees, false);
-      activerGraphiqueVL(zoneResultat, donnees.historique || (donnees.cours && donnees.cours.historique));
+      // Graphiques interactifs : le premier de la page suit la première source qui a un historique (GECO, SEC, cours en bourse) ;
+      // quand un fonds américain coté en Europe a les deux derniers, le second graphique est celui du cours
+      const historiqueSec = donnees.sec && donnees.sec.historique, historiqueCours = donnees.cours && donnees.cours.historique;
+      activerGraphiqueVL(zoneResultat, donnees.historique || historiqueSec || historiqueCours);
+      if (!donnees.historique && historiqueSec && historiqueCours) activerGraphiqueVL(zoneResultat, historiqueCours, 1);
     } catch (err) {
       console.error("Erreur d'affichage de la fiche :", err); // on garde l'affichage précédent
     }
@@ -112,9 +117,16 @@ async function afficherDepuisAdresse() {
     return;
   }
 
-  // Fonds américain (SEC) : identité seulement pour l'instant, ni cours en bourse ni fonds français comparable
+  // Fonds américain (SEC) : tout vient des données déclarées à la SEC (js/etats-unis.js), ni cours en bourse ni fonds français comparable.
+  // La fiche affichée pendant le chargement dit « Chargement des données… » ; on ne la remplace qu'une fois les données là.
   if (entree.source === "S") {
-    donnees.composition = { fini: true, c: null };
+    try {
+      donnees.sec = await donneesSec(entree, isin);
+    } catch (err) {
+      donnees.erreurs.push("données de la SEC indisponibles (" + err.message + ")");
+    }
+    if (numero !== affichageEnCours) return;
+    donnees.composition = { fini: true, c: donnees.sec && donnees.sec.compo };
     rendre();
     return;
   }
@@ -127,9 +139,27 @@ async function afficherDepuisAdresse() {
       .then(rendre);
   }
 
-  // ETF étrangers et fonds sans données : on passe par un fonds français qui suit le même indice
-  donnees.composition = { fini: false, progression: "Recherche d'un fonds français qui suit le même indice…" };
+  // Fonds européen qui est aussi une série américaine : ses données de la SEC (composition, rendements en euros, frais) se chargent
+  // en même temps que le cours. Si la SEC donne la composition, elle remplace la recherche d'un fonds jumeau.
+  donnees.composition = { fini: false, progression: avecSec ? "Lecture des données de la SEC…" : "Recherche d'un fonds français qui suit le même indice…" };
   rendre();
+  if (avecSec) {
+    try {
+      donnees.sec = await donneesSec(entree, isin);
+    } catch (err) {
+      donnees.erreurs.push("données de la SEC indisponibles (" + err.message + ")");
+    }
+    if (numero !== affichageEnCours) return;
+    if (donnees.sec && donnees.sec.compo) {
+      donnees.composition = { fini: true, c: donnees.sec.compo };
+      rendre();
+      return;
+    }
+    donnees.composition = { fini: false, progression: "Recherche d'un fonds français qui suit le même indice…" };
+    rendre();
+  }
+
+  // ETF étrangers et fonds sans données : on passe par un fonds français qui suit le même indice
   const jumeau = trouverJumeau(entree.nom);
   if (!jumeau) { donnees.composition = { fini: true, c: null }; rendre(); return; }
   donnees.composition.jumeau = jumeau;

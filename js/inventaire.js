@@ -44,15 +44,35 @@ const NOMS_PAYS = {
   LT: "Lituanie", CY: "Chypre", MT: "Malte", HU: "Hongrie", CZ: "Tchéquie", RO: "Roumanie", HR: "Croatie", BG: "Bulgarie", IS: "Islande",
   NZ: "Nouvelle-Zélande", ID: "Indonésie", TH: "Thaïlande", MY: "Malaisie", PH: "Philippines", CL: "Chili", CO: "Colombie", PE: "Pérou",
   SA: "Arabie saoudite", AE: "Émirats arabes unis", QA: "Qatar", KW: "Koweït", TR: "Turquie", XS: "Supranational / international",
-  VG: "Îles Vierges", PA: "Panama", UY: "Uruguay", AR: "Argentine"
+  VG: "Îles Vierges", PA: "Panama", UY: "Uruguay", AR: "Argentine",
+  // Pays des fonds américains (formulaires N-PORT de la SEC). XX : code utilisé par la SEC pour les émetteurs supranationaux
+  // (Banque européenne d'investissement, Banque mondiale…), d'après les fonds d'obligations internationales où il apparaît.
+  AD: "Andorre", AF: "Afghanistan", AG: "Antigua-et-Barbuda", AL: "Albanie", AM: "Arménie", AO: "Angola", AS: "Samoa américaines",
+  AZ: "Azerbaïdjan", BA: "Bosnie-Herzégovine", BB: "Barbade", BD: "Bangladesh", BF: "Burkina Faso", BH: "Bahreïn", BJ: "Bénin",
+  BO: "Bolivie", BS: "Bahamas", BW: "Botswana", BY: "Biélorussie", CD: "République démocratique du Congo", CG: "Congo",
+  CI: "Côte d'Ivoire", CM: "Cameroun", CR: "Costa Rica", DO: "République dominicaine", EC: "Équateur", EG: "Égypte", ET: "Éthiopie",
+  FO: "Îles Féroé", GA: "Gabon", GD: "Grenade", GE: "Géorgie", GH: "Ghana", GI: "Gibraltar", GL: "Groenland", GT: "Guatemala",
+  GU: "Guam", GY: "Guyana", HN: "Honduras", IQ: "Irak", JM: "Jamaïque", JO: "Jordanie", KE: "Kenya", KG: "Kirghizistan",
+  KH: "Cambodge", KP: "Corée du Nord", KZ: "Kazakhstan", LA: "Laos", LB: "Liban", LI: "Liechtenstein", LK: "Sri Lanka",
+  LR: "Libéria", MA: "Maroc", MC: "Monaco", ME: "Monténégro", MH: "Îles Marshall", MK: "Macédoine du Nord", MN: "Mongolie",
+  MO: "Macao", MP: "Îles Mariannes du Nord", MU: "Maurice", MZ: "Mozambique", NA: "Namibie", NE: "Niger", NG: "Nigeria", OM: "Oman",
+  PG: "Papouasie-Nouvelle-Guinée", PK: "Pakistan", PR: "Porto Rico", PY: "Paraguay", RE: "La Réunion", RS: "Serbie", RU: "Russie",
+  RW: "Rwanda", SC: "Seychelles", SD: "Soudan", SM: "Saint-Marin", SN: "Sénégal", SR: "Suriname", SV: "Salvador", SZ: "Eswatini",
+  TG: "Togo", TJ: "Tadjikistan", TN: "Tunisie", TT: "Trinité-et-Tobago", TZ: "Tanzanie", UA: "Ukraine", UG: "Ouganda",
+  UZ: "Ouzbékistan", VE: "Venezuela", VI: "Îles Vierges américaines", VN: "Vietnam", XX: "Organisations supranationales",
+  ZM: "Zambie", ZW: "Zimbabwe"
 };
 const ZONE_PAR_PAYS = code => {
-  if (["US", "CA", "BM"].includes(code)) return "Amérique du Nord";
-  if (["DE", "AT", "BE", "ES", "FI", "FR", "GR", "IE", "IT", "LU", "NL", "PT", "SI", "SK", "EE", "LV", "LT", "CY", "MT", "HR"].includes(code)) return "Zone euro";
-  if (["GB", "CH", "SE", "NO", "DK", "PL", "HU", "CZ", "RO", "BG", "IS", "JE", "GG", "IM"].includes(code)) return "Europe hors zone euro";
-  if (["JP", "AU", "NZ", "SG", "HK"].includes(code)) return "Asie-Pacifique développée";
-  if (["CN", "TW", "KR", "IN", "BR", "MX", "ZA", "ID", "TH", "MY", "PH", "CL", "CO", "PE", "SA", "AE", "QA", "KW", "TR", "KY", "AR", "UY"].includes(code)) return "Pays émergents";
-  return "Autres";
+  if (["US", "CA", "BM", "PR", "VI"].includes(code)) return "Amérique du Nord";
+  if (["DE", "AT", "BE", "ES", "FI", "FR", "GR", "IE", "IT", "LU", "NL", "PT", "SI", "SK", "EE", "LV", "LT", "CY", "MT", "HR", "AD", "MC", "SM", "RE"].includes(code)) return "Zone euro";
+  if (["GB", "CH", "SE", "NO", "DK", "PL", "HU", "CZ", "RO", "BG", "IS", "JE", "GG", "IM", "LI", "FO", "GI"].includes(code)) return "Europe hors zone euro";
+  if (["JP", "AU", "NZ", "SG", "HK", "MO"].includes(code)) return "Asie-Pacifique développée";
+  if (["CN", "TW", "KR", "IN", "BR", "MX", "ZA", "ID", "TH", "MY", "PH", "CL", "CO", "PE", "SA", "AE", "QA", "KW", "TR", "KY", "AR", "UY",
+    // pays émergents et « frontières » (indices d'obligations et d'actions des pays émergents)
+    "AL", "AM", "AO", "AZ", "BA", "BD", "BF", "BH", "BJ", "BO", "BW", "BY", "CD", "CG", "CI", "CM", "CR", "DO", "EC", "EG", "ET", "GA", "GE", "GH",
+    "GT", "GY", "HN", "IQ", "JM", "JO", "KE", "KG", "KH", "KZ", "LA", "LB", "LK", "MA", "ME", "MK", "MN", "MZ", "NA", "NE", "NG", "OM", "PG", "PK",
+    "PY", "RS", "RU", "RW", "SN", "SR", "SV", "SZ", "TG", "TJ", "TN", "TT", "TZ", "UA", "UG", "UZ", "VE", "VN", "ZM", "ZW"].includes(code)) return "Pays émergents";
+  return "Autres";   // dont les territoires et pays d'immatriculation (îles Marshall, Libéria, Maurice, Bahamas…), les supranationaux et XX
 };
 
 // Secteurs ICB détaillés (tels qu'écrits dans les inventaires) → 11 grands secteurs
