@@ -218,6 +218,14 @@ class EtatsUnis(unittest.TestCase):
         self.assertTrue(ligne["HOLDING_ID"].isdigit(), ligne["HOLDING_ID"])
         self.assertIsNotNone(self.cu._decimal(ligne["PERCENTAGE"]), ligne["PERCENTAGE"])
 
+    def test_nport_pret_de_titres(self):
+        _, archive = self.archive(self.cu.NPORT)
+        ligne = self.colonnes(archive, "SECURITIES_LENDING.tsv", ["HOLDING_ID", "IS_CASH_COLLATERAL", "CASH_COLLATERAL_AMOUNT", "IS_NON_CASH_COLLATERAL",
+                                                                  "NON_CASH_COLLATERAL_VALUE", "IS_LOAN_BY_FUND", "LOAN_VALUE"])
+        self.assertTrue(ligne["HOLDING_ID"].isdigit(), ligne["HOLDING_ID"])
+        self.assertIn(ligne["IS_CASH_COLLATERAL"], ("Y", "N"))   # « Y » : réinvestissement de garanties en espèces (position retirée de la composition)
+        self.assertIn(ligne["IS_LOAN_BY_FUND"], ("Y", "N"))
+
     def test_nport_identifiants(self):
         _, archive = self.archive(self.cu.NPORT)
         ligne = self.colonnes(archive, "IDENTIFIERS.tsv", ["HOLDING_ID", "IDENTIFIER_ISIN"])

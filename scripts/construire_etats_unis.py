@@ -5,7 +5,8 @@ Sources (fichiers publics de la SEC, https://www.sec.gov) :
   1. Liste « Investment Company Series and Class Information » (CSV annuel) et company_tickers_mf.json :
      séries, parts (classes), sociétés de gestion et tickers des fonds américains.
   2. Jeux de données trimestriels « Form N-PORT » (DERA) : inventaire des positions, actif net, LEI et rendements mensuels
-     de chaque part, à partir du 4e trimestre 2019. Archives de 400 à 500 Mo lues par plages d'octets (ZipDistant),
+     de chaque part, à partir du 4e trimestre 2019, et tableau de prêt de titres (SECURITIES_LENDING.tsv : positions qui réinvestissent
+     des garanties reçues en espèces, retirées de la composition). Archives de 400 à 500 Mo lues par plages d'octets (ZipDistant),
      sans les télécharger en entier.
   3. Jeux de données « Mutual Fund Prospectus Risk/Return Summary » (DERA) : frais des prospectus.
   4. BCE – taux de change mensuels dollar/euro (conversion des montants et des rendements en euros).
@@ -234,22 +235,54 @@ def _trier(poids: dict[str, float]) -> list[list]:
     return sorted(([cle, round(v, 2)] for cle, v in poids.items()), key=lambda c: (-c[1], c[0]))
 
 
-def resumer_positions(positions: Iterable[dict], accessions: set[str]) -> dict[str, dict]:
+def garanties_en_especes(lignes: Iterable[dict]) -> dict[str, float | None]:
+    """HOLDING_ID → valeur en dollars de la part de la position qui réinvestit des garanties reçues en espèces contre des titres
+    prêtés, d'après SECURITIES_LENDING.tsv (case IS_CASH_COLLATERAL = « Y » : « Does any amount of this investment represent
+    reinvestment of cash collateral received for loaned securities » ; CASH_COLLATERAL_AMOUNT : « value of the investment
+    representing cash collateral »). None si le montant est vide ou illisible. Les titres prêtés par le fonds (IS_LOAN_BY_FUND) sont
+    des positions du fonds : ils ne sont pas concernés."""
+    return {l["HOLDING_ID"]: _decimal(l.get("CASH_COLLATERAL_AMOUNT")) for l in lignes if l.get("IS_CASH_COLLATERAL") == "Y" and l.get("HOLDING_ID")}
+
+
+def _part_de_garantie(position: dict, montant: float | None) -> float:
+    """Part (de 0 à 1) d'une position qui réinvestit des garanties en espèces : montant déclaré / valeur de la position (CURRENCY_VALUE,
+    en dollars). Toute la position si le montant est inconnu, si la valeur est nulle ou si le montant atteint 98 % de la valeur."""
+    valeur = _decimal(position.get("CURRENCY_VALUE"))
+    if montant is None or valeur is None or valeur <= 0:
+        return 1.0
+    part = max(0.0, montant / valeur)
+    return 1.0 if part >= 0.98 else part
+
+
+def resumer_positions(positions: Iterable[dict], accessions: set[str], garanties: dict[str, float | None] | None = None) -> dict[str, dict]:
     """Composition de chaque dépôt de `accessions`, en une seule lecture de FUND_REPORTED_HOLDING :
-    {lignes, exclu, top, pays, classes, devises}. Les produits dérivés et les positions courtes (PAYOFF_PROFILE « Short »)
-    sont exclus de la composition ; leur poids (en valeur absolue) s'ajoute à `exclu`. `top` : les 10 plus grosses positions
-    retenues [nom, poids, HOLDING_ID]. Poids en % de l'actif net. Un dépôt sans aucune position n'apparaît pas."""
+    {lignes, exclu, garanties, garanties_lignes, top, pays, classes, devises}. Les produits dérivés et les positions courtes
+    (PAYOFF_PROFILE « Short ») sont exclus de la composition ; leur poids (en valeur absolue) s'ajoute à `exclu`.
+    `garanties` (garanties_en_especes) : le réinvestissement des garanties en espèces reçues contre des titres prêtés n'est ni une
+    exposition ni un dérivé, mais un placement de l'argent du prêt, déjà compté dans l'actif net en plus des titres prêtés : il est retiré
+    de la composition (pays, classes, devises, top 10) sans aller dans `exclu`. `garanties` : poids retiré (en % de l'actif net) ;
+    `garanties_lignes` : nombre de positions concernées (en entier ou en partie : une position dont une part seulement réinvestit des
+    garanties garde le reste de son poids). `top` : les 10 plus grosses positions retenues [nom, poids, HOLDING_ID]. Poids en % de
+    l'actif net. Un dépôt sans aucune position n'apparaît pas."""
+    garanties = garanties or {}
     etats = {}
     for ordre, p in enumerate(positions):
         depot = p.get("ACCESSION_NUMBER")
         if depot not in accessions:
             continue
-        e = etats.setdefault(depot, {"lignes": 0, "exclu": 0.0, "tas": [], "pays": {}, "classes": {}, "devises": {}})
+        e = etats.setdefault(depot, {"lignes": 0, "exclu": 0.0, "garanties": 0.0, "garanties_lignes": 0, "tas": [], "pays": {}, "classes": {}, "devises": {}})
         poids = _nombre(p.get("PERCENTAGE"))
         classe = classe_actif(p.get("ASSET_CAT"), p.get("ISSUER_TYPE"))
         if classe is None or p.get("PAYOFF_PROFILE") == "Short":
             e["exclu"] += abs(poids)
             continue
+        if p.get("HOLDING_ID") in garanties:
+            part = _part_de_garantie(p, garanties[p["HOLDING_ID"]])
+            e["garanties"] += poids * part
+            e["garanties_lignes"] += 1
+            if part == 1.0:   # toute la position réinvestit des garanties : elle n'est plus une ligne du fonds
+                continue
+            poids -= poids * part
         e["lignes"] += 1
         e["classes"][classe] = e["classes"].get(classe, 0.0) + poids
         for groupe, cle in (("pays", p.get("INVESTMENT_COUNTRY")), ("devises", p.get("CURRENCY_CODE"))):
@@ -261,7 +294,7 @@ def resumer_positions(positions: Iterable[dict], accessions: set[str]) -> dict[s
             heapq.heappush(e["tas"], position)
         else:
             heapq.heappushpop(e["tas"], position)
-    return {depot: {"lignes": e["lignes"], "exclu": round(e["exclu"], 2),
+    return {depot: {"lignes": e["lignes"], "exclu": round(e["exclu"], 2), "garanties": round(e["garanties"], 2), "garanties_lignes": e["garanties_lignes"],
                     "top": [[nom, round(poids, 2), identifiant] for poids, _, nom, identifiant in sorted(e["tas"], reverse=True)],
                     "pays": _trier(e["pays"]), "classes": _trier(e["classes"]), "devises": _trier(e["devises"])}
             for depot, e in etats.items()}
@@ -500,9 +533,21 @@ def lire_js(texte: str):
     return json.loads(texte[texte.index("= ") + 2:texte.rindex(";")])
 
 
-def correspondance_isin(texte_firds: str, lei_par_serie: dict[str, str]) -> dict[str, str]:
+def pays_des_isin(texte_annuaire: str) -> dict[str, set[str]]:
+    """ISIN → pays des lignes de data/annuaire.js (colonnes 7 et 9) qui portent cet ISIN. Les lignes sans ISIN ou sans pays sont ignorées."""
+    debut = texte_annuaire.index("const ANNUAIRE = ") + len("const ANNUAIRE = ")
+    pays = {}
+    for ligne in json.loads(texte_annuaire[debut:texte_annuaire.rindex(";")]):
+        if ligne[7] and ligne[9]:
+            pays.setdefault(ligne[7], set()).add(ligne[9])
+    return pays
+
+
+def correspondance_isin(texte_firds: str, lei_par_serie: dict[str, str], pays_par_isin: dict[str, set[str]] | None = None) -> dict[str, str]:
     """ISIN → série, pour les fonds du registre FIRDS (data/firds.js : FIRDS.fonds[isin][0] = LEI) dont le LEI est celui d'une
-    série américaine. Un LEI partagé par plusieurs séries est écarté (rapprochement douteux)."""
+    série américaine. Un LEI partagé par plusieurs séries est écarté (rapprochement douteux). `pays_par_isin` (pays_des_isin) : un ISIN
+    dont la ligne d'annuaire n'est pas américaine (un fonds irlandais qui partage le LEI d'une société américaine, ou la ligne d'un fonds
+    européen qui porte un ISIN américain) est écarté ; un ISIN sans ligne d'annuaire reste."""
     series_par_lei = {}
     for serie, lei in lei_par_serie.items():
         if lei:
@@ -510,7 +555,7 @@ def correspondance_isin(texte_firds: str, lei_par_serie: dict[str, str]) -> dict
     isin_serie = {}
     for isin, fiche in lire_js(texte_firds)["fonds"].items():
         series = series_par_lei.get(fiche[0], ())
-        if len(series) == 1:
+        if len(series) == 1 and (pays_par_isin is None or pays_par_isin.get(isin, {"US"}) == {"US"}):
             isin_serie[isin] = next(iter(series))
     return isin_serie
 
@@ -703,7 +748,11 @@ def main(argv=None, dossier: Path = DATA, aujourd_hui: date | None = None) -> in
         if t == a_lire[-1]:   # composition : dernier trimestre seulement
             retenus = depots_retenus(soumissions, infos)
             infos_serie = infos_retenues(soumissions, infos, retenus)
-            resumes = resumer_positions(lire_tsv(archive, "FUND_REPORTED_HOLDING.tsv"), set(retenus.values()))
+            garanties = garanties_en_especes(lire_tsv(archive, "SECURITIES_LENDING.tsv"))
+            resumes = resumer_positions(lire_tsv(archive, "FUND_REPORTED_HOLDING.tsv"), set(retenus.values()), garanties)
+            retirees = [r for r in resumes.values() if r["garanties_lignes"]]
+            print(f"    {sum(r['garanties_lignes'] for r in retirees)} positions de réinvestissement de garanties en espèces (prêt de titres) "
+                  f"retirées de la composition de {len(retirees)} fonds (comptées à part, pas avec les dérivés).")
             lignes_du_top = {identifiant for r in resumes.values() for _, _, identifiant in r["top"] if identifiant}
             isins = isins_des_lignes(lire_tsv(archive, "IDENTIFIERS.tsv"), lignes_du_top)
     rendements = rendements_en_euros(cumul, taux)
@@ -725,9 +774,12 @@ def main(argv=None, dossier: Path = DATA, aujourd_hui: date | None = None) -> in
     print("5/5 Assemblage et écriture…")
     lei_par_serie = {s: d["lei"] for s, d in anciens.items() if d.get("lei")}
     lei_par_serie.update({s: lei for s, i in infos_serie.items() if (lei := _lei(i.get("SERIES_LEI")))})
-    chemin_firds = Path(dossier) / "firds.js"
+    chemin_firds, chemin_annuaire = Path(dossier) / "firds.js", Path(dossier) / "annuaire.js"
     if chemin_firds.exists():
-        isin_serie = correspondance_isin(chemin_firds.read_text(encoding="utf-8"), lei_par_serie)
+        pays_par_isin = pays_des_isin(chemin_annuaire.read_text(encoding="utf-8")) if chemin_annuaire.exists() else None
+        if pays_par_isin is None:
+            print(f"  Avertissement : {chemin_annuaire} introuvable, les ISIN européens ne sont pas écartés.")
+        isin_serie = correspondance_isin(chemin_firds.read_text(encoding="utf-8"), lei_par_serie, pays_par_isin)
     else:
         print(f"  Avertissement : {chemin_firds} introuvable, aucun ISIN rapproché.")
         isin_serie = {}

@@ -30,7 +30,7 @@ ASHMORE_AVRIL = "0002066578-26-002478"   # amendement du rapport du 30/04/2026 d
 LEI_VANGUARD = "12WZ1W76P8QD4VJ6OB47"
 LEI_ASHMORE = "5493003R6Z966WCNR691"
 FICHIERS_NPORT = ["SUBMISSION.tsv", "FUND_REPORTED_INFO.tsv", "MONTHLY_TOTAL_RETURN.tsv", "FUND_REPORTED_HOLDING.tsv",
-                  "IDENTIFIERS.tsv"]
+                  "IDENTIFIERS.tsv", "SECURITIES_LENDING.tsv"]
 
 
 class Npor(unittest.TestCase):
@@ -189,6 +189,108 @@ class Npor(unittest.TestCase):
         self.assertEqual(brut.read(5), b"")
         with self.assertRaises(ValueError):
             brut.seek(-1)
+
+
+class Garanties(unittest.TestCase):
+    """Réinvestissement des garanties en espèces reçues contre des titres prêtés (SECURITIES_LENDING.tsv, IS_CASH_COLLATERAL = « Y »).
+    Extraits réels du jeu 2026q3 : un fonds d'actions Invesco (27 positions, dont deux fonds monétaires qui réinvestissent des garanties,
+    soit 22,98 % de l'actif net) et un fonds de 7 positions dont un fonds monétaire ne réinvestit des garanties que pour 2,75 % de sa valeur."""
+    INVESCO = "0001378872-26-001343"
+    DREYFUS = "0001193125-26-404536"
+    COLONNES = ["HOLDING_ID", "IS_CASH_COLLATERAL", "CASH_COLLATERAL_AMOUNT", "IS_NON_CASH_COLLATERAL", "NON_CASH_COLLATERAL_VALUE",
+                "IS_LOAN_BY_FUND", "LOAN_VALUE"]   # en-tête réel de SECURITIES_LENDING.tsv
+    ATTENDU = {"174107151": 3492259.3122, "174107164": 1347501.1, "178936531": 6231941.09}
+
+    def tsv(self, nom):
+        return cu.lire_tsv(SEC / "sec_garanties", nom)
+
+    def garanties(self):
+        return cu.garanties_en_especes(self.tsv("SECURITIES_LENDING.tsv"))
+
+    def resume(self, depot, avec=True):
+        return cu.resumer_positions(self.tsv("FUND_REPORTED_HOLDING.tsv"), {depot}, self.garanties() if avec else None)[depot]
+
+    def test_entete_reel(self):
+        self.assertEqual(list(next(iter(self.tsv("SECURITIES_LENDING.tsv")))), self.COLONNES)
+
+    def test_garanties_en_especes(self):   # seules les lignes IS_CASH_COLLATERAL = Y comptent (les titres prêtés par le fonds restent des positions)
+        self.assertEqual(self.garanties(), self.ATTENDU)
+        prets = [l for l in self.tsv("SECURITIES_LENDING.tsv") if l["IS_LOAN_BY_FUND"] == "Y"]
+        self.assertTrue(prets)
+        self.assertFalse({l["HOLDING_ID"] for l in prets} & set(self.garanties()))
+
+    def test_garanties_montant_vide_ou_illisible(self):
+        lignes = [dict(zip(self.COLONNES, ["1", "Y", "", "N", "", "N", ""])), dict(zip(self.COLONNES, ["2", "Y", "N/A", "N", "", "N", ""])),
+                  dict(zip(self.COLONNES, ["3", "N", "500", "N", "", "N", ""])), dict(zip(self.COLONNES, ["4", "", "", "", "", "", ""])),
+                  dict(zip(self.COLONNES, ["5", "Y", "12.5", "N", "", "N", ""]))]
+        self.assertEqual(cu.garanties_en_especes(lignes), {"1": None, "2": None, "5": 12.5})
+
+    def test_sans_garanties_rien_ne_change(self):   # appel sans le tableau de prêt de titres : comportement d'avant
+        r = self.resume(self.INVESCO, avec=False)
+        self.assertEqual(r["lignes"], 27)
+        self.assertEqual(r["classes"], [["Actions", 99.68], ["Monétaire", 23.08]])
+        self.assertEqual(r["top"][0][:2], ["Invesco Private Prime Fund", 16.58])
+        self.assertEqual((r["garanties"], r["garanties_lignes"]), (0, 0))
+
+    def test_garanties_entieres_retirees(self):
+        r = self.resume(self.INVESCO)
+        self.assertEqual(r["lignes"], 25)
+        self.assertEqual(r["classes"], [["Actions", 99.68], ["Monétaire", 0.1]])   # la somme est de nouveau proche de 100
+        self.assertEqual((r["pays"], r["devises"]), ([["US", 99.78]], [["USD", 99.78]]))
+        self.assertEqual(r["exclu"], 0)   # ce ne sont pas des dérivés
+        self.assertEqual((r["garanties"], r["garanties_lignes"]), (22.98, 2))
+        self.assertEqual(r["top"][0][:2], ["Element Solutions Inc.", 12.14])
+        self.assertNotIn("Invesco Private Prime Fund", [t[0] for t in r["top"]])
+        self.assertEqual(len(r["top"]), 10)
+
+    def test_titres_pretes_restent_des_positions(self):   # IS_LOAN_BY_FUND = Y : le fonds possède toujours ces titres
+        r = self.resume(self.INVESCO)
+        self.assertEqual(r["classes"][0], ["Actions", 99.68])
+        self.assertEqual(r["lignes"], 27 - 2)
+
+    def test_garantie_partielle(self):   # DREYFUS : 63,94 % de l'actif net, dont 2,75 % réinvestit des garanties (6 231 941 sur 226 553 090)
+        r = self.resume(self.DREYFUS)
+        avant = self.resume(self.DREYFUS, avec=False)
+        self.assertEqual((avant["lignes"], avant["exclu"]), (3, 28.68))
+        self.assertEqual((r["lignes"], r["exclu"]), (3, 28.68))   # la position reste (en partie) ; les dérivés sont ailleurs
+        retire = round(63.94264 * 6231941.09 / 226553090.01, 2)
+        self.assertEqual(retire, 1.76)
+        self.assertEqual((r["garanties"], r["garanties_lignes"]), (retire, 1))
+        classes_avant, classes = dict(avant["classes"]), dict(r["classes"])
+        self.assertAlmostEqual(classes["Monétaire"], classes_avant["Monétaire"] - retire, places=2)
+        self.assertEqual(classes["Fonds (OPC)"], classes_avant["Fonds (OPC)"])
+        self.assertEqual(r["top"][0][:2], ["DREYFUS", round(63.94264 - retire, 2)])   # toujours la première position, avec le reste de son poids
+
+    def ligne(self, identifiant, poids, valeur, **champs):
+        base = {"ACCESSION_NUMBER": "A", "HOLDING_ID": identifiant, "ISSUER_NAME": f"titre {identifiant}", "ASSET_CAT": "STIV", "ISSUER_TYPE": "RF",
+                "INVESTMENT_COUNTRY": "US", "CURRENCY_CODE": "USD", "CURRENCY_VALUE": valeur, "PERCENTAGE": poids, "PAYOFF_PROFILE": "Long"}
+        return dict(base, **champs)
+
+    def test_cas_limites(self):
+        positions = [self.ligne("1", "10", "1000"), self.ligne("2", "10", "1000"), self.ligne("3", "10", "1000"), self.ligne("4", "10", "1000"),
+                     self.ligne("5", "10", "0"), self.ligne("6", "10", "1000"), self.ligne("7", "10", "1000", PAYOFF_PROFILE="Short")]
+        garanties = {"1": 1000.0,   # toute la valeur : retirée
+                     "2": 990.0,    # à 2 % près : retirée en entier (arrondis de valorisation)
+                     "3": 500.0,    # la moitié : la moitié du poids est retirée
+                     "4": 4000.0,   # plus que la valeur : retirée en entier, jamais plus
+                     "5": 5.0,      # valeur nulle : retirée en entier
+                     "7": 1000.0}   # position courte : déjà exclue
+        r = cu.resumer_positions(positions, {"A"}, garanties)["A"]
+        self.assertEqual(r["lignes"], 2)   # restent la moitié de « 3 » et « 6 » (sans garantie)
+        self.assertEqual(r["classes"], [["Monétaire", 15.0]])
+        self.assertEqual((r["garanties"], r["garanties_lignes"]), (45.0, 5))
+        self.assertEqual(r["exclu"], 10.0)
+        r = cu.resumer_positions(positions, {"A"}, {"6": None})["A"]   # montant inconnu : toute la position
+        self.assertEqual(r["lignes"], 5)
+        self.assertEqual((r["garanties"], r["garanties_lignes"]), (10.0, 1))
+
+    def test_positions_d_une_autre_serie_non_touchees(self):   # le HOLDING_ID est propre à une position : un autre dépôt n'est pas concerné
+        r = cu.resumer_positions([self.ligne("9", "5", "1000")], {"A"}, {"1": 1000.0})["A"]
+        self.assertEqual((r["lignes"], r["garanties"], r["garanties_lignes"]), (1, 0, 0))
+
+    def test_position_sans_poids_retiree_aussi(self):   # valeur et poids nuls : la position réinvestissant des garanties ne devient pas une ligne vide
+        r = cu.resumer_positions([self.ligne("1", "0", "0"), self.ligne("2", "5", "1000")], {"A"}, {"1": 3.0})["A"]
+        self.assertEqual((r["lignes"], r["garanties_lignes"], r["classes"]), (1, 1, [["Monétaire", 5.0]]))
 
 
 class Reponse:
@@ -582,6 +684,27 @@ class Annuaire(unittest.TestCase):
         lei = {"S000000001": "AAA", "S000000002": "BBB", "S000000003": "BBB", "S000000004": ""}
         self.assertEqual(cu.correspondance_isin(firds, lei), {"US1": "S000000001", "US2": "S000000001"})   # BBB partagé : douteux, écarté
 
+    ANNUAIRE_TEST = ('/* Généré automatiquement par scripts/construire_annuaire.py — ne pas modifier à la main. */\n'
+                     'const ANNUAIRE_DATE = "2026-10-01";\n'
+                     'const ANNUAIRE = [["E",0,0,"Vanguard 500 Index Fund ETF","","","","US9229083632","","US","","","USD",1,1],'
+                     '["U",0,0,"Federated Hermes SDG Engagement Equity Fund","","","","IE00BN77D508","","IE","","","JPY",0,1],'
+                     '["N",118829,0,"WisdomTree Quantum Computing UCITS ETF","WISDOMTREE MANAGEMENT LIMITED","","","US97717Y2954","2025-07-29","IE","","","",0,1],'
+                     '["G",1,1,"Sans ISIN","","","","","","FR","","","EUR",0,1],'
+                     '["E",0,0,"Vanguard 500 Index Fund ETF (bis)","","","","US9229083632","","US","","","USD",1,1]];\n')
+
+    def test_pays_des_isin(self):   # pays des lignes de data/annuaire.js qui ont cet ISIN
+        self.assertEqual(cu.pays_des_isin(self.ANNUAIRE_TEST), {"US9229083632": {"US"}, "IE00BN77D508": {"IE"}, "US97717Y2954": {"IE"}})
+
+    def test_correspondance_isin_seulement_les_fonds_americains_de_l_annuaire(self):
+        firds = ('const FIRDS = {"maj":"2026-10-01","fonds":{"US9229083632":["AAA","USD",[],6],"IE00BN77D508":["AAA","JPY",[],0],'
+                 '"US97717Y2954":["AAA","USD",[],0],"US25461A1714":["AAA","USD",[],0]},"places":{},"parNom":[]};')
+        lei = {"S000002839": "AAA"}
+        pays = cu.pays_des_isin(self.ANNUAIRE_TEST)
+        # IE00BN77D508 (ligne irlandaise) et US97717Y2954 (ligne N d'un fonds irlandais) ne sont pas des fonds américains ;
+        # US25461A1714 n'a pas de ligne d'annuaire : rien ne le contredit
+        self.assertEqual(cu.correspondance_isin(firds, lei, pays), {"US9229083632": "S000002839", "US25461A1714": "S000002839"})
+        self.assertEqual(len(cu.correspondance_isin(firds, lei)), 4)   # sans annuaire : pas de tri
+
     def test_lire_js(self):
         self.assertEqual(cu.lire_js('const X = {"a":[1,2]};\n'), {"a": [1, 2]})
         self.assertEqual(cu.lire_js('ANNUAIRE_ZONES["etats-unis"] = {"lignes":[]};\n'), {"lignes": []})
@@ -970,7 +1093,8 @@ class Principal(unittest.TestCase):
             "FUND_REPORTED_INFO.tsv": texte_tsv(lignes("FUND_REPORTED_INFO.tsv", ACCESSION_NUMBER=NOUVEAU_DEPOT, NET_ASSETS="1000000000.00")),
             "MONTHLY_TOTAL_RETURN.tsv": texte_tsv(retours),
             "FUND_REPORTED_HOLDING.tsv": texte_tsv(lignes("FUND_REPORTED_HOLDING.tsv", ACCESSION_NUMBER=NOUVEAU_DEPOT)),
-            "IDENTIFIERS.tsv": (SEC / "sec_nport" / "IDENTIFIERS.tsv").read_text(encoding="utf-8")})
+            "IDENTIFIERS.tsv": (SEC / "sec_nport" / "IDENTIFIERS.tsv").read_text(encoding="utf-8"),
+            "SECURITIES_LENDING.tsv": (SEC / "sec_nport" / "SECURITIES_LENDING.tsv").read_text(encoding="utf-8")})
 
     def test_main_rien_de_nouveau(self):
         cu.ecrire_sorties(self.dossier, LIGNES_ECRITURE, DETAILS_ECRITURE, {}, "2026-10-01", "2026q3")
@@ -1000,7 +1124,9 @@ class Principal(unittest.TestCase):
         details = cu.lire_details_existants(self.dossier)
         self.assertEqual(set(details), {"S000002839", "S000030390", "S000089799"})
         v = details["S000002839"]
-        self.assertEqual((v["date"], v["lei"], v["actif"], v["lignes"]), ("2026-06-30", LEI_VANGUARD, 1466764579568, 508))
+        # 508 positions dans le fichier, dont un fonds monétaire de réinvestissement de garanties (prêt de titres) retiré de la composition
+        self.assertEqual((v["date"], v["lei"], v["actif"], v["lignes"]), ("2026-06-30", LEI_VANGUARD, 1466764579568, 507))
+        self.assertEqual(v["classes"][0], ["Actions", 99.75])
         self.assertEqual(v["parts"][1], ["C000007774", "Admiral Shares", "VFIAX", "2026-04", [8.56, 5.78, 1.22], None])
         self.assertEqual(v["top"][0], ["NVIDIA Corp", 7.51, "US67066G1040"])
         a = details["S000030390"]
@@ -1016,6 +1142,7 @@ class Principal(unittest.TestCase):
         self.assertEqual(isin, {"IE0000000001": "S000030390", "US9229083632": "S000002839"})
         self.assertTrue(len(list((self.dossier / "etats-unis").iterdir())) == 64)
         self.assertRegex(self.sortie.getvalue(), r"3 séries.*3 détails.*Mo")
+        self.assertRegex(self.sortie.getvalue(), r"1 position.*réinvestissement de garanties.*1 fonds")   # résumé imprimé, à part des dérivés
 
     def test_main_serie_americaine_hors_tickers(self):   # série absente de company_tickers_mf mais retrouvée par son LEI dans FIRDS : dans la zone
         mf = json.loads(lire_fichier("sec_tickers_mf.json"))
@@ -1027,6 +1154,15 @@ class Principal(unittest.TestCase):
         ligne = next(l for l in zone["lignes"] if l[1] == 30390)
         self.assertEqual((ligne[3], ligne[10]), ("Ashmore Emerging Markets Total Return Fund", "EMKIX EMKCX EMKAX"))
         self.assertIn("S000030390", cu.lire_details_existants(self.dossier))
+
+    def test_main_isin_europeens_ecartes_d_apres_l_annuaire(self):   # la ligne d'annuaire de l'ISIN irlandais est irlandaise : pas de données de la SEC
+        (self.dossier / "annuaire.js").write_text(
+            'const ANNUAIRE_DATE = "2026-10-01";\nconst ANNUAIRE = [["E",0,0,"Vanguard 500","","","","US9229083632","","US","","","USD",1,1],'
+            '["E",0,0,"Fonds irlandais","","","","IE0000000001","","IE","","","USD",0,1]];\n', encoding="utf-8")
+        self.assertEqual(self.lancer(), 0)
+        isin = cu.lire_js((self.dossier / "etats-unis-isin.js").read_text(encoding="utf-8"))
+        self.assertEqual(isin, {"US9229083632": "S000002839"})
+        self.assertIn("S000030390", cu.lire_details_existants(self.dossier))   # la série reste (tickers de la SEC), sans l'ISIN irlandais
 
     def test_main_liste_de_l_annee_en_cours(self):
         self.liste_publiee = 2026
