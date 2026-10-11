@@ -93,7 +93,7 @@ test("fiche R (GAM, OPCVM irlandais)", () => {
   const ctx = page();
   const e = ctx.lireEntree(GAM);
   const html = fiche(ctx, e, undefined);
-  for (const attendu of ["Central Bank of Ireland (CBI)", "(Irlande)", "France, Autriche, Allemagne, Espagne", "(4 pays)", "OPCVM (UCITS)",
+  for (const attendu of ["Central Bank of Ireland (CBI), Irlande", "France, Autriche, Allemagne, Espagne", "(4 pays)", "OPCVM (UCITS)",
     "https://registers.centralbank.ie/", "Vérifier l'agrément sur le registre de la Banque centrale d'Irlande", "pas d'ISIN connu",
     "Aucune part de ce fonds n'est cotée en bourse dans l'Union européenne d'après les registres publics",
     "ESMA – registre de la commercialisation transfrontière", "GAM Fund Management Limited", "<h1>GAM Star Absolute Return Macro</h1>",
@@ -106,6 +106,7 @@ test("fiche R (GAM, OPCVM irlandais)", () => {
   assert.ok(!html.includes("Fonds absent de la liste"));
   assert.ok(!html.includes("ISIN non publié"));
   assert.ok(!html.includes("Forme juridique"), "le cadre est dans « Type (registre européen) », pas une forme juridique");
+  assert.ok(!html.includes("(CBI) (Irlande)"), "le pays est séparé du nom de l'autorité par une virgule");
   assert.ok(!html.includes("undefined") && !html.includes("null") && !html.includes("NaN"));
   // la citation de l'ESMA, une seule fois, avec la date de la zone (annuaire) ; pas de BCE ni de GLEIF : le registre n'en donne rien pour ce fonds
   assert.equal(nb(html, "Source : ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) · données du 11/10/2026"), 1);
@@ -223,8 +224,7 @@ test("fonds européen déjà présent (Amundi, LU1681043599)", () => {
   const ctx = page();
   const e = ctx.lireEntree(AMUNDI);
   const html = fiche(ctx, e, "LU1681043599");
-  assert.ok(html.includes("Commission de Surveillance du Secteur Financier (CSSF)"));
-  assert.ok(html.includes("(Luxembourg)"));
+  assert.ok(html.includes("Commission de Surveillance du Secteur Financier (CSSF), Luxembourg"));
   assert.ok(html.includes("12 pays"));
   assert.ok(html.includes("France, Italie, Pays-Bas, Finlande, Suède, Espagne, Autriche, Allemagne, Irlande, Portugal, Danemark, Norvège"));
   assert.match(html, /data-terme="fia">Type \(registre européen\)<\/button><\/dt><dd>OPCVM \(UCITS\)<\/dd>/);
@@ -412,6 +412,14 @@ test("alertesRegistre", () => {
   const oui = alertes("UCITS")[0];
   assert.deepEqual([oui.niveau, oui.terme], ["info", "commercialisation"]);
   assert.equal(oui.texte, "Le fonds est déclaré pour être proposé en France, mais aucune part cotée en bourse n'est connue : demande à ton intermédiaire s'il le propose et où trouver son DIC en français.");
+  // FIA, ELTIF, EuVECA, EuSEF notifiés en France : l'information ne renvoie pas vers l'intermédiaire comme pour un OPCVM, elle va dans le sens de l'alerte du cadre
+  for (const cadre of ["AIF", "ELTIF", "EuVECA", "EuSEF"]) {
+    const info = alertes(cadre).find(a => a.titre === "Notifié pour la commercialisation en France (registre européen)");
+    assert.ok(info, cadre);
+    assert.deepEqual([info.niveau, info.terme], ["info", "commercialisation"]);
+    assert.equal(info.texte, "D'après le registre européen de l'ESMA, ce fonds est déclaré pour être commercialisé en France, en principe auprès d'investisseurs professionnels.", cadre);
+    assert.ok(!/intermédiaire/.test(info.texte), cadre);
+  }
   // cadre et pays ensemble : deux alertes, le cadre d'abord
   assert.deepEqual(alertes("AIF", ["DE"]).map(a => a.titre), ["Réservé aux investisseurs professionnels", "Fonds non notifié pour la France"]);
   // pays inconnus (informations non chargées) : pas d'alerte de commercialisation

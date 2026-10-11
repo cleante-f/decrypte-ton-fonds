@@ -267,10 +267,10 @@ function esmaDe(e, isin) {
 
 const nomPays = code => PAYS[code] || code;
 
-// « Central Bank of Ireland (CBI) (Irlande) » ; le pays seul quand le registre ne donne pas le nom de l'autorité (Italie, Danemark…)
+// « Central Bank of Ireland (CBI), Irlande » ; le pays seul quand le registre ne donne pas le nom de l'autorité (Italie, Danemark…)
 function libelleAutorite(code) {
   const nom = typeof IDENTITE !== "undefined" && IDENTITE && possedeCle(IDENTITE.autorites, code) ? IDENTITE.autorites[code] : "";
-  return nom ? `${nom} (${nomPays(code)})` : nomPays(code);
+  return nom ? `${nom}, ${nomPays(code)}` : nomPays(code);
 }
 
 // Lignes d'identité venues du registre. `gestionDeja` : la société de gestion est déjà affichée (liste de la BCE).
@@ -315,7 +315,10 @@ function alertesRegistre(e, esma) {
     if (!esma.pays.includes("FR")) a.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds non notifié pour la France",
       texte: "D'après le registre européen de l'ESMA, ce fonds n'est pas déclaré pour être proposé en France : ton intermédiaire ne peut en général pas te le vendre." });
     else a.push({ niveau: "info", terme: "commercialisation", titre: "Notifié pour la commercialisation en France (registre européen)",
-      texte: "Le fonds est déclaré pour être proposé en France, mais aucune part cotée en bourse n'est connue : demande à ton intermédiaire s'il le propose et où trouver son DIC en français." });
+      texte: esma.cadre && esma.cadre !== "UCITS"
+        // FIA, ELTIF, EuVECA, EuSEF : l'alerte du cadre dit déjà « réservé aux professionnels », l'information ne dit pas le contraire
+        ? "D'après le registre européen de l'ESMA, ce fonds est déclaré pour être commercialisé en France, en principe auprès d'investisseurs professionnels."
+        : "Le fonds est déclaré pour être proposé en France, mais aucune part cotée en bourse n'est connue : demande à ton intermédiaire s'il le propose et où trouver son DIC en français." });
   }
   return a;
 }
