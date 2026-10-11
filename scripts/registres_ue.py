@@ -108,6 +108,25 @@ def depuis_annuaire(annuaire, lei_de, fiches):
     return noms_lei, fonds_n
 
 
+def cle_nom_fonds(nom):
+    """Clé de comparaison du nom d'un fonds : « $ », « € » et « £ » deviennent USD, EUR et GBP avant cle_societe, pour que
+    les variantes par devise (« iShares $ Corp Bond ESG SRI » et « iShares € Corp Bond ESG SRI ») restent distinctes."""
+    return cle_societe((nom or "").replace("$", "USD").replace("€", "EUR").replace("£", "GBP"))
+
+
+def noms_annuaire(annuaire):
+    """Ensemble {(cle_nom_fonds(nom), pays)} des fonds étrangers de l'annuaire (lignes de source E, N ou U), avec ou sans ISIN."""
+    return {(cle_nom_fonds(l[3]), l[9]) for l in annuaire if l[0] in "ENU" and cle_nom_fonds(l[3])}
+
+
+def hors_annuaire(docs, deja):
+    """Fiches dont le nom (cle_nom_fonds) et le pays de domicile ne sont pas déjà ceux d'un fonds étranger de l'annuaire
+    (`deja` : résultat de noms_annuaire). Sert à la zone « registres-ue » seulement : une fiche non rapprochée par les règles
+    de rapprocher() (clé déjà prise, ambiguïté, LEI sans nom GLEIF équivalent…) mais qui porte le nom d'un fonds du site
+    en est probablement la copie ; la zone ne doit contenir que des fonds absents du site."""
+    return [d for d in docs if (cle_nom_fonds(d.get("funds_national_name")), d.get("funds_domicile_cou_code")) not in deja]
+
+
 def entree_esma(doc, nom_id):
     """Entrée de IDENTITE.esmaFonds : [société de gestion (index dans noms, par nom_id), pays de l'autorité, cadre juridique,
     pays de commercialisation séparés par des espaces]."""

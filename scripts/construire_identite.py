@@ -419,7 +419,8 @@ def main():
     notif = notifies_france([d for d in docs if d.get("funds_lei") in leis])
     noms_lei, fonds_n = ru.depuis_annuaire(annuaire, lei_de, fiches)
     lies, restes = ru.rapprocher(docs, leis, noms_lei, fonds_n)
-    nouveaux = [d for d in restes if d.get("funds_domicile_cou_code") in ru.PAYS_ZONE]
+    candidats = [d for d in restes if d.get("funds_domicile_cou_code") in ru.PAYS_ZONE]
+    nouveaux = ru.hors_annuaire(candidats, ru.noms_annuaire(annuaire))   # sans les copies de fonds déjà sur le site (même nom, même pays)
 
     # Table des noms (sociétés de gestion, parapluies, maîtres) pour alléger le fichier
     noms, index_noms = [], {}
@@ -473,8 +474,10 @@ def main():
 
     ecrire_registres_ue(ru.lignes_registres(nouveaux, joli), ru.infos_registres(nouveaux, bce, {**liens, **liens_ue}, fiches),
                         date.today().isoformat())
+    par_geco = sum(1 for k in lies if re.fullmatch(r"N\d+", k))   # clés « N<numéro> » (un LEI peut aussi commencer par N)
     print(f"✓ registre ESMA : {len(docs)} fiches actives lues, {len(lies)} rapprochées de l'annuaire "
-          f"({sum(1 for k in lies if k.startswith('N'))} par le nom d'un fonds GECO), {len(nouveaux)} nouveaux fonds irlandais et luxembourgeois "
+          f"({par_geco} par le nom d'un fonds GECO), {len(candidats) - len(nouveaux)} écartées "
+          f"(même nom et même pays qu'un fonds de l'annuaire), {len(nouveaux)} nouveaux fonds irlandais et luxembourgeois "
           f"→ {SORTIE_ZONE_UE.name} ({SORTIE_ZONE_UE.stat().st_size / 1e3:.0f} Ko), {SORTIE_INFOS_UE.name} ({SORTIE_INFOS_UE.stat().st_size / 1e3:.0f} Ko)")
 
     print("6/6 AMF – sociétés de gestion agréées…")

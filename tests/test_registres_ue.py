@@ -236,6 +236,61 @@ class DepuisAnnuaire(Base):
         self.assertEqual([d["id"] for d in restes], ["2103246"])
 
 
+class CopiesDeFondsDuSite(Base):
+    """La zone « registres-ue » ne reprend pas un fonds déjà sur le site sous un autre nom de source (E, N ou U)."""
+
+    def ligne(self, source, nom, pays, isin=""):
+        return [source, 0, 0, nom, "", "", "", isin, "", pays, "", "", "", 0, 1]
+
+    def fiche(self, nom, pays="IE"):
+        d = self.doc("90728")
+        d.update(funds_national_name=nom, funds_domicile_cou_code=pays)
+        return d
+
+    def garde(self, annuaire, *docs):
+        return [d["funds_national_name"] for d in ru.hors_annuaire(list(docs), ru.noms_annuaire(annuaire))]
+
+    def test_jumeau_d_une_ligne_avec_isin_exclu(self):
+        annuaire = [self.ligne("E", "iShares Core MSCI World UCITS ETF", "IE", "IE00B4L5Y983")]
+        self.assertEqual(self.garde(annuaire, self.doc("2836341")), [])   # même nom, même pays : déjà sur le site
+        self.assertEqual(self.garde(annuaire, self.doc("90728")), ["GAM Star Absolute Return Macro"])   # autre nom : gardé
+
+    def test_ponctuation_et_casse_ignorees(self):
+        # cas réels : « Alpen PB – German Select » (annuaire, source U) et « Alpen Pb-German Select » (ESMA)
+        annuaire = [self.ligne("U", "Alpen PB – German Select", "LU", "LU0181454132")]
+        self.assertEqual(self.garde(annuaire, self.fiche("Alpen Pb-German Select", "LU")), [])
+
+    def test_fonds_geco_sans_isin_exclu(self):
+        annuaire = [self.ligne("N", "GAM STAR ABSOLUTE RETURN MACRO", "IE")]
+        self.assertEqual(self.garde(annuaire, self.doc("90728")), [])
+
+    def test_dollar_et_euro_restent_distincts(self):
+        annuaire = [self.ligne("E", "iShares € Corp Bond ESG SRI UCITS ETF", "IE", "IE00BYX5PD65")]
+        dollar, euro = self.fiche("iShares $ Corp Bond ESG SRI UCITS ETF"), self.fiche("iShares € Corp Bond ESG SRI UCITS ETF")
+        self.assertEqual(self.garde(annuaire, dollar, euro), ["iShares $ Corp Bond ESG SRI UCITS ETF"])   # seul le jumeau en euros est exclu
+        # « $ » et « USD » sont la même devise ; « £ » et « GBP » aussi
+        for symbole, code in [("$", "USD"), ("£", "GBP")]:
+            annuaire = [self.ligne("E", f"iShares {code} Bond UCITS ETF", "IE", "IE0000000001")]
+            self.assertEqual(self.garde(annuaire, self.fiche(f"iShares {symbole} Bond UCITS ETF")), [], symbole)
+
+    def test_autre_pays_garde(self):
+        annuaire = [self.ligne("E", "iShares Core MSCI World UCITS ETF", "LU", "LU0000000002")]
+        self.assertEqual(self.garde(annuaire, self.doc("2836341")), ["iShares Core MSCI World UCITS ETF"])
+
+    def test_lignes_francaises_ignorees(self):
+        annuaire = [self.ligne("G", "GAM Star Absolute Return Macro", "IE")]
+        self.assertEqual(self.garde(annuaire, self.doc("90728")), ["GAM Star Absolute Return Macro"])
+
+    def test_nom_vide_ne_correspond_a_rien(self):
+        annuaire = [self.ligne("E", "", "IE", "IE0000000003")]
+        self.assertEqual(self.garde(annuaire, self.fiche("")), [""])
+
+    def test_cle_nom_fonds(self):
+        self.assertNotEqual(ru.cle_nom_fonds("iShares $ Corp Bond"), ru.cle_nom_fonds("iShares € Corp Bond"))
+        self.assertEqual(ru.cle_nom_fonds("iShares $ Corp Bond"), ru.cle_nom_fonds("ISHARES USD CORP BOND"))
+        self.assertEqual(ru.cle_nom_fonds(None), "")
+
+
 class LectureDuRegistre(unittest.TestCase):
     """registre_esma lit le registre par pages (réseau simulé : aucune requête réelle)."""
 
