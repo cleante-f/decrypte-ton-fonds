@@ -265,18 +265,23 @@ test("simulateur, textes d'un fonds américain : carte, options, méthode, sourc
   assert.ok(sans(ctx.panneauComparer()).includes("0,02 % (prospectus SEC)"));
 });
 
-test("simulateur : rendement aberrant écarté signalé ; sans composition, l'historique SEC n'est pas reconstitué", async () => {
+test("simulateur : rendement aberrant écarté signalé ; sans composition, profil type et reconstitution d'avant 2019 comme un fonds français", async () => {
   const { ctx, A } = await analyse({ ...ABERRANT, parts: [["C000999999", "", "", "2019-01", Array.from({ length: 90 }, (_, i) => (i === 10 ? 7443.59 : 1)), [2, null, 2, 0, null, null]]] }, 3);
   assert.equal(A.sourceHistorique, "sec");
   assert.equal(A.sourceExpo, "defaut");
   assert.equal(A.comb.nbReels, 79, "la série commence après le rendement aberrant");
-  assert.equal(A.comb.nbReconstitues, 0, "un profil type déduit du nom ne reconstitue pas le passé d'un fonds américain");
+  assert.ok(A.comb.nbReconstitues > 100, "le profil type par défaut reconstitue le passé, comme pour un fonds français");
+  assert.equal(A.comb.mois[A.comb.nbReconstitues], "2019-12", "l'historique réel suit la reconstitution sans trou");
   assert.equal(A.terSource, "sec");
   assert.equal(A.ter, 2);
   assert.equal(A.compo, null);
   assert.equal(A.entreeMax, 0);
   assert.ok(sans(ctx.comprendre(ctx.calculer(A))).includes("Un ou plusieurs rendements mensuels aberrants déclarés à la SEC ont été écartés."));
   assert.ok(sans(ctx.carteHistorique(A)).includes("Historique réel du fonds depuis"));
+  const methode = sans(ctx.comprendre(ctx.calculer(A)));
+  assert.ok(methode.includes("79 mois réels (rendements déclarés à la SEC, convertis en euros au taux BCE) et "));
+  assert.ok(/ et \d+ mois reconstitués/.test(methode));
+  assert.ok(methode.includes("profil type déduit de la classification ou du nom"));
 });
 
 test("simulateur : un historique SEC trop court est complété faute de mieux, même sans composition", async () => {

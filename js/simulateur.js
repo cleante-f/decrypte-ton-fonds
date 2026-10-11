@@ -176,11 +176,9 @@ async function chargerAnalyse(entree, isin, { composition = true, progression = 
   const couche = styleOk && Math.abs(A.st.dollar.couche) >= 10 ? A.st.dollar.couche : 0;
   const dollar = couche ? await serieDollarMensuelle().catch(() => null) : null;
   const reel = historique ? rendementsMensuels(niveauxMensuels(historique)) : new Map();
-  // Reconstitution quand l'exposition est bien identifiée (analyse des rendements, ou composition déclarée à la SEC), ou faute de
-  // mieux quand l'historique réel est trop court. Un fonds américain sans composition garde son seul historique SEC : un profil
-  // type déduit du nom ne dirait rien de ce qu'il était avant 2019.
-  const proxy = (styleOk && A.st.r2 >= 0.75) || A.sourceExpo === "sec" || (A.sourceExpo === "defaut" && A.sourceHistorique !== "sec") || reel.size < 36
-    ? reconstituer(A.expo, couche, longues, dollar) : null;
+  // Reconstitution quand l'exposition est bien identifiée (analyse des rendements, ou composition déclarée à la SEC), avec un profil
+  // type, ou faute de mieux quand l'historique réel est trop court. Un fonds américain est traité comme un fonds français.
+  const proxy = (styleOk && A.st.r2 >= 0.75) || A.sourceExpo === "defaut" || A.sourceExpo === "sec" || reel.size < 36 ? reconstituer(A.expo, couche, longues, dollar) : null;
   A.comb = historiqueCombine(reel, proxy);
   A.referencesUtilisees = proxy ? SERIES_LONGUES.filter(s => A.expo.some(x => x.cle === s.cle)) : [];
   if (A.comb.r.length < 24) throw new Error("historique trop court pour une simulation fiable (moins de 2 ans de données)");
