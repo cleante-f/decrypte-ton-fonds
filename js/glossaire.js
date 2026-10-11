@@ -69,5 +69,7 @@ const GLOSSAIRE = {
   performance_annualisee: "Gain (ou perte) moyen par an sur la période. Ex. +5 % annualisé sur 3 ans ≈ +15,8 % au total.",
   serie_sec: "Numéro donné par la SEC, le gendarme américain de la Bourse, à chaque fonds américain. Un fonds (une « série ») peut avoir plusieurs parts, avec leurs propres frais et tickers.",
   n_port: "Formulaire que chaque fonds américain dépose auprès de la SEC : la liste de toutes ses positions et ses rendements des trois derniers mois. La SEC le rend public quelques semaines plus tard.",
-  frais_nets: "Frais annuels après les remises que la société de gestion s'est engagée à accorder, souvent pour une durée limitée. Les frais bruts sont ceux d'avant ces remises."
+  frais_nets: "Frais annuels après les remises que la société de gestion s'est engagée à accorder, souvent pour une durée limitée. Les frais bruts sont ceux d'avant ces remises.",
+  autorite_controle: "Autorité publique qui a autorisé le fonds et le surveille dans son pays d'origine (ex. CSSF au Luxembourg, Banque centrale d'Irlande, AMF en France). Ce contrôle ne garantit ni le capital ni la performance.",
+  fia: "Fonds d'investissement alternatif : fonds européen qui ne suit pas les règles OPCVM (UCITS). Ses règles de diversification et de liquidité sont plus souples ; il est souvent réservé aux investisseurs professionnels. Les ELTIF (long terme) et EuVECA (capital-risque) en sont des formes particulières."
 };

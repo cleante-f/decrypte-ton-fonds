@@ -204,7 +204,7 @@ function afficherListe(requete, reels) {
   if (!reels.length) {
     return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p>
       <p class="aide">L'annuaire européen contient ${ANNUAIRE.length.toLocaleString("fr-FR")} fonds : tous les fonds de droit français (base GECO de l'AMF),
-      les fonds étrangers commercialisés en France, et tous les ETF et fonds cotés en bourse dans l'Union européenne. La recherche couvre aussi les fonds américains déclarés à la SEC.
+      les fonds étrangers commercialisés en France, et tous les ETF et fonds cotés en bourse dans l'Union européenne. La recherche couvre aussi les fonds irlandais et luxembourgeois du registre de l'ESMA, et les fonds américains déclarés à la SEC.
       Essaie avec l'ISIN, le ticker ou quelques mots du nom.</p>${noteZonesIncompletes(reels)}</div>`;
   }
   const lignes = reels.map(e => {

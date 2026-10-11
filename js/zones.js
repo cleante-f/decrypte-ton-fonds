@@ -1,5 +1,6 @@
 /*
- * Annuaire par zone : les fonds hors d'Europe ne sont pas dans data/annuaire.js (chargé avec chaque page).
+ * Annuaire par zone : les fonds américains (SEC) et les fonds irlandais et luxembourgeois du registre de l'ESMA ne sont pas dans
+ * data/annuaire.js (chargé avec chaque page).
  * Chacune de ces zones a son propre fichier, data/annuaire-<zone>.js, que le navigateur ne télécharge que quand il en a besoin :
  * à la première recherche par nom, ou à l'ouverture d'un fonds de la zone. Chaque fichier ajoute sa zone à ANNUAIRE_ZONES,
  * avec des lignes au même format que ANNUAIRE (voir lireEntree dans geco.js).
@@ -14,6 +15,7 @@ const ANNUAIRE_ZONES = {};   // rempli par data/annuaire-<zone>.js : { <zone>: {
 // nom : clé dans ANNUAIRE_ZONES ; fichier : adresse du fichier de données ; motif : reconnaît la clé d'un fonds de la zone
 // (celle de cleEntree, dans l'adresse de la page) ; origine : texte affiché dans les listes de résultats
 const ZONES = [
+  { nom: "registres-ue", fichier: "data/annuaire-registres-ue.js", motif: /^R\d+$/, origine: "Fonds irlandais ou luxembourgeois (registre ESMA)" },
   { nom: "etats-unis", fichier: "data/annuaire-etats-unis.js", motif: /^S\d{9}$/, origine: "Fonds américain (SEC)" }
 ];
 
@@ -58,7 +60,8 @@ async function chargerZone(nom) {
 
 // ---------- Clés et ouverture d'un fonds ----------
 
-// Zone d'une clé d'adresse : « etats-unis » pour S000002839, « europe » pour tout le reste (ISIN, N12345…)
+// Zone d'une clé d'adresse : « etats-unis » pour S000002839, « registres-ue » pour R90728 (numéro de la fiche ESMA),
+// « europe » pour tout le reste (ISIN, N12345…)
 function zoneDeCle(cle) {
   const zone = ZONES.find(z => z.motif.test(cle));
   return zone ? zone.nom : "europe";

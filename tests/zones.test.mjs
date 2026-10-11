@@ -16,13 +16,23 @@ const AMUNDI = ["E", 2, 2, "Amundi Funds Euro Corporate Bond", "Amundi", "", "",
 const VANGUARD_500 = ["S", 2839, 2839, "Vanguard 500 Index Fund", "VANGUARD INDEX FUNDS", "", "", "", "", "US", "VFINX VFIAX VOO VFFSX", "", "USD", 1, 1];
 const ASHMORE = ["S", 30390, 30390, "Ashmore Emerging Markets Total Return Fund", "Ashmore Funds", "", "", "", "", "US", "EMKIX EMKCX EMKAX", "", "USD", 0, 1];
 
+// Lignes de la zone « registres-ue » (vraies lignes de data/annuaire-registres-ue.js)
+const GAM_STAR = ["R", 90728, 90728, "GAM Star Absolute Return Macro", "GAM Fund Management Limited", "", "OPCVM (UCITS)", "", "", "IE", "", "", "", 0, 1];
+const QUAESTIO = ["R", 2103248, 2103248, "Quaestio Alternative Funds - Fund One", "Quaestio Capital Sgr S.P.A.", "", "FIA", "", "", "LU", "", "", "", 0, 0];
+const ABBEY = ["R", 2824062, 2824062, "Abbey Capital TrendPlus Strategy (UCITS)", "Waystone Management Company (IE) Limited", "", "OPCVM (UCITS)", "", "", "IE", "", "", "", 0, 1];
+
 const FICHIER_ZONE = "data/annuaire-etats-unis.js";
+const FICHIER_UE = "data/annuaire-registres-ue.js";
 const texteZone = (nom, lignes) => `ANNUAIRE_ZONES[${JSON.stringify(nom)}] = ${JSON.stringify({ maj: "2026-10-11", trimestre: "2026q3", lignes })};`;
 const ZONE_US = texteZone("etats-unis", [VANGUARD_500, ASHMORE]);
+// Par défaut la zone des registres européens ne contient qu'un fonds qui ne répond à aucune recherche des tests ci-dessous
+// (« fund », « amundi », « ashmore »…) : ils ne s'occupent que de la zone qu'ils nomment
+const ZONE_UE = texteZone("registres-ue", [ABBEY]);
 
 // Une page simulée : l'annuaire européen réduit, un `document` qui compte les <script> ajoutés puis, au tour suivant, exécute
 // le texte du fichier demandé (ou signale une erreur de chargement s'il est absent de `fichiers`)
-function monde({ fichiers = {}, europe = [FR, VOO, AMUNDI], isin = { US9229083632: "S000002839" } } = {}) {
+function monde({ fichiers: demandes = {}, europe = [FR, VOO, AMUNDI], isin = { US9229083632: "S000002839" } } = {}) {
+  const fichiers = { [FICHIER_UE]: ZONE_UE, ...demandes };
   const chargements = [];
   let ctx;
   const document = {
@@ -57,7 +67,9 @@ test("cleEntree : clé d'un fonds américain", () => {
 test("zoneDeCle", () => {
   const { zoneDeCle } = monde().ctx;
   assert.equal(zoneDeCle("S000002839"), "etats-unis");
-  for (const cle of ["FR0010135103", "N12345", "S12", "S00000283", "S0000028390", "s000002839", ""]) assert.equal(zoneDeCle(cle), "europe", cle);
+  assert.equal(zoneDeCle("R90728"), "registres-ue");
+  assert.equal(zoneDeCle("R2103248"), "registres-ue");
+  for (const cle of ["FR0010135103", "N12345", "S12", "S00000283", "S0000028390", "s000002839", "", "R", "r90728", "R90728a", "RU0009029540", "R-1"]) assert.equal(zoneDeCle(cle), "europe", cle);
 });
 
 test("chargerScript : un seul <script> par fichier, nouvel essai après un échec", async () => {
@@ -180,7 +192,7 @@ test("rechercherPartout : ticker américain exact", async () => {
   assert.deepEqual(noms(r), [ASHMORE[3]]);
   assert.deepEqual(simple(r.incomplet), []);
   assert.deepEqual(noms(await m.ctx.rechercherPartout("emkix")), [ASHMORE[3]]);
-  assert.equal(m.chargements.length, 1);
+  assert.equal(m.chargements.length, 2);   // les deux zones, une seule fois chacune (registres européens et États-Unis)
   assert.deepEqual(noms(await m.ctx.rechercherPartout("VOO")), [VANGUARD_500[3]]);   // le VOO européen n'a pas de ticker dans l'annuaire
 });
 
@@ -200,14 +212,67 @@ test("rechercherPartout : Europe d'abord", async () => {
 });
 
 test("rechercherPartout : zone en échec", async () => {
-  const m = monde();
+  const m = monde();   // le fichier des États-Unis est absent
   const r = await m.ctx.rechercherPartout("ashmore");
   assert.deepEqual(simple(r), []);
   assert.deepEqual(simple(r.incomplet), ["etats-unis"]);
   const e = await m.ctx.rechercherPartout("amundi");
   assert.deepEqual(noms(e), [AMUNDI[3]]);
   assert.deepEqual(simple(e.incomplet), ["etats-unis"]);
-  assert.equal(m.chargements.length, 2);   // la zone est redemandée à chaque recherche
+  assert.equal(m.chargements.length, 3);   // registres européens une fois, États-Unis redemandée à chaque recherche
+});
+
+test("rechercherPartout : zone des registres européens en échec, les autres résultats restent", async () => {
+  const m = monde({ fichiers: { [FICHIER_ZONE]: ZONE_US, [FICHIER_UE]: undefined } });
+  const r = await m.ctx.rechercherPartout("fund");
+  assert.deepEqual(noms(r), [AMUNDI[3], VOO[3], ASHMORE[3]]);   // Europe et États-Unis, sans les registres
+  assert.deepEqual(simple(r.incomplet), ["registres-ue"]);
+  assert.deepEqual(noms(await m.ctx.rechercherPartout("ashmore")), [ASHMORE[3]]);
+  assert.equal(m.chargements.filter(c => c === FICHIER_UE).length, 2, "la zone est redemandée à chaque recherche");
+  assert.equal(m.chargements.filter(c => c === FICHIER_ZONE).length, 1);
+  m.fichiers[FICHIER_UE] = texteZone("registres-ue", [GAM_STAR]);   // le fichier est de nouveau disponible
+  const apres = await m.ctx.rechercherPartout("gam star");
+  assert.deepEqual(noms(apres), [GAM_STAR[3]]);
+  assert.deepEqual(simple(apres.incomplet), []);
+});
+
+test("rechercherPartout : les deux zones en échec", async () => {
+  const m = monde({ fichiers: { [FICHIER_UE]: undefined } });
+  const r = await m.ctx.rechercherPartout("amundi");
+  assert.deepEqual(noms(r), [AMUNDI[3]]);
+  assert.deepEqual(simple(r.incomplet), ["registres-ue", "etats-unis"]);
+});
+
+test("rechercherPartout : Europe, puis registres-ue, puis etats-unis", async () => {
+  const m = monde({ fichiers: { [FICHIER_ZONE]: ZONE_US, [FICHIER_UE]: texteZone("registres-ue", [GAM_STAR, QUAESTIO, ABBEY]) } });
+  const r = await m.ctx.rechercherPartout("fund");
+  assert.deepEqual(noms(r), [AMUNDI[3], VOO[3], GAM_STAR[3], QUAESTIO[3], ASHMORE[3]]);   // la société de gestion compte dans la recherche
+  assert.deepEqual(simple(r.incomplet), []);
+  assert.deepEqual(noms(await m.ctx.rechercherPartout("fund", 3)), [AMUNDI[3], VOO[3], GAM_STAR[3]]);
+  assert.deepEqual(noms(await m.ctx.rechercherPartout("fund", 4)), [AMUNDI[3], VOO[3], GAM_STAR[3], QUAESTIO[3]]);
+  assert.deepEqual(noms(await m.ctx.rechercherPartout("waystone")), [ABBEY[3]]);
+  assert.deepEqual(m.chargements, [FICHIER_UE, FICHIER_ZONE], "les deux zones sont demandées ensemble, chacune une fois");
+});
+
+test("registres-ue : clé R<id>, ouverture et résultats de la recherche", async () => {
+  const m = monde({ fichiers: { [FICHIER_ZONE]: ZONE_US, [FICHIER_UE]: texteZone("registres-ue", [GAM_STAR, QUAESTIO]) } });
+  const e = simple(await m.ctx.entreeParCle("R90728"));
+  assert.equal(e.nom, "GAM Star Absolute Return Macro");
+  assert.equal(e.source, "R");
+  assert.equal(e.cmpId, 90728);
+  assert.equal(e.gestionnaire, "GAM Fund Management Limited");
+  assert.equal(e.nature, "OPCVM (UCITS)");
+  assert.equal(e.pays, "IE");
+  assert.deepEqual(e.isins, []);
+  assert.equal(e.public, true);
+  assert.equal(m.ctx.cleEntree(m.ctx.lireEntree(GAM_STAR)), "R90728");
+  assert.equal((await m.ctx.entreeParCle("R2103248")).public, false, "FIA : réservé");
+  assert.equal(await m.ctx.entreeParCle("R1"), null);                    // zone chargée, fonds inconnu
+  assert.deepEqual(m.chargements, [FICHIER_UE]);                         // l'ouverture ne charge que sa zone
+  assert.deepEqual(noms(await m.ctx.rechercherPartout("star absolute")), [GAM_STAR[3]]);
+  const ouvert = monde();
+  ouvert.fichiers[FICHIER_UE] = undefined;
+  await assert.rejects(ouvert.ctx.entreeParCle("R90728"));
 });
 
 test("rechercherPartout : requête vide, sans rien charger", async () => {
@@ -237,13 +302,13 @@ test("plusieurs zones : clés, ouverture et résultats dans l'ordre de ZONES", a
   assert.deepEqual(noms(r), [AMUNDI[3], VOO[3], TEST[3], ASHMORE[3]]);   // Europe, puis chaque zone dans l'ordre de ZONES
   assert.deepEqual(simple(r.incomplet), []);
   assert.deepEqual(noms(await m.ctx.rechercherPartout("ALPHA")), [TEST[3]]);   // ticker exact dans la première zone
-  assert.deepEqual(m.chargements, ["data/annuaire-test.js", FICHIER_ZONE]);
+  assert.deepEqual(m.chargements, ["data/annuaire-test.js", FICHIER_UE, FICHIER_ZONE]);
 });
 
 test("plusieurs zones : demandées en parallèle, une zone en échec n'empêche pas les autres", async () => {
   const m = mondeADeuxZones({});   // le fichier des États-Unis est absent
   const attente = m.ctx.rechercherPartout("fund");
-  assert.deepEqual(m.chargements, ["data/annuaire-test.js", FICHIER_ZONE], "les deux fichiers sont demandés avant d'attendre le premier");
+  assert.deepEqual(m.chargements, ["data/annuaire-test.js", FICHIER_UE, FICHIER_ZONE], "les trois fichiers sont demandés avant d'attendre le premier");
   const r = await attente;
   assert.deepEqual(noms(r), [AMUNDI[3], VOO[3], TEST[3]]);
   assert.deepEqual(simple(r.incomplet), ["etats-unis"]);
@@ -275,6 +340,23 @@ test("afficherListe : origine d'après ZONES, note si une zone n'a pas pu être 
   assert.ok(vide.includes("Aucun fonds trouvé pour « zzzz »") && vide.includes("fonds américains déclarés à la SEC"));
   assert.ok(vide.includes("réessaie dans un instant"), "une zone en échec est signalée même sans résultat");
   assert.ok(!m.ctx.afficherListe("zzzz", []).includes("réessaie"), "liste vide sans propriété incomplet");
+});
+
+test("afficherListe : fonds irlandais ou luxembourgeois du registre ESMA, et note si cette zone n'a pas pu être chargée", async () => {
+  const m = monde({ fichiers: { [FICHIER_ZONE]: ZONE_US, [FICHIER_UE]: texteZone("registres-ue", [GAM_STAR, QUAESTIO]) } });
+  for (const f of ["js/glossaire.js", "js/affichage.js"]) vm.runInContext(lire(f), m.ctx, { filename: f });
+  const html = m.ctx.afficherListe("gam", await m.ctx.rechercherPartout("gam"));
+  assert.ok(html.includes('<a href="#R90728">GAM Star Absolute Return Macro</a>'));
+  assert.ok(html.includes("ISIN non publié · Fonds irlandais ou luxembourgeois (registre ESMA) · GAM Fund Management Limited"), html);
+  assert.ok(!html.includes("hors Europe") && !html.includes("réservé"));
+  const fia = m.ctx.afficherListe("quaestio", await m.ctx.rechercherPartout("quaestio"));
+  assert.ok(fia.includes('<a href="#R2103248">') && fia.includes("Fonds irlandais ou luxembourgeois (registre ESMA)") && fia.includes("· réservé"), "un FIA est signalé « réservé »");
+
+  const panne = monde({ fichiers: { [FICHIER_ZONE]: ZONE_US, [FICHIER_UE]: undefined } });
+  for (const f of ["js/glossaire.js", "js/affichage.js"]) vm.runInContext(lire(f), panne.ctx, { filename: f });
+  const incomplet = panne.ctx.afficherListe("amundi", await panne.ctx.rechercherPartout("amundi"));
+  assert.ok(incomplet.includes("Certains fonds n'ont pas pu être chargés (Fonds irlandais ou luxembourgeois (registre ESMA)) : réessaie dans un instant."), incomplet);
+  assert.ok(!incomplet.includes("Fonds américain"));
 });
 
 test("fiche d'un fonds américain : identité seule, sans exception ni appel aux cours", async () => {
@@ -314,4 +396,28 @@ test("données réelles : tickers en minuscules, lignes sans ticker ni gestionna
   const correspondance = vm.runInContext(lire("data/etats-unis-isin.js") + ";ETATS_UNIS_ISIN", vm.createContext({}));
   assert.ok(Object.keys(correspondance).length > 1000);
   for (const serie of Object.values(correspondance)) assert.ok(cles.has(serie), serie);
+});
+
+test("données réelles : registre ESMA, clés uniques et informations pour chaque fonds", async () => {
+  const m = monde({ fichiers: { [FICHIER_UE]: lire(FICHIER_UE) } });
+  const zone = await m.ctx.chargerZone("registres-ue");
+  assert.ok(zone.lignes.length > 10000);
+  assert.match(zone.maj, /^\d{4}-\d{2}-\d{2}$/);
+  const infos = vm.runInContext(lire("data/registres-ue-infos.js") + ";REGISTRES_UE_INFOS", vm.createContext({}));
+  const cles = new Set();
+  for (const l of zone.lignes) {
+    const e = m.ctx.lireEntree(l);
+    const cle = m.ctx.cleEntree(e);
+    assert.match(cle, /^R\d+$/);
+    assert.equal(m.ctx.zoneDeCle(cle), "registres-ue");
+    assert.equal(e.isins.length, 0, cle);
+    assert.ok(["IE", "LU"].includes(e.pays), cle);
+    assert.ok(["OPCVM (UCITS)", "FIA", "ELTIF", "EuVECA", "EuSEF"].includes(e.nature), `${cle} : ${e.nature}`);
+    assert.equal(e.public, e.nature === "OPCVM (UCITS)", cle);
+    assert.ok(infos[e.cmpId], `${cle} : informations absentes`);
+    cles.add(cle);
+  }
+  assert.equal(cles.size, zone.lignes.length, "une clé par ligne");
+  assert.equal((await m.ctx.entreeParCle("R90728")).nom, "GAM Star Absolute Return Macro");
+  assert.deepEqual(noms(m.ctx.rechercherZone("registres-ue", "gam star absolute")), ["GAM Star Absolute Return Macro"]);
 });

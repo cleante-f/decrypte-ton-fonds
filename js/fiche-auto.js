@@ -4,6 +4,8 @@
  * - Fonds français (source "G") : données en direct depuis GECO + lecture du DIC (voir geco.js)
  * - ETF étrangers (source "E")  : identité seulement (Euronext / Xetra) + indices tirés du nom
  * - Fonds étrangers sans ISIN (source "N") : identité seulement (GECO)
+ * - Fonds irlandais et luxembourgeois du registre de l'ESMA (source "R", zone « registres-ue ») : identité seulement, sans ISIN :
+ *   société de gestion, autorité de contrôle, pays de commercialisation, type (OPCVM, FIA…), LEI, politique et taille (BCE)
  * - Fonds américains (source "S", annuaire des États-Unis) : identité, composition N-PORT, rendements en euros et frais,
  *   déclarés à la SEC (d.sec, voir etats-unis.js). Un fonds européen qui est aussi une série américaine (E, U, N) reçoit
  *   les mêmes blocs SEC en plus de son identité européenne.
@@ -15,7 +17,8 @@ const LIENS = {
   geco: e => `https://geco.amf-france.org/produit-d-epargne/c${e.cmpId}`,
   document: d => `${GECO_API}/document/download/${d.idInterne}`,
   justetf: isin => `https://www.justetf.com/fr/etf-profile.html?isin=${isin}`,
-  edgar: serie => `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${serie}&type=485&count=10`
+  edgar: serie => `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${serie}&type=485&count=10`,
+  banqueCentraleIrlande: "https://registers.centralbank.ie/"   // lien seulement : aucune donnée de ce registre n'est reprise
 };
 
 // Ce que chaque classification AMF implique (définitions réglementaires simplifiées)
@@ -216,16 +219,119 @@ function notifieFrance(e) {
   return e.isins.some(i => { const f = FIRDS.fonds[i]; return !!(f && f[0] && _notifFR.has(f[0])); });
 }
 
-// Fonds étrangers seulement : les fonds français ont déjà la fiche complète de l'AMF, et les fonds américains (S) ne sont pas
-// dans les registres européens (leur identité vient de la SEC)
+// ---------- Registre de la commercialisation transfrontière de l'ESMA : autorité, pays, type ----------
+
+const CITATION_ESMA = "ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source)";
+// Cadres juridiques du registre → libellés du site (data/annuaire-registres-ue.js écrit déjà ces libellés dans la ligne d'un fonds R)
+const CADRES = { UCITS: "OPCVM (UCITS)", AIF: "FIA", ELTIF: "ELTIF", EuVECA: "EuVECA", EuSEF: "EuSEF" };
+const CADRE_DE_LIBELLE = Object.fromEntries(Object.entries(CADRES).map(([cadre, libelle]) => [libelle, cadre]));   // « FIA » → AIF
+
+const possedeCle = (objet, cle) => !!objet && Object.prototype.hasOwnProperty.call(objet, cle);
+
+// Pays d'une liste « FR IT NL » du registre : sans doublon (le registre en répète parfois), la France en tête
+function listePays(texte) {
+  const pays = [...new Set(String(texte || "").split(" ").filter(Boolean))];
+  return pays.includes("FR") ? ["FR", ...pays.filter(p => p !== "FR")] : pays;
+}
+
+// Ce que le registre de l'ESMA dit d'un fonds : { gestion, autorite (code du pays de l'autorité), cadre (UCITS, AIF, ELTIF, EuVECA,
+// EuSEF), pays (codes des pays de commercialisation, France en tête ; null si on ne les connaît pas), lei, politique, tranche,
+// parapluie }, ou null quand le registre ne dit rien.
+//  - fonds R (zone registres-ue) : REGISTRES_UE_INFOS (fichier chargé à l'ouverture de la fiche) et sa ligne de l'annuaire. Sans
+//    le fichier, on ne connaît que la société de gestion et le cadre : ni autorité ni pays (pays null), et surtout pas « aucun pays ».
+//  - fonds européens (E, U, N) : IDENTITE.esmaFonds, par le LEI de FIRDS d'abord (un LEI peut commencer par N, comme la clé d'un
+//    fonds GECO sans ISIN : on ne distingue jamais les deux par leur première lettre), puis par « N<numéro> » pour un fonds N.
+//  - fonds français (G) et américains (S) : null.
+function esmaDe(e, isin) {
+  if (e.source === "G" || e.source === "S") return null;
+  if (e.source === "R") {
+    const base = { gestion: e.gestionnaire || "", cadre: possedeCle(CADRE_DE_LIBELLE, e.nature) ? CADRE_DE_LIBELLE[e.nature] : "" };
+    const x = typeof REGISTRES_UE_INFOS !== "undefined" && possedeCle(REGISTRES_UE_INFOS, e.cmpId) ? REGISTRES_UE_INFOS[e.cmpId] : null;
+    if (!x) return { ...base, autorite: "", pays: null, lei: "", politique: "", tranche: 0, parapluie: "" };
+    const [lei, autorite, pays, politique, tranche, parapluie] = x;
+    return { ...base, autorite: autorite || "", pays: listePays(pays), lei: lei || "", politique: politique || "", tranche: tranche || 0, parapluie: parapluie || "" };
+  }
+  if (typeof IDENTITE === "undefined" || !IDENTITE.esmaFonds) return null;
+  const parLei = typeof FIRDS !== "undefined" && FIRDS ? FIRDS.fonds : null;
+  let lei = "", x = null;
+  for (const i of [isin, ...e.isins]) {
+    const l = parLei && typeof i === "string" && possedeCle(parLei, i) ? parLei[i][0] : "";
+    if (l && possedeCle(IDENTITE.esmaFonds, l)) { lei = l; x = IDENTITE.esmaFonds[l]; break; }
+  }
+  if (!x && e.source === "N" && possedeCle(IDENTITE.esmaFonds, e.source + e.cmpId)) x = IDENTITE.esmaFonds[e.source + e.cmpId];
+  if (!x) return null;
+  const [gestion, autorite, cadre, pays] = x;
+  const nomGestion = gestion >= 0 ? (IDENTITE.noms || [])[gestion] : "";
+  return { gestion: nomGestion || "", autorite: autorite || "", cadre: cadre || "", pays: listePays(pays), lei, politique: "", tranche: 0, parapluie: "" };
+}
+
+const nomPays = code => PAYS[code] || code;
+
+// « Central Bank of Ireland (CBI) (Irlande) » ; le pays seul quand le registre ne donne pas le nom de l'autorité (Italie, Danemark…)
+function libelleAutorite(code) {
+  const nom = typeof IDENTITE !== "undefined" && IDENTITE && possedeCle(IDENTITE.autorites, code) ? IDENTITE.autorites[code] : "";
+  return nom ? `${nom} (${nomPays(code)})` : nomPays(code);
+}
+
+// Lignes d'identité venues du registre. `gestionDeja` : la société de gestion est déjà affichée (liste de la BCE).
+// Pour un fonds R, le registre donne aussi le LEI, et la BCE et le GLEIF la politique, la taille et le fonds parapluie.
+function lignesEsma(e, esma, gestionDeja) {
+  const lignes = [];
+  if (esma.gestion && !e.gestionnaire && !gestionDeja) lignes.push([terme("societe_gestion", "Société de gestion"), esc(esma.gestion)]);
+  if (esma.autorite) lignes.push([terme("autorite_controle", "Autorité de contrôle"), esc(libelleAutorite(esma.autorite))]);
+  if (esma.pays && esma.pays.length) lignes.push([terme("commercialisation", "Commercialisé dans"), esc(`${esma.pays.map(nomPays).join(", ")} (${esma.pays.length} pays)`)]);
+  if (esma.cadre) lignes.push([terme("fia", "Type (registre européen)"), esc(CADRES[esma.cadre] || esma.cadre)]);
+  if (e.source === "R") {
+    const bce = typeof IDENTITE !== "undefined" && IDENTITE ? IDENTITE.bce : "";
+    if (esma.lei) lignes.push([terme("lei", "Identifiant LEI"), esc(esma.lei)]);
+    if (esma.politique) lignes.push(["Politique d'investissement", `principalement en ${esc(POLITIQUES_BCE[esma.politique] || "autres actifs")}`]);
+    if (esma.tranche && TRANCHES_ENCOURS[esma.tranche - 1]) lignes.push([terme("encours", "Encours"),
+      `${TRANCHES_ENCOURS[esma.tranche - 1]} <small>(tranche publiée par la BCE${bce ? ` au ${dateFr(bce)}` : ""}, toutes parts confondues)</small>`]);
+    if (esma.parapluie) lignes.push([terme("compartiment", "Compartiment de"), esc(esma.parapluie)]);
+  }
+  return lignes;
+}
+
+// Citation de la BCE et du GLEIF pour les informations d'un fonds R qui en viennent (le reste vient de l'ESMA, cité avec l'annuaire)
+function sourceBceGleifRegistre(esma) {
+  if (typeof IDENTITE === "undefined" || !IDENTITE) return "";
+  const srcs = [(esma.politique || esma.tranche) && "BCE – liste des fonds d'investissement de la zone euro", esma.parapluie && "GLEIF – registre des LEI (licence CC0)"].filter(Boolean);
+  return srcs.length ? source({ document: srcs.join(", ") + " (réutilisation autorisée en citant la source)", date: IDENTITE.maj }) : "";
+}
+
+// Alertes tirées du registre pour un fonds de la zone registres-ue (même forme que celles de detecterPiegesAuto) :
+// le cadre juridique (FIA, ELTIF, EuVECA, EuSEF) puis la commercialisation en France. Sans les pays (informations pas chargées),
+// pas d'alerte de commercialisation : on ne sait pas.
+function alertesRegistre(e, esma) {
+  if (!esma) return [];
+  const a = [];
+  if (esma.cadre === "AIF") a.push({ niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs professionnels",
+    texte: "D'après le registre européen de l'ESMA, ce fonds est un FIA : sa commercialisation dans d'autres pays de l'Union vise les investisseurs professionnels. Un particulier ne peut en général pas y souscrire." });
+  else if (esma.cadre === "ELTIF") a.push({ niveau: "attention", terme: "fia", titre: "ELTIF : argent bloqué longtemps",
+    texte: "Fonds européen d'investissement à long terme (entreprises non cotées, infrastructures) : l'argent est en général bloqué plusieurs années." });
+  else if (esma.cadre === "EuVECA" || esma.cadre === "EuSEF") a.push({ niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs avertis",
+    texte: "Fonds européen de capital-risque ou d'entrepreneuriat social : réservé aux investisseurs professionnels ou qui investissent au moins 100 000 €." });
+  if (Array.isArray(esma.pays)) {
+    if (!esma.pays.includes("FR")) a.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds non notifié pour la France",
+      texte: "D'après le registre européen de l'ESMA, ce fonds n'est pas déclaré pour être proposé en France : ton intermédiaire ne peut en général pas te le vendre." });
+    else a.push({ niveau: "info", terme: "commercialisation", titre: "Notifié pour la commercialisation en France (registre européen)",
+      texte: "Le fonds est déclaré pour être proposé en France, mais aucune part cotée en bourse n'est connue : demande à ton intermédiaire s'il le propose et où trouver son DIC en français." });
+  }
+  return a;
+}
+
+// Fonds étrangers seulement : les fonds français ont déjà la fiche complète de l'AMF, et les fonds américains (S) ne sont pas dans
+// les registres européens (leur identité vient de la SEC). Un fonds R n'a pas d'ISIN : son identité vient du seul registre de l'ESMA.
 function identiteEsma(e, isin) {
-  if (typeof FIRDS === "undefined" || e.source === "G" || e.source === "S") return { lignes: [], devise: "", source: "" };
-  const f = isin && FIRDS.fonds[isin];
-  const parNom = e.source === "N" && FIRDS.parNom.includes(e.source + e.cmpId);
+  if (e.source === "G" || e.source === "S") return { lignes: [], devise: "", source: "" };
+  const firds = typeof FIRDS !== "undefined" ? FIRDS : null;
+  if (!firds && e.source !== "R") return { lignes: [], devise: "", source: "" };
+  const f = firds && isin && firds.fonds[isin];
+  const parNom = !!firds && e.source === "N" && firds.parNom.includes(e.source + e.cmpId);
   const lignes = [];
   if (f && f[0]) lignes.push([terme("lei", "Identifiant LEI"), esc(f[0])]);
   if (f && f[2].length) {
-    const places = f[2].map(m => ({ mic: m, p: FIRDS.places[m] })).filter(x => x.p);
+    const places = f[2].map(m => ({ mic: m, p: firds.places[m] })).filter(x => x.p);
     const reglementes = places.filter(x => x.p[2]), autres = places.filter(x => !x.p[2]);
     const cites = [...reglementes, ...autres].slice(0, 4);
     const total = f[3] || places.length;   // firds.js ne garde que les 6 principales places
@@ -244,9 +350,13 @@ function identiteEsma(e, isin) {
   if (notifie) lignes.push([terme("commercialisation", "Commercialisation en France"),
     "fonds notifié (registre européen de l'ESMA)<br><small>La notification vise le fonds dans son ensemble : vérifie que cette part (devise, couverture) est proposée par ton intermédiaire.</small>", true]);
   const reg = identiteRegistres(e, f && f[0], isin);
-  return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
-    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source
-      + (notifie ? source({ document: "ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source)", date: IDENTITE.esma }) : "") };
+  const registre = esmaDe(e, isin);
+  const lignesRegistre = registre ? lignesEsma(e, registre, !!reg.gestion) : [];
+  // Un fonds R cite le registre avec son annuaire (afficherFicheAuto) ; il ne reste ici que la BCE et le GLEIF
+  const sourceRegistre = e.source === "R" ? (registre ? sourceBceGleifRegistre(registre) : "") : (notifie || registre ? source({ document: CITATION_ESMA, date: IDENTITE.esma }) : "");
+  return { lignes: [...reg.lignes, ...lignes, ...lignesRegistre], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
+    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: firds.maj }) : "") + reg.source
+      + sourceRegistre };
 }
 
 // ---------- Agrément de la société de gestion (data/societes.js, liste AMF) ----------
@@ -273,7 +383,7 @@ const TRANCHES_ENCOURS = ["moins de 1 million d'euros", "1 à 5 millions d'euros
   "100 à 500 millions d'euros", "500 millions à 1 milliard d'euros", "1 à 5 milliards d'euros", "plus de 5 milliards d'euros"];
 
 function identiteRegistres(e, lei, isin) {
-  const vide = { lignes: [], source: "", maitre: "", liquidite: null, politique: "" };
+  const vide = { lignes: [], source: "", maitre: "", liquidite: null, politique: "", gestion: "" };
   if (typeof IDENTITE === "undefined") return vide;
   const x = lei && IDENTITE.fonds[lei];
   const nom = k => (x && x[k] >= 0 ? IDENTITE.noms[x[k]] : "");
@@ -292,7 +402,7 @@ function identiteRegistres(e, lei, isin) {
   const srcs = [x && "BCE – liste des fonds d'investissement de la zone euro", x && "GLEIF – registre des LEI (licence CC0)",
     liq && "ESMA – registre FITRS"].filter(Boolean);
   return {
-    lignes, maitre: nom(7), politique: x ? x[2] : "",
+    lignes, maitre: nom(7), gestion: nom(0), politique: x ? x[2] : "",
     liquidite: liq ? { montant: liq[0], liquide: liq[1] === 1, annee: liq[2] || IDENTITE.fitrs } : null,
     source: source({ document: srcs.join(", ") + " (réutilisation autorisée en citant la source)", date: IDENTITE.maj })
   };
@@ -448,6 +558,9 @@ function detecterPiegesAuto(e, d) {
   const dic = d && d.dic;
   const k = e.classification;
 
+  // Fonds du registre de l'ESMA (zone registres-ue) : cadre juridique (FIA, ELTIF…) et commercialisation en France d'après le registre
+  const registre = e.source === "R" ? alertesRegistre(e, esmaDe(e)) : [];
+
   // Où le fonds peut être vendu
   if (horsEee(e)) p.push({ niveau: "alerte", terme: "dic", titre: `Fonds de droit non européen (${PAYS[e.pays] || e.pays})`,
     texte: "Ce fonds n'a pas de DIC européen : les banques et courtiers ne peuvent en général pas le proposer aux particuliers en France, et il n'offre pas les protections des fonds européens (règles UCITS). Cherche plutôt un ETF ou un fonds européen qui suit le même indice." });
@@ -456,11 +569,14 @@ function detecterPiegesAuto(e, d) {
   else if (e.source === "U") p.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds absent de la liste des fonds vendus en France",
     texte: "Ce fonds est coté sur une bourse européenne, mais nous ne l'avons pas trouvé parmi les fonds étrangers déclarés à l'AMF (base GECO) : il n'est peut-être pas proposé en France. Ton intermédiaire peut refuser l'ordre, et ses documents sont souvent en anglais ou en allemand seulement." });
 
+  p.push(...registre);
+
   const agrement = e.source === "S" ? null : societeAmf(e.gestionnaire);   // la structure déposante d'un fonds américain n'est pas dans la liste de l'AMF
   if (agrement && agrement[3] !== "Vivant") p.push({ niveau: "attention", terme: "societe_gestion", titre: `Agrément de la société de gestion : ${agrement[3]}`,
     texte: "La liste des sociétés de gestion agréées publiée par l'AMF indique ce statut pour la société qui gère ce fonds. Renseigne-toi auprès de ton intermédiaire avant d'investir." });
 
-  if (e.source !== "G" && RESERVE_AVERTIS.test(e.nom)) p.push({ niveau: "attention", terme: "opcvm", titre: "Fonds réservé aux investisseurs avertis",
+  // (un fonds du registre dit déjà « Réservé aux investisseurs… » d'après son cadre : pas de deuxième alerte du même genre)
+  if (e.source !== "G" && RESERVE_AVERTIS.test(e.nom) && !registre.some(a => a.titre.startsWith("Réservé aux investisseurs"))) p.push({ niveau: "attention", terme: "opcvm", titre: "Fonds réservé aux investisseurs avertis",
     texte: "D'après son nom, c'est un fonds spécialisé (SIF ou RAIF luxembourgeois, ou fonds « spécial » allemand) : il est réservé aux investisseurs professionnels ou avertis, avec en général un montant minimum élevé (au moins 125 000 € pour un SIF luxembourgeois)." });
 
   // Structure du fonds
@@ -478,7 +594,7 @@ function detecterPiegesAuto(e, d) {
     texte: "Les sommes sont en général bloquées 5 ans (PEE) ou jusqu'à la retraite (PERCO/PERECO), sauf cas de déblocage anticipé prévus par la loi." });
   if (/titres de l.entreprise/i.test(k)) p.push({ niveau: "alerte", terme: "top10", titre: "Investi dans une seule entreprise : la vôtre",
     texte: "Si l'entreprise traverse des difficultés, vous risquez de perdre à la fois une partie de votre épargne et votre emploi. C'est une concentration extrême." });
-  if (!e.public) p.push({ niveau: "info", terme: "opcvm", titre: "Fonds réservé",
+  if (!e.public && e.source !== "R") p.push({ niveau: "info", terme: "opcvm", titre: "Fonds réservé",
     texte: "Ce fonds est réservé à une catégorie d'investisseurs (institutionnels, salariés d'une entreprise, 20 porteurs au plus…)." });
 
   // Informations lues dans le DIC
@@ -759,8 +875,11 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const sec = d && d.sec;                                    // données de la SEC (série américaine, ou fonds européen qui en est aussi une)
   const detailSec = sec && sec.detail;
   const serieSec = estSec ? cleEntree(e) : sec && sec.serie;
+  const estR = e.source === "R";                             // fonds irlandais ou luxembourgeois du registre de l'ESMA : pas d'ISIN
   const zoneUS = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["etats-unis"] : null;
+  const zoneUE = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["registres-ue"] : null;
   const srcAnnuaire = estSec ? { document: "SEC – EDGAR (liste des séries et parts, tickers)", date: zoneUS && zoneUS.maj }
+    : estR ? { document: CITATION_ESMA, date: zoneUE && zoneUE.maj }
     : { document: e.source === "E" ? "ESMA (registre FIRDS), liste Xetra et OpenFIGI" : e.source === "U" ? "ESMA (registre FIRDS) et GLEIF (registre des LEI)" : "AMF – base GECO", date: ANNUAIRE_DATE };
   const esma = identiteEsma(e, isin);
   const agrement = estSec ? null : ligneAgrement(e);
@@ -785,6 +904,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
     <header class="fiche-entete">
       <h1>${esc(e.nom)}</h1>
       <p>${estSec ? `Série SEC ${esc(serieSec)}${sec && sec.part ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker ? ` (${esc(sec.part.ticker)})` : ""}` : ""}`
+        : estR ? `Registre de l'ESMA, fiche n° ${esc(e.cmpId)}`
         : `${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}`}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
       ${types.length ? `<div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>` : ""}
       ${enBref(e, d)}
@@ -801,6 +921,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
     <div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>
     ${listeInfos([
       estSec ? [terme("serie_sec", "Numéro de série SEC"), esc(serieSec)]
+        : estR ? [terme("isin", "ISIN"), "aucun connu<br><small>Aucune part de ce fonds n'est cotée en bourse dans l'Union européenne d'après les registres publics : pas d'ISIN connu.</small>", true]
         : [terme("isin", "ISIN"), esc(isin || "non publié") + (esma.parNom ? `<br><small>Retrouvé par le nom du fonds dans le registre européen FIRDS : vérifie-le dans le DIC.</small>` : ""), esma.parNom],
       !estSec && serieSec && [terme("serie_sec", "Série SEC (États-Unis)"), esc(serieSec)
         + `<br><small>Ce fonds est aussi déclaré à la SEC : sa composition, ses rendements en euros et ses frais viennent de là.</small>`, true],
@@ -810,7 +931,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       agrement,
       [terme("domicile", "Domiciliation"), esc(PAYS[e.pays] || e.pays || "n.d.")],
       [`Devise${part ? " de la part" : ""}`, esc((part && part.parRefDevCode) || e.devise || esma.devise || "n.d.")],
-      e.nature && ["Forme juridique", esc(e.nature)],
+      e.nature && !estR && ["Forme juridique", esc(e.nature)],   // pour un fonds R, la « nature » est le cadre du registre : ligne « Type (registre européen) »
       d && d.encours ? [terme("encours", "Encours"), `${d.encours.montant.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} M€ <small>au ${dateFr(d.encours.date)}${d.encours.horsEuro ? ", parts en euros uniquement" : ""}</small>`]
         : e.source === "G" && [terme("encours", "Encours"), chargement ? "chargement…" : "non disponible"],
       e.dateCreation && [e.source === "N" ? "Commercialisé en France depuis" : "Création", dateFr(e.dateCreation)],
@@ -824,6 +945,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
     ])}
     ${e.source === "G" ? `<p class="aide"><a href="${LIENS.geco(e)}" target="_blank" rel="noopener">Voir la fiche officielle sur GECO (AMF)</a></p>` : ""}
     ${serieSec ? `<p class="aide"><a href="${esc(LIENS.edgar(serieSec))}" target="_blank" rel="noopener">Documents officiels du fonds sur EDGAR (SEC)</a></p>` : ""}
+    ${e.pays === "IE" ? `<p class="aide"><a href="${LIENS.banqueCentraleIrlande}" target="_blank" rel="noopener">Vérifier l'agrément sur le registre de la Banque centrale d'Irlande</a></p>` : ""}
     ${source(srcAnnuaire)}${esma.source}${agrement ? source({ document: "AMF – liste des sociétés de gestion de portefeuille agréées, data.gouv.fr (Licence Ouverte 2.0)", date: SOCIETES.publication }) : ""}
   </section>`;
 
@@ -850,7 +972,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
         : "L'indicateur SRI n'est pas disponible gratuitement pour ce fonds de droit étranger : consulte son DIC sur le site de la société de gestion.")}
       ${nomIdx.levier ? `<p class="resume">Produit à levier ou inversé : réservé à des investisseurs très avertis, sur de courtes durées.</p>` : ""}
       ${blocPerformancesSec(sec, e)}
-      ${estSec ? "" : blocCoursEtranger(d && d.cours, d && d.coursFini, e.etf)}
+      ${estSec || estR ? "" : blocCoursEtranger(d && d.cours, d && d.coursFini, e.etf)}
       ${lignesRisque.length ? `<dl class="grille-risques">${lignesRisque.join("")}</dl>` : ""}
       ${liquidite ? source({ document: "ESMA – registre FITRS des calculs de transparence MiFID (montant moyen échangé par jour)", date: IDENTITE.maj }) : ""}
       ${blocMarches}</section>`;

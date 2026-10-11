@@ -67,7 +67,8 @@ async function afficherDepuisAdresse() {
   document.title = `${entree.nom} · Décrypte ton fonds`;
   const enGeco = entree.source === "G";
   const avecSec = entree.source === "S" || (!enGeco && !!serieSecDe(entree, isin));   // fonds américain, ou fonds européen qui est aussi une série américaine
-  zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco || avecSec);
+  const avecRegistre = entree.source === "R";   // fonds irlandais ou luxembourgeois du registre de l'ESMA : ses informations se chargent à l'ouverture
+  zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco || avecSec || avecRegistre);
   zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });
 
   let donnees = { erreurs: [] };
@@ -131,8 +132,25 @@ async function afficherDepuisAdresse() {
     return;
   }
 
-  // Fonds étrangers : cours relevés chaque jour sur Xetra et à Francfort (js/cours.js), chargés en parallèle
-  if (typeof chargerCours === "function") {
+  // Fonds du registre de l'ESMA (source R) : LEI, pays de commercialisation, politique, taille et parapluie sont dans un fichier chargé
+  // à l'ouverture de la fiche. S'il manque, l'identité reste affichée (société de gestion, type) et l'erreur est signalée en bas de fiche.
+  if (entree.source === "R") {
+    try {
+      const promesse = chargerScript("data/registres-ue-infos.js");
+      await promesse;
+      if (typeof REGISTRES_UE_INFOS === "undefined") {
+        if (_scriptsCharges.get("data/registres-ue-infos.js") === promesse) _scriptsCharges.delete("data/registres-ue-infos.js");   // fichier inattendu : la prochaine fiche le recharge
+        throw new Error("fichier sans les informations attendues");
+      }
+    } catch (err) {
+      donnees.erreurs.push("informations du registre ESMA indisponibles (" + err.message + ")");
+    }
+    if (numero !== affichageEnCours) return;
+  }
+
+  // Fonds étrangers : cours relevés chaque jour sur Xetra et à Francfort (js/cours.js), chargés en parallèle.
+  // Un fonds du registre de l'ESMA n'a pas d'ISIN, donc pas de cours à chercher.
+  if (entree.source !== "R" && typeof chargerCours === "function") {
     chargerCours(isin)
       .then(c => { donnees.cours = c; donnees.coursFini = true; })
       .catch(() => { donnees.coursFini = true; })
