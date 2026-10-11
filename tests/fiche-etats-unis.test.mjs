@@ -172,6 +172,28 @@ test("fonds américain déjà présent (VOO) : composition SEC et cours", async 
   assert.ok(html.includes("Source : ESMA (registre FIRDS), liste Xetra et OpenFIGI"));
 });
 
+// Un fonds américain n'a pas de DIC : le bandeau du haut et le rappel du bas renvoient aux documents officiels du fonds
+const BANDEAU = html => html.match(/<p class="bandeau-auto">[\s\S]*?<\/p>/)[0].replace(/\s+/g, " ");
+const RAPPEL = html => html.match(/<p class="rappel-legal">[\s\S]*?<\/p>/)[0];
+test("fiche S : bandeau et rappel sans DIC (prospectus), fiches européennes inchangées", async () => {
+  const ctx = page();
+  const e = ctx.lireEntree(LIGNE_S);
+  const d = await donneesFiche(ctx, e, undefined, VANGUARD);
+  for (const html of [fiche(ctx, e, undefined, d), fiche(ctx, e, undefined, d, true), fiche(ctx, e, undefined, { erreurs: [] })]) {
+    assert.ok(BANDEAU(html).includes("vérifie toujours les documents officiels du fonds (prospectus)."), BANDEAU(html));
+    assert.ok(!BANDEAU(html).includes("DIC"), BANDEAU(html));
+    assert.equal(RAPPEL(html), `<p class="rappel-legal">Information pédagogique, pas un conseil en investissement. Vérifie les documents officiels du fonds (prospectus) avant toute décision.</p>`);
+  }
+  // fonds européen (même celui qui a aussi une série américaine) : texte d'avant
+  const voo = ctx.lireEntree(LIGNE_VOO), fr = ctx.lireEntree(LIGNE_FR);
+  const htmlVoo = fiche(ctx, voo, "US9229083632", await donneesFiche(ctx, voo, "US9229083632", VANGUARD));
+  const htmlFr = fiche(ctx, fr, "FR0010135103", { erreurs: [], composition: { fini: true, c: null } });
+  for (const html of [htmlVoo, htmlFr]) {
+    assert.ok(BANDEAU(html).includes("vérifie toujours le DIC officiel."), BANDEAU(html));
+    assert.equal(RAPPEL(html), `<p class="rappel-legal">Information pédagogique, pas un conseil en investissement. Vérifie le DIC officiel avant toute décision.</p>`);
+  }
+});
+
 test("fonds européen sans série américaine : rien de changé", async () => {
   const ctx = page();
   const e = ctx.lireEntree(LIGNE_FR);

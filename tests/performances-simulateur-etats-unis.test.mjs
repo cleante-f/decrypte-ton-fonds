@@ -307,6 +307,83 @@ test("simulateur : fonds américain sans rendement, retour au profil type (sans 
   assert.ok(sans(ctx.comprendre(ctx.calculer(A))).includes("Historique mensuel du fonds : 0 mois réels et "));
 });
 
+// Sans rendement publié, rien ne vient de l'AMF : les lignes de provenance parlent du profil type (et de la SEC si sa composition
+// ou ses frais ont servi) ; la carte du fonds montre « Série SEC <clé> » et non « ISIN non publié ».
+const textesProvenance = (ctx, A) => ({
+  carte: sans(ctx.carteFonds(A)), historique: sans(ctx.carteHistorique(A)), methode: sans(ctx.comprendre(ctx.calculer(A))), contexte: sans(ctx.panneauContexte())
+});
+const sansAmf = textes => { for (const [nom, t] of Object.entries(textes)) assert.ok(!/AMF|GECO|valeur liquidative|valeurs liquidatives/.test(t), `${nom} : ${t.match(/.{40}(AMF|GECO|valeurs? liquidatives?).{40}/)}`); };
+
+test("simulateur, fonds américain sans rendement : provenance « profil type » (et SEC pour la composition et les frais), jamais l'AMF", async () => {
+  const { ctx, A } = await analyse(SANS_RENDEMENT, 1, "Fonds sans rendement");
+  assert.equal(A.sourceHistorique, "profil");
+  assert.equal(A.sourceExpo, "sec");
+  assert.equal(A.terSource, "sec");
+  const t = textesProvenance(ctx, A);
+  sansAmf(t);
+  assert.ok(t.carte.includes("Série SEC S000000001"), t.carte);
+  assert.ok(!t.carte.includes("ISIN non publié"));
+  assert.ok(t.historique.includes("Données brutes : profil type, faute de rendement publié pour ce fonds ; composition et frais : SEC (EDGAR)"), t.historique);
+  assert.ok(t.methode.includes("Source : profil type, faute de rendement publié pour ce fonds ; composition et frais : SEC (EDGAR)."), t.methode);
+  assert.ok(t.contexte.includes("Inventaire N-PORT du 30/06/2026 (SEC – EDGAR)"));
+});
+
+test("simulateur, fonds américain sans rendement ni composition : profil type seul, la SEC n'est citée que si elle a servi", async () => {
+  // Rien de la SEC : ni composition ni frais
+  let { ctx, A } = await analyse(SANS_RIEN, 2, "Fonds vide");
+  assert.equal(A.sourceHistorique, "profil");
+  assert.equal(A.sourceExpo, "defaut");
+  assert.equal(A.terSource, "hypothese");
+  let t = textesProvenance(ctx, A);
+  sansAmf(t);
+  assert.ok(t.carte.includes("Série SEC S000000002") && !t.carte.includes("ISIN non publié"));
+  assert.ok(t.historique.includes("Données brutes : profil type, faute de rendement publié pour ce fonds ; fonds de référence :"), t.historique);
+  assert.ok(!/Données brutes : [^.]*SEC/.test(t.historique), t.historique);
+  assert.ok(t.methode.includes("Source : profil type, faute de rendement publié pour ce fonds."), t.methode);
+  assert.ok(!t.methode.includes("composition et frais : SEC"));
+  assert.ok(t.contexte.includes("Profil type déduit de la classification ou du nom du fonds (pas d'analyse possible)."), t.contexte);
+  // Frais de la SEC seulement
+  ({ ctx, A } = await analyse({ ...SANS_RIEN, parts: [["C000000005", "Class A", "ABCAX", null, null, [1.1, 0.9, 1, 0, null, "2026-04-28"]]] }, 6, "Fonds avec frais"));
+  assert.equal(A.sourceHistorique, "profil");
+  assert.equal(A.terSource, "sec");
+  t = textesProvenance(ctx, A);
+  sansAmf(t);
+  assert.ok(t.historique.includes("Données brutes : profil type, faute de rendement publié pour ce fonds ; frais : SEC (EDGAR)"), t.historique);
+  // Données de la SEC injoignables : profil type, la SEC n'est pas citée comme source
+  ({ ctx, A } = await analyse(null, 64 * 5 + 7, "Fonds hors morceau chargé", c => { c.chargerScript = () => Promise.reject(new Error("réseau")); }));
+  t = textesProvenance(ctx, A);
+  sansAmf(t);
+  assert.ok(t.carte.includes("Série SEC S000000327"), t.carte);
+  assert.ok(!/Données brutes : [^.]*SEC/.test(t.historique), t.historique);
+});
+
+test("simulateur, fonds américain avec rendements mais sans composition : l'exposition n'est pas attribuée à l'AMF", async () => {
+  const { ctx, A } = await analyse(ABERRANT, 3, "Fonds a rendement aberrant");
+  assert.equal(A.sourceHistorique, "sec");
+  assert.equal(A.compo, null);
+  const contexte = sans(ctx.panneauContexte());
+  assert.ok(!/AMF|GECO/.test(contexte), contexte);
+  assert.ok(contexte.includes("Profil type déduit de la classification ou du nom du fonds (pas d'analyse possible), rendements mensuels déclarés à la SEC convertis en euros (taux BCE)."), contexte);
+});
+
+test("simulateur : fonds avec historique de l'AMF, textes d'avant (valeurs liquidatives, AMF – GECO, ISIN)", async () => {
+  // Un fonds de la base GECO suit le chemin « reel » : on reprend une analyse et on la fait passer pour telle
+  const { ctx, A } = await analyse(VANGUARD, 2839, "Vanguard 500 Index Fund");
+  A.entree = ctx.lireEntree(["G", 1, 1, "Carmignac Patrimoine", "Carmignac Gestion", "Fonds mixtes", "FCP", "FR0010135103", "1989-11-07", "FR", "", "", "EUR", 0, 1]);
+  A.isin = "FR0010135103";
+  A.sourceHistorique = "reel";
+  A.sourceExpo = "defaut";
+  A.terSource = "hypothese";
+  A.sec = undefined;
+  A.compo = null;
+  const carte = sans(ctx.carteFonds(A));
+  assert.ok(carte.includes("FR0010135103 · Carmignac Gestion"), carte);
+  assert.ok(carte.includes("Dernière valeur liquidative utilisée : 30/06/2026 (AMF – GECO)"), carte);
+  assert.ok(sans(ctx.carteHistorique(A)).includes("Données brutes : valeurs liquidatives publiées par l'AMF (base GECO)"));
+  assert.ok(sans(ctx.comprendre(ctx.calculer(A))).includes("Source : AMF (GECO), dernière valeur liquidative du 30/06/2026."));
+  assert.ok(sans(ctx.panneauContexte()).includes("Analyse des rendements (valeurs liquidatives AMF, taux BCE)."));
+});
+
 test("simulateur : fonds américain sans aucune donnée utile, hypothèses habituelles", async () => {
   const { ctx, A } = await analyse(SANS_RIEN, 2, "Fonds vide");
   assert.equal(A.sourceHistorique, "profil");

@@ -781,7 +781,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
 
   const entete = `
     <p class="bandeau-auto">Fiche générée <strong>automatiquement</strong> à partir de sources publiques.
-      Les éléments non disponibles sont signalés : vérifie toujours le DIC officiel.</p>
+      Les éléments non disponibles sont signalés : vérifie toujours ${estSec ? "les documents officiels du fonds (prospectus)" : "le DIC officiel"}.</p>
     <header class="fiche-entete">
       <h1>${esc(e.nom)}</h1>
       <p>${estSec ? `Série SEC ${esc(serieSec)}${sec && sec.part ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker ? ` (${esc(sec.part.ticker)})` : ""}` : ""}`
@@ -956,5 +956,5 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const erreurs = d && d.erreurs && d.erreurs.length ? `<p class="aide">Informations manquantes : ${esc(d.erreurs.join(" ; "))}.</p>` : "";
 
   return `<article class="fiche">${entete}${identite}${sectionRepartition}${sectionConcentration}${sectionRisque}${sectionPiegesHtml}${sectionComparaison}${erreurs}
-    <p class="rappel-legal">Information pédagogique, pas un conseil en investissement. Vérifie le DIC officiel avant toute décision.</p></article>`;
+    <p class="rappel-legal">Information pédagogique, pas un conseil en investissement. Vérifie ${estSec ? "les documents officiels du fonds (prospectus)" : "le DIC officiel"} avant toute décision.</p></article>`;
 }

@@ -331,6 +331,13 @@ function libellePartSec(part) {
   return `« ${esc(part.nom)} »${part.ticker && part.ticker !== part.nom ? ` (${esc(part.ticker)})` : ""}`;
 }
 
+// Provenance d'un fonds sans aucun rendement publié (A.sourceHistorique === "profil") : un profil type, jamais les données de l'AMF.
+// La SEC n'est citée que si sa composition ou ses frais ont servi.
+function sourceProfilType(A) {
+  const sec = [A.sourceExpo === "sec" && "composition", A.terSource === "sec" && "frais"].filter(Boolean);
+  return `profil type, faute de rendement publié pour ce fonds${sec.length ? ` ; ${sec.join(" et ")} : SEC (EDGAR)` : ""}`;
+}
+
 function carteFonds(A, message) {
   const e = A ? A.entree : S.chargement.entree, isin = A ? A.isin : S.chargement.isin;
   const cle = cleEntree(e, isin);
@@ -342,7 +349,7 @@ function carteFonds(A, message) {
   return `<article class="carte carte-fonds-simu">
     <div class="fonds-simu-titre">
       <div><p class="surtitre">Fonds simulé</p><h2>${esc(e.nom)}</h2>
-        <p class="aide">${esc(isin || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}</p></div>
+        <p class="aide">${esc(e.source === "S" ? `Série SEC ${cle}` : isin || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}</p></div>
       <div class="actions-fiche"><a class="btn-onglet" href="decrypte.html#${esc(cle)}">Décrypter ce fonds →</a><a class="btn-onglet" href="performances.html#${esc(cle)}">Performances →</a></div>
     </div>
     ${badges.length ? `<div class="etiquettes">${badges.map(b => `<span class="etiquette">${esc(b)}</span>`).join("")}</div>` : ""}
@@ -931,7 +938,7 @@ function carteHistorique(A) {
       ${cmp ? `<div class="large"><dt>Selon les conditions de marché (actions mondiales)</dt><dd>Les mois de hausse des marchés, le fonds a fait en moyenne ${pctSigne(cmp.fondsHausse)} (marché : ${pctSigne(cmp.marcheHausse)}) ;
         les mois de baisse, ${pctSigne(cmp.fondsBaisse)} (marché : ${pctSigne(cmp.marcheBaisse)}). Il capte donc environ ${pct(cmp.captureHausse * 100, 0)} des hausses et ${pct(cmp.captureBaisse * 100, 0)} des baisses.</dd></div>` : ""}
     </dl>
-    <p class="source">Données brutes : ${A.sourceHistorique === "sec" ? "rendements mensuels déclarés à la SEC (EDGAR, formulaires N-PORT), convertis en euros au taux de change de la BCE" : "valeurs liquidatives publiées par l'AMF (base GECO)"}${A.referencesUtilisees.length ? ` ; fonds de référence : ${A.referencesUtilisees.map(r => esc(r.nom)).join(", ")}` : ""}. Calculs : ce site, en données mensuelles, du ${esc(moisFr(h.debut))} au ${esc(moisFr(h.fin))}.</p>
+    <p class="source">Données brutes : ${A.sourceHistorique === "sec" ? "rendements mensuels déclarés à la SEC (EDGAR, formulaires N-PORT), convertis en euros au taux de change de la BCE" : A.sourceHistorique === "profil" ? sourceProfilType(A) : "valeurs liquidatives publiées par l'AMF (base GECO)"}${A.referencesUtilisees.length ? ` ; fonds de référence : ${A.referencesUtilisees.map(r => esc(r.nom)).join(", ")}` : ""}. Calculs : ce site, en données mensuelles, du ${esc(moisFr(h.debut))} au ${esc(moisFr(h.fin))}.</p>
   </section>`;
 }
 
@@ -950,6 +957,7 @@ function comprendre(C) {
     <ul>
       <li>Historique mensuel ${A.jumeau ? `du fonds jumeau ${esc(A.jumeau.fonds.nom)}` : "du fonds"} : ${A.comb.nbReels} mois réels${A.sourceHistorique === "sec" ? " (rendements déclarés à la SEC, convertis en euros au taux BCE)" : ""}${A.comb.nbReconstitues ? ` et ${A.comb.nbReconstitues} mois reconstitués` : ""}, du ${esc(moisFr(A.comb.mois[0]))} au ${esc(moisFr(A.comb.mois[A.comb.mois.length - 1]))}.
         ${A.sourceHistorique === "sec" ? `Source : SEC – EDGAR (formulaires N-PORT)${A.derniereVL ? `, dernier rendement mensuel : ${esc(A.derniereVL.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }))}` : ""}.${A.sec.historique.ignores ? " Un ou plusieurs rendements mensuels aberrants déclarés à la SEC ont été écartés." : ""}`
+        : A.sourceHistorique === "profil" ? `Source : ${sourceProfilType(A)}.`
         : `Source : AMF (GECO)${A.derniereVL ? `, dernière valeur liquidative du ${A.derniereVL.toLocaleDateString("fr-FR")}` : ""}.`}</li>
       <li>Exposition du fonds : ${A.sourceExpo === "style" ? `analyse des rendements des 3 dernières années (${terme("r2", "R²")} = ${pct(A.st.r2 * 100, 0)})`
         : A.sourceExpo === "sec" ? `inventaire N-PORT du ${dateFr(A.sec.compo.sec.date)} (SEC – EDGAR) : les actions sont réparties selon les zones des titres, les obligations comptées pour moitié à long terme et pour moitié à court terme, les liquidités avec le monétaire`
@@ -1512,6 +1520,7 @@ function panneauContexte() {
     <p class="aide">Taille des entreprises : ${/SMALL|MID CAP|PETITES|MOYENNES/i.test(A.entree.nom) ? "petites et moyennes capitalisations (d'après le nom du fonds)" : /S&P|MSCI|STOXX|NASDAQ|CAC|TOPIX|DAX|FTSE/i.test(A.entree.nom) ? "grandes et moyennes capitalisations (indice suivi)" : "non disponible automatiquement"}.</p>
     <p class="source">${c && c.principale === "sec"
         ? `Inventaire N-PORT du ${dateFr(c.sec.date)} (SEC – EDGAR)${A.sourceHistorique === "sec" ? ", rendements mensuels déclarés à la SEC convertis en euros (taux BCE)" : ""}.`
+        : A.sourceHistorique === "profil" || A.sourceHistorique === "sec" ? `Profil type déduit de la classification ou du nom du fonds (pas d'analyse possible)${A.sourceHistorique === "sec" ? ", rendements mensuels déclarés à la SEC convertis en euros (taux BCE)" : ""}.`
         : `${c && c.inventaire && c.inventaire.document ? `Inventaire du ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)} (AMF – GECO) et analyse` : "Analyse"} des rendements (valeurs liquidatives AMF, taux BCE).`} Calculs : ce site. <a href="decrypte.html#${esc(cleEntree(A.entree, A.isin))}">Voir la fiche complète →</a></p>
   </section>
 

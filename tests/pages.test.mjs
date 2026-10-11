@@ -28,6 +28,13 @@ test("pied de page identique sur les 10 pages", () => {
   for (const nom of PAGES) assert.equal(bloc(lirePage(nom), "footer"), modele, nom);
   for (const attendu of ["ni un conseil en investissement, ni une recommandation", 'href="mentions-legales.html"', 'href="cgv.html"',
     'href="confidentialite.html"', "GLEIF"]) assert.ok(modele.includes(attendu), attendu);
+  assert.ok(modele.includes("Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF, OpenFIGI et SEC (EDGAR)."));
+});
+
+test("confidentialité : la SEC est citée parmi les sources lues par nos serveurs, pas par le navigateur", () => {
+  const texte = lirePage("confidentialite").replace(/\s+/g, " ");
+  assert.ok(texte.includes("et de la SEC, le régulateur américain (liste des fonds américains, inventaires N-PORT, résumés de prospectus). Ton navigateur ne contacte jamais ces services."));
+  assert.ok(!/<th scope="row">[^<]*SEC/.test(texte), "la SEC ne figure pas dans les tableaux des services contactés par le navigateur");
 });
 
 test("décrypte : réglages des alertes sous la recherche", () => {
@@ -49,7 +56,8 @@ test("accueil : textes corrigés et trois outils", () => {
   assert.ok(!html.includes("Euronext"), "Euronext encore cité");
   assert.ok(!main.includes("0 €"), "« 0 € » encore présent");
   for (const id of ["nb-total", "nb-francais", "nb-etf", "date-maj"]) assert.ok(main.includes(`id="${id}"`), id);
-  assert.ok(main.includes("AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI"));
+  assert.ok(main.includes("AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF, OpenFIGI et SEC (EDGAR)"));
+  assert.ok(main.includes("Sources officielles : AMF, BCE, ESMA, Deutsche Börse, SEC."));
   const titres = [...main.matchAll(/<h2 class="outil-titre">([^<]+)<\/h2>/g)].map(m => m[1]);
   assert.deepEqual(titres, ["Décrypte ton fonds", "Performances", "Simulateur"]);
   for (const action of ["Décrypter un fonds →", "Voir les performances →", "Simuler →"]) assert.ok(main.includes(action), action);
