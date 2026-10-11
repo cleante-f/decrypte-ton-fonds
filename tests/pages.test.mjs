@@ -137,11 +137,13 @@ test("décrypte, performances, simulateur : correspondance des fonds américains
     const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${nom} : ${src} absent`); return i; };
     assert.equal(place("data/etats-unis-isin.js"), place("data/annuaire.js") + 1, `${nom} : data/etats-unis-isin.js juste après data/annuaire.js`);
     assert.equal(place("js/zones.js"), place("js/geco.js") + 1, `${nom} : js/zones.js juste après js/geco.js`);
+    assert.equal(place("js/etats-unis.js"), place("js/zones.js") + 1, `${nom} : js/etats-unis.js juste après js/zones.js (il s'en sert pour charger ses morceaux)`);
+    assert.ok(!scripts.some(src => src.startsWith("data/etats-unis/")), `${nom} : les morceaux de données ne se chargent qu'à la demande (js/etats-unis.js)`);
     assert.ok(!scripts.includes("data/annuaire-etats-unis.js"), `${nom} : la zone ne se charge qu'à la demande (js/zones.js)`);
   }
 });
 
-test("_routes.json : annuaire et correspondance des fonds américains, js/zones.js exclus des Functions", () => {
+test("_routes.json : annuaire et correspondance des fonds américains, js/zones.js et js/etats-unis.js exclus des Functions", () => {
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
-  for (const chemin of ["/data/annuaire-etats-unis.js", "/data/etats-unis-isin.js", "/js/zones.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
+  for (const chemin of ["/data/annuaire-etats-unis.js", "/data/etats-unis-isin.js", "/js/zones.js", "/js/etats-unis.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
 });

@@ -19,16 +19,21 @@ const ZONES = [
 
 // ---------- Chargement ----------
 
-// Un seul <script> par fichier, même si plusieurs appels se suivent. Après un échec (réseau coupé, fichier bloqué),
-// la promesse est retirée : le prochain appel réessaie.
+// Un seul <script> par fichier, même si plusieurs appels se suivent. Après un échec (réseau coupé, fichier bloqué) ou un
+// délai dépassé (le serveur ne répond pas), la promesse est retirée : le prochain appel réessaie. Le premier événement
+// (chargé, en erreur, délai) l'emporte ; un fichier qui arrive après le délai ne ressuscite rien.
+let DELAI_CHARGEMENT = 20000;   // millisecondes ; une variable pour que les tests puissent le raccourcir
 const _scriptsCharges = new Map();
 function chargerScript(src) {
   if (_scriptsCharges.has(src)) return _scriptsCharges.get(src);
   const promesse = new Promise((ok, ko) => {
     const s = document.createElement("script");
+    let fini = false;
+    const finir = suite => { if (fini) return; fini = true; clearTimeout(minuteur); suite(); };
+    const minuteur = setTimeout(() => finir(() => ko(new Error(`${src} : délai dépassé`))), DELAI_CHARGEMENT);
+    s.onload = () => finir(ok);
+    s.onerror = () => finir(() => ko(new Error(`${src} non chargé`)));
     s.src = src;
-    s.onload = () => ok();
-    s.onerror = () => ko(new Error(`${src} non chargé`));
     document.head.appendChild(s);
   });
   _scriptsCharges.set(src, promesse);

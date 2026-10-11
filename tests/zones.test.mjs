@@ -37,7 +37,7 @@ function monde({ fichiers = {}, europe = [FR, VOO, AMUNDI], isin = { US922908363
       }
     }
   };
-  ctx = vm.createContext({ console, setTimeout, document, ANNUAIRE: europe });
+  ctx = vm.createContext({ console, setTimeout, clearTimeout, document, ANNUAIRE: europe });
   for (const f of ["js/outils.js", "js/geco.js"]) vm.runInContext(lire(f), ctx, { filename: f });
   vm.runInContext(`const ETATS_UNIS_ISIN = ${JSON.stringify(isin)};`, ctx);   // data/etats-unis-isin.js
   vm.runInContext(lire("js/zones.js"), ctx, { filename: "js/zones.js" });
@@ -69,6 +69,28 @@ test("chargerScript : un seul <script> par fichier, nouvel essai après un éche
   await assert.rejects(m.ctx.chargerScript("data/absent.js"), /data\/absent\.js/);
   await assert.rejects(m.ctx.chargerScript("data/absent.js"));
   assert.deepEqual(m.chargements, ["data/a.js", "data/absent.js", "data/absent.js"]);
+});
+
+test("chargerScript : délai maximal, nouvel essai, onload tardif sans effet", { timeout: 10000 }, async () => {
+  const m = monde();
+  const elements = [];
+  m.ctx.document = { createElement: () => ({}), head: { appendChild: el => elements.push(el) } };   // le fichier ne répond jamais
+  vm.runInContext("DELAI_CHARGEMENT = 30;", m.ctx);   // 20 s en vrai ; ici de quoi ne pas attendre
+  const debut = Date.now();
+  await assert.rejects(m.ctx.chargerScript("data/muet.js"), /data\/muet\.js.*délai/);
+  assert.ok(Date.now() - debut < 5000, "le délai doit être celui de DELAI_CHARGEMENT");
+  assert.equal(elements.length, 1);
+  elements[0].onload();    // le fichier arrive après le délai : sans effet
+  elements[0].onerror();
+  const essai = m.ctx.chargerScript("data/muet.js");   // le délai dépassé a retiré la promesse : nouveau <script>
+  assert.equal(elements.length, 2);
+  await assert.rejects(essai, /délai/);
+  // une réponse dans les temps est acceptée, et le délai ne compte plus ensuite
+  m.ctx.document.head.appendChild = el => { elements.push(el); setTimeout(() => el.onload(), 0); };
+  await m.ctx.chargerScript("data/muet.js");
+  await new Promise(fin => setTimeout(fin, 60));
+  await m.ctx.chargerScript("data/muet.js");   // déjà chargé : promesse gardée, pas de nouveau <script>
+  assert.equal(elements.length, 3);
 });
 
 test("chargerZone : un seul chargement pour deux appels simultanés", async () => {
