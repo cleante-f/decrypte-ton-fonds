@@ -462,7 +462,7 @@ function optionsAvancees() {
       <label>Inflation (% par an) ${champNombre("inflation", p.inflation ?? "", `step="0.1" placeholder="${String(infl).replace(".", ",")}"`)}
         <small>Par défaut : ${pct(infl)} = inflation attendue à long terme par les prévisionnistes de la BCE${indicateurCtx("anticipations_inflation") ? ` (enquête ${esc(indicateurCtx("anticipations_inflation").date.replace("-Q", " T"))})` : ""}.</small></label>
       <label>${terme("frais_courants", "Frais courants du fonds")} (% par an) ${champNombre("fraisCourants", p.fraisCourants ?? "", `step="0.01" placeholder="${A ? String(Math.round(A.ter * 100) / 100).replace(".", ",") : ""}"`)}
-        <small>${A ? (A.terSource === "dic" ? `Lus dans le DIC : ${pct(A.ter, 2)}.` : A.terSource === "sec" ? `Lus dans le prospectus déposé à la SEC : ${pct(A.ter, 2)}.` : `Non disponibles : hypothèse de ${pct(A.ter, 2)}, à vérifier dans le DIC.`) : ""}</small></label>
+        <small>${A ? (A.terSource === "dic" ? `Lus dans le DIC : ${pct(A.ter, 2)}.` : A.terSource === "sec" ? `Lus dans le prospectus déposé à la SEC : ${pct(A.ter, 2)}.` : `Non disponibles : hypothèse de ${pct(A.ter, 2)}, à vérifier dans ${documentDesFrais([{ entree: A.entree, A }])}.`) : ""}</small></label>
       <label>${terme("frais_entree", "Frais d'entrée")} (% de chaque versement) ${champNombre("entree", p.entree, 'step="0.1" min="0"')}
         <small>${A && A.entreeMax ? `${A.terSource === "sec" ? "Le prospectus déposé à la SEC" : "Le DIC"} prévoit jusqu'à ${pct(A.entreeMax)} : souvent nuls en ligne.` : "Souvent nuls pour un ETF."}</small></label>
       <label>Frais de courtage (€ par ordre) ${champNombre("courtageFixe", p.courtageFixe, 'step="0.5" min="0"')}</label>
@@ -1311,6 +1311,14 @@ function calculComparaison(A) {
   return A.calcComparaison.C;
 }
 
+// Où vérifier des frais supposés (terSource « hypothese ») : le DIC d'un fonds européen, le prospectus d'un fonds américain
+// (source S : il n'a pas de DIC), les deux si la liste mélange les deux sortes de fonds. `fonds` : [{ entree, A }…]
+function documentDesFrais(fonds) {
+  const sansFrais = fonds.filter(x => x.A && x.A.terSource === "hypothese");
+  const americain = sansFrais.some(x => x.entree.source === "S"), autre = sansFrais.some(x => x.entree.source !== "S");
+  return americain && autre ? "le DIC ou le prospectus" : americain ? "le prospectus" : "le DIC";
+}
+
 function panneauComparer() {
   const principal = { entree: S.fonds.entree, isin: S.fonds.isin, A: S.fonds };
   const tous = [principal].concat(S.comparaisons);
@@ -1360,7 +1368,7 @@ function panneauComparer() {
       ${ligneMetrique("Coût des frais (central)", x => eurosEstimes(x.C.scen.central.coutFrais))}
       ${ligneMetrique("Risque de perte à l'échéance", x => pct(probabiliteDePerte(x.C.res, x.C.T) * 100, 0))}
     </div>
-    ${prets.some(x => x.A.terSource === "hypothese") ? `<p class="aide">* frais non disponibles automatiquement : hypothèse à vérifier dans le DIC.</p>` : ""}
+    ${prets.some(x => x.A.terSource === "hypothese") ? `<p class="aide">* frais non disponibles automatiquement : hypothèse à vérifier dans ${documentDesFrais(prets)}.</p>` : ""}
     <h3>Exposition géographique et par classe d'actifs</h3>
     <div class="deux-colonnes cmp-expositions">${prets.map(x => `<div><h4><span class="pastille-serie serie-${x.couleur}"></span> ${esc(court(x.entree.nom))}</h4>${barres(zones(x))}
       ${(() => { const p = profilDuFonds(x.A); return p.secteurs ? `<p class="aide">Principaux secteurs : ${p.secteurs.slice(0, 3).map(s => `${esc(s.nom)} ${pct(s.poids, 0)}`).join(", ")}</p>` : p.tech >= 5 ? `<p class="aide">Technologie américaine ≈ ${Math.round(p.tech)} %</p>` : ""; })()}</div>`).join("")}</div>

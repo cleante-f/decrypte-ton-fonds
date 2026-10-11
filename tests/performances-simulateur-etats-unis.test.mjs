@@ -174,6 +174,25 @@ test("performances, bulle du graphique : « Valeur en euros (base 100) » pour u
   assert.match(sans(bulle.innerHTML), /Valeur liquidative : \d/);
 });
 
+test("performances, listePerf : un fonds européen qui est une série américaine annonce les rendements de la SEC", () => {
+  const ctx = page(SCRIPTS_PERF);
+  const vooEurope = ctx.lireEntree(["E", 0, 0, "Vanguard 500 Index Fund Registered Shares ETF o.N.", "", "", "", "US9229083632", "", "US", "", "", "USD", 1, 1]);
+  const autre = ctx.lireEntree(["E", 0, 0, "Autre fonds européen", "", "", "", "IE0000000001", "", "IE", "", "", "USD", 1, 1]);
+  const americain = ctx.lireEntree(ligne(2839, "Vanguard 500 Index Fund"));
+  const petit = (html, nom) => sans(html.split("<li>").find(l => l.includes(nom)));
+  let html = ctx.listePerf([vooEurope, autre, americain], "vanguard");
+  assert.ok(petit(html, "Vanguard 500 Index Fund Registered").includes("rendements déclarés à la SEC"));
+  assert.ok(!petit(html, "Vanguard 500 Index Fund Registered").includes("pas d'historique public"));
+  assert.ok(petit(html, "Autre fonds européen").includes("pas d'historique public"));
+  assert.ok(petit(html, "Vanguard 500 Index Fund</a>").includes("fonds américain (données de la SEC)"));
+  // un fonds jumeau n'est plus annoncé quand la SEC donne les rendements ; il l'est toujours pour un fonds sans série américaine
+  vm.runInContext("trouverJumeau = () => ({ fonds: { nom: 'Jumeau' } });", ctx);
+  html = ctx.listePerf([vooEurope, autre], "vanguard");
+  assert.ok(!petit(html, "Vanguard 500 Index Fund Registered").includes("via un fonds qui suit le même indice"));
+  assert.ok(petit(html, "Vanguard 500 Index Fund Registered").includes("rendements déclarés à la SEC"));
+  assert.ok(petit(html, "Autre fonds européen").includes("via un fonds qui suit le même indice"));
+});
+
 test("performances, debutPeriode : une série qui finit un dernier jour de mois commence à la fin du mois voulu", () => {
   const ctx = page(SCRIPTS_PERF);
   const f = (periode, fin) => jour(ctx.debutPeriode(periode, fin, new Date(2019, 8, 30)));
@@ -263,6 +282,30 @@ test("simulateur, textes d'un fonds américain : carte, options, méthode, sourc
   S.calc = C;
   S.comparaisons = [{ entree: autre, isin: undefined, A: await ctx.chargerAnalyse(autre, undefined) }];
   assert.ok(sans(ctx.panneauComparer()).includes("0,02 % (prospectus SEC)"));
+});
+
+test("simulateur : fonds américain sans frais publiés, l'hypothèse est à vérifier dans le prospectus, jamais dans un DIC", async () => {
+  const sansFrais = { ...VANGUARD, parts: [["C000000005", "Class A", "ABCDX", "2019-10", mois81, null]] };
+  const { ctx, A } = await analyse(sansFrais, 5, "Fonds sans frais");
+  assert.equal(A.terSource, "hypothese");
+  const options = sans(ctx.optionsAvancees());
+  assert.ok(options.includes("hypothèse de 0,25 %, à vérifier dans le prospectus."), options);
+  assert.ok(!options.includes("DIC"));
+  // comparaison avec un autre fonds américain sans frais : la note sous le tableau
+  avecDetail(ctx, "S000000006", sansFrais);
+  const autre = ctx.lireEntree(ligne(6, "Autre fonds sans frais"));
+  const S = vm.runInContext("S", ctx);
+  S.calc = ctx.calculer(A);
+  S.comparaisons = [{ entree: autre, isin: undefined, A: await ctx.chargerAnalyse(autre, undefined) }];
+  const comparaison = sans(ctx.panneauComparer());
+  assert.ok(comparaison.includes("* frais non disponibles automatiquement : hypothèse à vérifier dans le prospectus."), comparaison);
+  assert.ok(!comparaison.includes("DIC"));
+  // le texte suit la provenance des fonds : DIC pour un fonds européen, prospectus pour un fonds américain, les deux si les deux sont là
+  const fr = { entree: { source: "E" }, A: { terSource: "hypothese" } }, us = { entree: { source: "S" }, A: { terSource: "hypothese" } };
+  assert.equal(ctx.documentDesFrais([fr]), "le DIC");
+  assert.equal(ctx.documentDesFrais([us]), "le prospectus");
+  assert.equal(ctx.documentDesFrais([fr, us]), "le DIC ou le prospectus");
+  assert.equal(ctx.documentDesFrais([fr, { entree: { source: "S" }, A: { terSource: "sec" } }]), "le DIC", "un fonds dont les frais sont connus ne compte pas");
 });
 
 test("simulateur : rendement aberrant écarté signalé ; sans composition, profil type et reconstitution d'avant 2019 comme un fonds français", async () => {

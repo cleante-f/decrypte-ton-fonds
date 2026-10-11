@@ -565,7 +565,8 @@ function listePerf(resultats, requete) {
   return `<div class="carte"><h2>${resultats.length >= 50 ? "Plus de 50" : resultats.length} fonds trouvés</h2>
     ${noteZonesIncompletes(resultats)}
     <ul class="similaires resultats">${resultats.map(e => `<li><a href="#${esc(cleEntree(e))}">${esc(e.nom)}</a>
-      <small>${esc(e.isins[0] || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.source === "S" ? " · fonds américain (données de la SEC)" : e.source !== "G" ? (trouverJumeau(e.nom, false) ? " · via un fonds qui suit le même indice" : " · pas d'historique public") : ""}</small></li>`).join("")}</ul></div>`;
+      <small>${esc(e.isins[0] || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.source === "S" ? " · fonds américain (données de la SEC)" : e.source === "G" ? "" : serieSecDe(e) ? " · rendements déclarés à la SEC"
+        : trouverJumeau(e.nom, false) ? " · via un fonds qui suit le même indice" : " · pas d'historique public"}</small></li>`).join("")}</ul></div>`;
 }
 
 let numeroRecherche = 0;   // évite qu'une ancienne recherche lente écrase une plus récente
