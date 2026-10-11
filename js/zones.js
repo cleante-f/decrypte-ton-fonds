@@ -100,12 +100,10 @@ function tickerDeZone(nom, code) {
   return i === undefined ? null : lireEntree(ANNUAIRE_ZONES[nom].lignes[i]);
 }
 
-// Recherche dans une zone déjà chargée (voir chargerZone) : un ticker exact donne ce seul fonds, sinon il faut que
-// tous les mots de la requête soient dans le nom ou le gestionnaire. Même ordre que le fichier de la zone.
-function rechercherZone(nom, requete, max = 50) {
+// Fonds d'une zone déjà chargée dont le nom ou le gestionnaire contient tous les mots de la requête, dans l'ordre du
+// fichier de la zone (au plus `max`)
+function motsDeZone(nom, requete, max) {
   if (!ANNUAIRE_ZONES[nom]) return [];
-  const exact = tickerDeZone(nom, requete.replace(/\s/g, "").toUpperCase());
-  if (exact) return [exact];
   const mots = normaliser(requete).split(/\s+/).filter(Boolean);
   if (!mots.length) return [];
   const { noms } = indexZone(nom), lignes = ANNUAIRE_ZONES[nom].lignes, trouves = [];
@@ -115,12 +113,22 @@ function rechercherZone(nom, requete, max = 50) {
   return trouves;
 }
 
+// Recherche dans une zone déjà chargée (voir chargerZone) : un ticker exact donne ce seul fonds, sinon il faut que
+// tous les mots de la requête soient dans le nom ou le gestionnaire. Même ordre que le fichier de la zone.
+function rechercherZone(nom, requete, max = 50) {
+  if (!ANNUAIRE_ZONES[nom]) return [];
+  const exact = tickerDeZone(nom, requete.replace(/\s/g, "").toUpperCase());
+  return exact ? [exact] : motsDeZone(nom, requete, max);
+}
+
 // Recherche dans l'Europe puis dans chaque zone. Renvoie un tableau de fonds auquel s'ajoute `incomplet` : les noms des
 // zones qui n'ont pas pu être chargées (tableau vide si tout va bien), dont les fonds manquent peut-être au résultat.
 //  1. un ISIN ou un ticker exact en Europe donne ce fonds, sans charger aucune zone ;
-//  2. sinon les zones sont chargées en parallèle, et un ticker exact dans l'une d'elles donne ce fonds ;
-//  3. sinon les fonds européens, puis ceux de chaque zone (dans l'ordre de ZONES), sans les séries américaines que
-//     l'Europe propose déjà sous leur ISIN (ETATS_UNIS_ISIN), jusqu'à `max`.
+//  2. sinon les zones sont chargées en parallèle ; si la recherche européenne ne donne rien et qu'un ticker exact existe
+//     dans l'une d'elles, ce fonds est le seul résultat. Dès que l'Europe répond, ses résultats restent en tête : un ticker
+//     américain qui est aussi un mot courant (« esg », « fcpi », « index »…) ne doit pas cacher les fonds européens ;
+//  3. sinon les fonds européens, puis ceux de chaque zone (dans l'ordre de ZONES, le fonds au ticker exact en premier),
+//     sans les séries américaines que l'Europe propose déjà sous leur ISIN (ETATS_UNIS_ISIN), jusqu'à `max`.
 async function rechercherPartout(requete, max = 50) {
   const code = requete.replace(/\s/g, "").toUpperCase();
   const idx = indexAnnuaire();
@@ -133,9 +141,11 @@ async function rechercherPartout(requete, max = 50) {
   const incomplet = [], chargees = [];
   ZONES.forEach((z, i) => (etats[i].status === "fulfilled" ? chargees : incomplet).push(z.nom));
 
-  for (const nom of chargees) {
-    const exact = tickerDeZone(nom, code);
-    if (exact) return Object.assign([exact], { incomplet });
+  if (!europe.length) {
+    for (const nom of chargees) {
+      const exact = tickerDeZone(nom, code);
+      if (exact) return Object.assign([exact], { incomplet });
+    }
   }
 
   const dejaEnEurope = new Set();   // clés des séries américaines que l'Europe propose déjà
@@ -144,7 +154,10 @@ async function rechercherPartout(requete, max = 50) {
   }
   const resultats = europe.slice();
   for (const nom of chargees) {
-    for (const e of rechercherZone(nom, requete, max + dejaEnEurope.size)) if (!dejaEnEurope.has(cleEntree(e))) resultats.push(e);
+    const exact = tickerDeZone(nom, code), vus = new Set(dejaEnEurope);
+    for (const e of (exact ? [exact] : []).concat(motsDeZone(nom, requete, max + dejaEnEurope.size + 1))) {
+      if (!vus.has(cleEntree(e))) { vus.add(cleEntree(e)); resultats.push(e); }
+    }
   }
   return Object.assign(resultats.slice(0, max), { incomplet });
 }

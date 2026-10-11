@@ -14,7 +14,13 @@ const VOO = ["E", 0, 0, "Vanguard 500 Index Fund Registered Shares ETF o.N.", ""
 const AMUNDI = ["E", 2, 2, "Amundi Funds Euro Corporate Bond", "Amundi", "", "", "LU1681043599", "", "LU", "CW8", "Euronext Paris", "EUR", 1, 1];
 // Lignes de la zone « etats-unis » (vraies lignes de data/annuaire-etats-unis.js)
 const VANGUARD_500 = ["S", 2839, 2839, "Vanguard 500 Index Fund", "VANGUARD INDEX FUNDS", "", "", "", "", "US", "VFINX VFIAX VOO VFFSX", "", "USD", 1, 1];
+const FCPI_US = ["S", 66804, 66804, "Fidelity Stocks for Inflation ETF", "FIDELITY COVINGTON TRUST", "", "", "", "", "US", "FCPI", "", "USD", 1, 1];
+const ESG_US = ["S", 54498, 54498, "FlexShares STOXX US ESG Select Index Fund", "FLEXSHARES TRUST", "", "", "", "", "US", "ESG", "", "USD", 1, 1];
 const ASHMORE = ["S", 30390, 30390, "Ashmore Emerging Markets Total Return Fund", "Ashmore Funds", "", "", "", "", "US", "EMKIX EMKCX EMKAX", "", "USD", 0, 1];
+
+// Fonds européens dont le nom contient « fcpi » ou « esg » (fonds communs de placement dans l'innovation, fonds ESG)
+const FCPI_EU = ["G", 3, 3, "Amundi FCPI Innovation 2022", "Amundi", "Fonds mixtes", "FCPI", "FR0013000001", "2012-05-02", "FR", "", "", "EUR", 0, 1];
+const ESG_EU = ["G", 4, 4, "Echiquier ESG Actions", "La Financière de l'Echiquier", "Actions", "FCP", "FR0013000002", "2015-03-02", "FR", "", "", "EUR", 0, 1];
 
 // Lignes de la zone « registres-ue » (vraies lignes de data/annuaire-registres-ue.js)
 const GAM_STAR = ["R", 90728, 90728, "GAM Star Absolute Return Macro", "GAM Fund Management Limited", "", "OPCVM (UCITS)", "", "", "IE", "", "", "", 0, 1];
@@ -194,6 +200,25 @@ test("rechercherPartout : ticker américain exact", async () => {
   assert.deepEqual(noms(await m.ctx.rechercherPartout("emkix")), [ASHMORE[3]]);
   assert.equal(m.chargements.length, 2);   // les deux zones, une seule fois chacune (registres européens et États-Unis)
   assert.deepEqual(noms(await m.ctx.rechercherPartout("VOO")), [VANGUARD_500[3]]);   // le VOO européen n'a pas de ticker dans l'annuaire
+});
+
+test("rechercherPartout : un ticker américain qui est aussi un mot d'un nom européen ne cache pas les résultats européens", async () => {
+  const m = monde({ fichiers: { [FICHIER_ZONE]: texteZone("etats-unis", [VANGUARD_500, ASHMORE, FCPI_US, ESG_US]) }, europe: [FR, VOO, AMUNDI, FCPI_EU, ESG_EU] });
+  const fcpi = await m.ctx.rechercherPartout("fcpi");
+  assert.deepEqual(noms(fcpi), [FCPI_EU[3], FCPI_US[3]], "le fonds européen d'abord, puis le fonds américain au ticker exact");
+  assert.deepEqual(simple(fcpi.incomplet), []);
+  assert.deepEqual(noms(await m.ctx.rechercherPartout("ESG")), [ESG_EU[3], ESG_US[3]], "majuscules");
+  // le fonds au ticker exact passe en tête des résultats de la zone, avant les autres fonds de la zone qui répondent à la recherche
+  const mots = monde({ fichiers: { [FICHIER_ZONE]: texteZone("etats-unis", [ESG_US, FCPI_US, ["S", 1, 1, "Ecureuil Fund pour ESG", "X", "", "", "", "", "US", "ECUR", "", "USD", 0, 1]]) }, europe: [ESG_EU] });
+  assert.deepEqual(noms(await mots.ctx.rechercherPartout("esg")), [ESG_EU[3], ESG_US[3], "Ecureuil Fund pour ESG"]);
+  const autre = monde({ fichiers: { [FICHIER_ZONE]: texteZone("etats-unis", [["S", 1, 1, "Ecureuil Fund pour ESG", "X", "", "", "", "", "US", "ECUR", "", "USD", 0, 1], ESG_US]) }, europe: [ESG_EU] });
+  assert.deepEqual(noms(await autre.ctx.rechercherPartout("esg")), [ESG_EU[3], ESG_US[3], "Ecureuil Fund pour ESG"], "le ticker exact avant les autres, quel que soit l'ordre du fichier");
+  // sans résultat européen, le ticker exact reste le seul résultat
+  const sans = monde({ fichiers: { [FICHIER_ZONE]: texteZone("etats-unis", [ESG_US, FCPI_US]) }, europe: [FR] });
+  assert.deepEqual(noms(await sans.ctx.rechercherPartout("fcpi")), [FCPI_US[3]]);
+  // le ticker exact n'est pas répété s'il est déjà là sous son ISIN européen
+  const doublon = monde({ fichiers: { [FICHIER_ZONE]: texteZone("etats-unis", [FCPI_US]) }, europe: [FCPI_EU], isin: { FR0013000001: "S000066804" } });
+  assert.deepEqual(noms(await doublon.ctx.rechercherPartout("fcpi")), [FCPI_EU[3]]);
 });
 
 test("rechercherPartout : fonds présent dans les deux zones affiché une fois", async () => {
@@ -420,4 +445,23 @@ test("données réelles : registre ESMA, clés uniques et informations pour chaq
   assert.equal(cles.size, zone.lignes.length, "une clé par ligne");
   assert.equal((await m.ctx.entreeParCle("R90728")).nom, "GAM Star Absolute Return Macro");
   assert.deepEqual(noms(m.ctx.rechercherZone("registres-ue", "gam star absolute")), ["GAM Star Absolute Return Macro"]);
+});
+
+test("données réelles : « fcpi » et « esg » donnent d'abord des fonds européens, un ticker américain exact reste seul", async () => {
+  const europe = vm.runInContext(lire("data/annuaire.js") + ";ANNUAIRE", vm.createContext({}));
+  const m = monde({ fichiers: { [FICHIER_ZONE]: lire(FICHIER_ZONE), [FICHIER_UE]: lire(FICHIER_UE) }, europe, isin: {} });
+  const sources = liste => simple(liste).map(e => e.source);
+  for (const mot of ["fcpi", "esg", "index", "bond"]) {
+    const r = await m.ctx.rechercherPartout(mot);
+    assert.ok(r.length > 10, `${mot} : ${r.length} résultats`);
+    assert.notEqual(sources(r)[0], "S", `${mot} : un fonds américain ouvre la liste`);
+    assert.ok(sources(r).slice(0, 10).every(s => s !== "S"), `${mot} : les dix premiers résultats sont européens`);
+  }
+  const fcpi = await m.ctx.rechercherPartout("fcpi");
+  assert.ok(noms(fcpi).some(n => /fcpi/i.test(n)));
+  assert.deepEqual(noms(await m.ctx.rechercherPartout("EMKIX")), ["Ashmore Emerging Markets Total Return Fund"]);
+  const voo = monde({ fichiers: { [FICHIER_ZONE]: lire(FICHIER_ZONE) }, europe, isin: {} });
+  const r = await voo.ctx.rechercherPartout("US9229083632");
+  assert.equal(r.length, 1);
+  assert.equal(voo.chargements.length, 0, "ISIN européen : aucune zone chargée");
 });
