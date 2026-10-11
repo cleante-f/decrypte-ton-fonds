@@ -97,6 +97,22 @@ class SourcesOfficielles(unittest.TestCase):
         self.assertEqual(ci.commercialisation({"5493003BFED2MWDBYH64"}), {"5493003BFED2MWDBYH64"},
                          "le registre ne renvoie plus FR, UCITS ou ACTV pour ce fonds : champs ou valeurs changés ?")
 
+    def test_esma_registre(self):
+        import construire_identite as ci
+        # une page de 100 fiches (une seule requête). Toujours présents : id, nom, cadre, société de gestion, pays de l'autorité,
+        # pays de commercialisation, statut. Facultatifs (absents de certaines fiches, 12 061 sans LEI le 11/10/2026) : le LEI du fonds
+        # et de sa société, le nom de l'autorité, le pays de domicile : au moins une fiche de la page doit les avoir.
+        docs = ci.registre_esma(par_page=100, pages=1)
+        self.assertEqual(len(docs), 100, "le registre ne renvoie plus 100 fiches actives : requête ou champs changés ?")
+        facultatifs = {"funds_lei", "funds_manager_lei", "funds_manager_comp_cou_code", "funds_domicile_cou_code"}
+        for d in docs:
+            manquants = set(ci.CHAMPS_ESMA) - facultatifs - set(d)
+            self.assertFalse(manquants, f"champs absents de la fiche {d.get('id')} du registre ESMA : {sorted(manquants)}")
+            self.assertEqual(d["funds_status_code"], "ACTV")
+            self.assertIsInstance(d["funds_host_country_codes"], list)
+        for champ in sorted(facultatifs):
+            self.assertTrue(any(d.get(champ) for d in docs), f"{champ} absent de toutes les fiches de la page : champ renommé ?")
+
     def test_amf_societes_de_gestion(self):
         import construire_identite as ci
         societes, publication = ci.societes_amf()
