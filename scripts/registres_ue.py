@@ -5,7 +5,8 @@ Source : ESMA, registre de la commercialisation transfrontière des OPCVM et FIA
 réutilisation autorisée en citant la source. La lecture du registre (réseau) et l'écriture des fichiers sont dans
 scripts/construire_identite.py ; ce module décide seulement quoi en faire :
   - autorites : pays → nom de l'autorité de contrôle ;
-  - rapprocher : quelles fiches du registre sont déjà dans l'annuaire du site (par LEI, puis par nom) ;
+  - rapprocher : quelles fiches du registre sont déjà dans l'annuaire du site (par LEI, puis par nom, complet ou réduit au
+    compartiment pour les noms GECO « société - compartiment ») ;
   - entree_esma / lignes_registres / infos_registres : les trois sorties lues par le navigateur.
 
 Une fiche du registre (champs utilisés) : id, funds_lei (souvent absent), funds_national_name, funds_legal_framework_name
@@ -43,6 +44,17 @@ def autorites(docs):
     return {pays: min(c, key=lambda nom: (-c[nom], nom)) for pays, c in sorted(comptes.items())}
 
 
+SEPARATEUR_COMPARTIMENT = re.compile(r"\s+-\s+")   # un tiret entouré d'espaces ; « Mid- Cap », « Ex-Japan » et « -1x » n'en sont pas
+
+
+def nom_court(nom):
+    """Partie d'un nom de fonds GECO après son dernier séparateur « - » (tiret entouré d'espaces, un ou plusieurs) :
+    « MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY » → « ACADIAN EUROPEAN EQUITY ». La base GECO écrit « société à compartiments -
+    compartiment » là où le registre de l'ESMA ne donne souvent que le compartiment. None sans séparateur ou si cette partie est vide."""
+    parties = SEPARATEUR_COMPARTIMENT.split(propre(nom))
+    return parties[-1] if len(parties) > 1 and parties[-1] else None
+
+
 def _ordre(doc):
     """Ordre stable des fiches : par numéro croissant (la première fiche garde la clé en cas de conflit)."""
     identifiant = str(doc.get("id", ""))
@@ -56,16 +68,20 @@ def rapprocher(docs, leis_annuaire, noms_lei, fonds_n):
       2. sinon le nom de la fiche (cle_societe) est le nom GLEIF d'exactement un LEI de l'annuaire du même pays
          (noms_lei : LEI → (nom GLEIF, pays)) → clé = ce LEI ;
       3. sinon il est le nom d'exactement un fonds GECO sans ISIN du même pays (fonds_n : « N<numéro> » → (nom, pays))
-         → clé = « N<numéro> ».
+         → clé = « N<numéro> » ; à défaut (toutes les fiches ayant passé le nom complet d'abord), il est la partie du nom GECO
+         après son dernier « - » (nom_court : « MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY » ↔ « Acadian European Equity »),
+         encore une fois pour exactement un fonds du même pays.
     Deux candidats (ou plus) pour un nom : ambigu, pas de rapprochement. Une clé déjà prise n'est jamais réattribuée.
     Renvoie ({clé: fiche rapprochée}, [fiches actives non rapprochées])."""
-    par_lei, par_geco = defaultdict(list), defaultdict(list)
+    par_lei, par_geco, par_geco_court = defaultdict(list), defaultdict(list), defaultdict(list)
     for lei, (nom, pays) in noms_lei.items():
         if lei in leis_annuaire and cle_societe(nom):
             par_lei[(cle_societe(nom), pays)].append(lei)
     for cle, (nom, pays) in fonds_n.items():
         if cle_societe(nom):
             par_geco[(cle_societe(nom), pays)].append(cle)
+        if cle_societe(nom_court(nom)):
+            par_geco_court[(cle_societe(nom_court(nom)), pays)].append(cle)
 
     lies, restes = {}, sorted(actives(docs), key=_ordre)
 
@@ -87,6 +103,7 @@ def rapprocher(docs, leis_annuaire, noms_lei, fonds_n):
     passe(lambda d: d.get("funds_lei") if d.get("funds_lei") in leis_annuaire else None)
     passe(lambda d: unique(par_lei, d))
     passe(lambda d: unique(par_geco, d))
+    passe(lambda d: unique(par_geco_court, d))
     return lies, restes
 
 
@@ -115,15 +132,23 @@ def cle_nom_fonds(nom):
 
 
 def noms_annuaire(annuaire):
-    """Ensemble {(cle_nom_fonds(nom), pays)} des fonds étrangers de l'annuaire (lignes de source E, N ou U), avec ou sans ISIN."""
-    return {(cle_nom_fonds(l[3]), l[9]) for l in annuaire if l[0] in "ENU" and cle_nom_fonds(l[3])}
+    """Ensemble {(cle_nom_fonds(nom), pays)} des fonds étrangers de l'annuaire (lignes de source E, N ou U), avec ou sans ISIN,
+    auquel s'ajoutent les noms courts (nom_court : la partie après le dernier « - ») qui désignent un seul fonds du pays : deux
+    lignes de même nom complet sont le même fonds, deux noms complets différents ne le sont pas (nom court ambigu, écarté)."""
+    complets, courts = set(), defaultdict(set)
+    for l in annuaire:
+        if l[0] in "ENU" and cle_nom_fonds(l[3]):
+            complets.add((cle_nom_fonds(l[3]), l[9]))
+            if l[9] and cle_nom_fonds(nom_court(l[3])):
+                courts[(cle_nom_fonds(nom_court(l[3])), l[9])].add(cle_nom_fonds(l[3]))
+    return complets | {cle for cle, pleins in courts.items() if len(pleins) == 1}
 
 
 def hors_annuaire(docs, deja):
-    """Fiches dont le nom (cle_nom_fonds) et le pays de domicile ne sont pas déjà ceux d'un fonds étranger de l'annuaire
-    (`deja` : résultat de noms_annuaire). Sert à la zone « registres-ue » seulement : une fiche non rapprochée par les règles
-    de rapprocher() (clé déjà prise, ambiguïté, LEI sans nom GLEIF équivalent…) mais qui porte le nom d'un fonds du site
-    en est probablement la copie ; la zone ne doit contenir que des fonds absents du site."""
+    """Fiches dont le nom (cle_nom_fonds) et le pays de domicile ne sont pas déjà ceux d'un fonds étranger de l'annuaire, ni ceux
+    du compartiment d'un de ses fonds (`deja` : résultat de noms_annuaire). Sert à la zone « registres-ue » seulement : une fiche non
+    rapprochée par les règles de rapprocher() (clé déjà prise, ambiguïté, LEI sans nom GLEIF équivalent…) mais qui porte le nom d'un
+    fonds du site en est probablement la copie ; la zone ne doit contenir que des fonds absents du site."""
     return [d for d in docs if (cle_nom_fonds(d.get("funds_national_name")), d.get("funds_domicile_cou_code")) not in deja]
 
 

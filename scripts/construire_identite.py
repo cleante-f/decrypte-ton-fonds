@@ -385,7 +385,7 @@ def ecrire_registres_ue(lignes, infos, maj, dossier=DATA):
         " * politique d'investissement et tranche d'encours : BCE ; fonds parapluie : GLEIF (licence CC0).\n"
         " * numéro de fiche ESMA → [LEI, pays de l'autorité, pays de commercialisation séparés par des espaces,\n"
         " *   politique BCE (codes de identite.js), tranche d'encours BCE (1 à 8, 0 si inconnue), nom du fonds parapluie] */\n"
-        "const REGISTRES_UE_INFOS = " + json_compact(infos) + ";\n", encoding="utf-8")
+        "var REGISTRES_UE_INFOS = " + json_compact(infos) + ";\n", encoding="utf-8")   # var et non const : le fichier peut être chargé deux fois
 
 
 def main():
@@ -477,7 +477,7 @@ def main():
     par_geco = sum(1 for k in lies if re.fullmatch(r"N\d+", k))   # clés « N<numéro> » (un LEI peut aussi commencer par N)
     print(f"✓ registre ESMA : {len(docs)} fiches actives lues, {len(lies)} rapprochées de l'annuaire "
           f"({par_geco} par le nom d'un fonds GECO), {len(candidats) - len(nouveaux)} écartées "
-          f"(même nom et même pays qu'un fonds de l'annuaire), {len(nouveaux)} nouveaux fonds irlandais et luxembourgeois "
+          f"(même nom, ou même compartiment, et même pays qu'un fonds de l'annuaire), {len(nouveaux)} nouveaux fonds irlandais et luxembourgeois "
           f"→ {SORTIE_ZONE_UE.name} ({SORTIE_ZONE_UE.stat().st_size / 1e3:.0f} Ko), {SORTIE_INFOS_UE.name} ({SORTIE_INFOS_UE.stat().st_size / 1e3:.0f} Ko)")
 
     print("6/6 AMF – sociétés de gestion agréées…")

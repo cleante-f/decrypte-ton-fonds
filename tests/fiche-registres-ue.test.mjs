@@ -594,7 +594,7 @@ async function attendre(condition, delai = 3000) {
   }
 }
 const texteZone = lignes => `ANNUAIRE_ZONES["registres-ue"] = ${JSON.stringify({ maj: "2026-10-11", lignes })};`;
-const texteInfos = infos => `const REGISTRES_UE_INFOS = ${JSON.stringify(infos)};`;
+const texteInfos = infos => `var REGISTRES_UE_INFOS = ${JSON.stringify(infos)};`;   // comme data/registres-ue-infos.js
 const SCRIPTS_APP = ["js/glossaire.js", "js/config.js", "js/outils.js", "js/geco.js", "js/zones.js", "js/etats-unis.js", "js/inventaire.js",
   "js/style.js", "js/composition.js", "js/affichage.js", "js/marches.js", "js/cours.js", "js/fiche-auto.js", "js/nav.js", "js/app.js"];
 
@@ -610,6 +610,16 @@ test("Décrypte : une fiche R charge les informations du registre, puis s'affich
   assert.deepEqual(p.chargements, ["data/annuaire-registres-ue.js", "data/registres-ue-infos.js"]);
   assert.deepEqual(p.requetes, [], "ni cours en bourse ni GECO pour un fonds sans ISIN");
   assert.ok(!html.includes("Aucun cours relevé"));
+});
+
+test("data/registres-ue-infos.js peut être exécuté deux fois (second chargement après un délai dépassé) sans « already declared »", () => {
+  const texte = lire("data/registres-ue-infos.js");
+  assert.ok(!texte.includes("const REGISTRES_UE_INFOS"));
+  const ctx = vm.createContext({});
+  vm.runInContext(texte, ctx, { filename: "data/registres-ue-infos.js" });
+  assert.doesNotThrow(() => vm.runInContext(texte, ctx, { filename: "data/registres-ue-infos.js" }));
+  assert.equal(vm.runInContext("typeof REGISTRES_UE_INFOS", ctx), "object");
+  assert.ok(Object.keys(vm.runInContext("REGISTRES_UE_INFOS", ctx)).length > 10000);
 });
 
 test("Décrypte : fiche R, informations du registre indisponibles", async () => {

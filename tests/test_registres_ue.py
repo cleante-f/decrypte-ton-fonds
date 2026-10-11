@@ -130,6 +130,40 @@ class Rapprochement(Base):
         self.assertEqual({k: d["id"] for k, d in lies.items()}, {LEI_AMUNDI: "2731132"})
         self.assertEqual([d["id"] for d in restes], ["9999999"])
 
+    def acadian(self, nom="Acadian European Equity", pays="IE", numero="1234567"):
+        # cas réel : le registre de l'ESMA donne « Acadian European Equity », la base GECO « MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY »
+        d = self.doc("90728")
+        d.update(id=numero, funds_national_name=nom, funds_domicile_cou_code=pays)
+        return d
+
+    def test_rapprocher_compartiment_geco(self):
+        lies, restes = ru.rapprocher([self.acadian()], set(), {}, {"N999": ("MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY", "IE")})
+        self.assertEqual({k: d["id"] for k, d in lies.items()}, {"N999": "1234567"})
+        self.assertEqual(restes, [])
+
+    def test_rapprocher_compartiment_autre_pays_ou_autre_nom(self):
+        for geco in [{"N999": ("MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY", "LU")}, {"N999": ("MGI FUNDS PLC - ACADIAN EUROPEAN SMALL CAP EQUITY", "IE")},
+                     {"N999": ("MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY FUND", "IE")}]:
+            lies, restes = ru.rapprocher([self.acadian()], set(), {}, geco)
+            self.assertEqual(lies, {}, geco)
+            self.assertEqual(len(restes), 1)
+
+    def test_rapprocher_compartiment_ambigu(self):   # deux sociétés ont un compartiment de ce nom dans ce pays : on ne choisit pas
+        geco = {"N1": ("MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY", "IE"), "N2": ("RUSSELL INVESTMENT COMPANY PLC - Acadian European Equity", "IE")}
+        lies, restes = ru.rapprocher([self.acadian()], set(), {}, geco)
+        self.assertEqual(lies, {})
+        self.assertEqual(len(restes), 1)
+        lies, _ = ru.rapprocher([self.acadian()], set(), {}, {**geco, "N2": ("RUSSELL INVESTMENT COMPANY PLC - Acadian European Equity", "LU")})
+        self.assertEqual(list(lies), ["N1"], "le second compartiment est dans un autre pays : plus d'ambiguïté")
+
+    def test_rapprocher_nom_complet_avant_compartiment(self):
+        # N2 porte exactement le nom de la fiche, N1 n'en est que le compartiment : le nom complet l'emporte, N1 reste libre pour une autre fiche
+        geco = {"N1": ("MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY", "IE"), "N2": ("Acadian European Equity", "IE")}
+        autre = self.acadian("MGI Funds plc - Acadian European Equity", numero="1234568")
+        lies, restes = ru.rapprocher([self.acadian(), autre], set(), {}, geco)
+        self.assertEqual({k: d["id"] for k, d in lies.items()}, {"N2": "1234567", "N1": "1234568"})
+        self.assertEqual(restes, [])
+
     def test_rapprocher_ne_garde_que_les_actives(self):
         lies, restes = ru.rapprocher(self.docs, set(), {}, {"N1": ("IPM Global Fund Plc - IPM Systematic Macro Fund (Ireland)", "IE")})
         self.assertEqual(lies, {})
@@ -139,6 +173,27 @@ class Rapprochement(Base):
         avant = copy.deepcopy(self.docs)
         ru.rapprocher(self.docs, {LEI_AMUNDI}, {}, {})
         self.assertEqual(self.docs, avant)
+
+
+class NomCourt(Base):
+    """Les noms GECO sont « société à compartiments - compartiment » ; le registre de l'ESMA ne donne souvent que le compartiment."""
+
+    def test_nom_court(self):
+        for nom, attendu in [
+                ("MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY", "ACADIAN EUROPEAN EQUITY"),
+                ("ALLIANZ GLOBAL INVESTORS FUND -  ALLIANZ GLOBAL OPPORTUNISTIC BOND", "ALLIANZ GLOBAL OPPORTUNISTIC BOND"),   # deux espaces après
+                ("ISHARES III PLC  -  ISHARES GLOBAL AGGREGATE BOND UCITS ETF", "ISHARES GLOBAL AGGREGATE BOND UCITS ETF"),   # deux espaces de chaque côté
+                ("MERCER UCITS COMMON CONTRACTUAL FUND - Acadian Global Islamic Equity", "Acadian Global Islamic Equity"),
+                ("ARCHITAS MULTI-MANAGER GLOBAL FUNDS -MANAGER GLOBAL FUNDS UNIT TRUST - AXA SELECTION CARMIGNAC CONVICTIONS",
+                 "AXA SELECTION CARMIGNAC CONVICTIONS"),   # après le dernier séparateur
+                ("ABRDN SICAV I - GLOBAL SMALL & MID- CAP SDG HORIZONS EQUITY FUND", "GLOBAL SMALL & MID- CAP SDG HORIZONS EQUITY FUND"),
+                ("  Acadian   Fonds - Sous-fonds   Un ", "Sous-fonds Un")]:
+            self.assertEqual(ru.nom_court(nom), attendu, nom)
+
+    def test_nom_court_sans_separateur(self):
+        for nom in ["AB FCP I ASIA EX-JAPAN EQUITY", "Amundi German Bund Daily -1x I ETFS", "Amundi Index US Gov Inflation- ETFS", "A&F Strategiedepot – Defensiv",
+                    "NOM - ", "- NOM", "", None, "   "]:
+            self.assertIsNone(ru.nom_court(nom), nom)
 
 
 class Entrees(Base):
@@ -235,6 +290,13 @@ class DepuisAnnuaire(Base):
         self.assertEqual({k: d["id"] for k, d in lies.items()}, {LEI_AMUNDI: "2731132", LEI_ISHARES: "2836341", "N4321": "90728"})
         self.assertEqual([d["id"] for d in restes], ["2103246"])
 
+    def test_compartiment_depuis_l_annuaire(self):   # le fonds GECO « UMBRELLA PLC - GAM STAR ABSOLUTE RETURN MACRO » reçoit la fiche ESMA de GAM
+        annuaire = [["N", 4321, 0, "UMBRELLA PLC - GAM STAR ABSOLUTE RETURN MACRO", "GAM", "", "", "", "", "IE", "", "", "", 0, 1]]
+        _, fonds_n = ru.depuis_annuaire(annuaire, {}, {})
+        lies, restes = ru.rapprocher(self.docs, set(), {}, fonds_n)
+        self.assertEqual({k: d["id"] for k, d in lies.items()}, {"N4321": "90728"})
+        self.assertNotIn("90728", [d["id"] for d in ru.hors_annuaire(ru.actives(self.docs), ru.noms_annuaire(annuaire))])   # et la zone ne le reprend pas
+
 
 class CopiesDeFondsDuSite(Base):
     """La zone « registres-ue » ne reprend pas un fonds déjà sur le site sous un autre nom de source (E, N ou U)."""
@@ -284,6 +346,29 @@ class CopiesDeFondsDuSite(Base):
     def test_nom_vide_ne_correspond_a_rien(self):
         annuaire = [self.ligne("E", "", "IE", "IE0000000003")]
         self.assertEqual(self.garde(annuaire, self.fiche("")), [""])
+
+    def test_compartiment_d_un_fonds_geco_exclu(self):
+        # cas réel : « MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY » (GECO, sans ISIN) est le fonds de la fiche ESMA « Acadian European Equity »
+        annuaire = [self.ligne("N", "MGI FUNDS PLC - ACADIAN EUROPEAN EQUITY", "IE"), self.ligne("N", "MGI FUNDS PLC - ACADIAN EUROPEAN SMALL CAP EQUITY", "IE")]
+        self.assertEqual(self.garde(annuaire, self.fiche("Acadian European Equity")), [])
+        self.assertEqual(self.garde(annuaire, self.fiche("Acadian European Equity Fund"), self.fiche("Acadian European Small Cap Equity")), ["Acadian European Equity Fund"])
+        self.assertEqual(self.garde(annuaire, self.fiche("Acadian European Equity", "LU")), ["Acadian European Equity"], "autre pays : gardé")
+
+    def test_compartiment_des_lignes_e_et_u_exclu(self):
+        for source in "EU":
+            annuaire = [self.ligne(source, "Umbrella UCITS plc - Global Value Fund", "IE", "IE0000000004")]
+            self.assertEqual(self.garde(annuaire, self.fiche("Global Value Fund")), [], source)
+
+    def test_compartiment_ambigu_garde(self):   # deux sociétés ont un compartiment « Global Value Fund » en Irlande : la fiche n'est pas exclue
+        annuaire = [self.ligne("N", "Umbrella One plc - Global Value Fund", "IE"), self.ligne("N", "Umbrella Two plc - Global Value Fund", "IE")]
+        self.assertEqual(self.garde(annuaire, self.fiche("Global Value Fund")), ["Global Value Fund"])
+        # deux lignes pour le même fonds (même nom complet : source N et part cotée) ne sont pas une ambiguïté
+        annuaire = [self.ligne("N", "Umbrella One plc - Global Value Fund", "IE"), self.ligne("E", "UMBRELLA ONE PLC - GLOBAL VALUE FUND", "IE", "IE0000000005")]
+        self.assertEqual(self.garde(annuaire, self.fiche("Global Value Fund")), [])
+
+    def test_compartiment_francais_ignore(self):
+        annuaire = [self.ligne("G", "SICAV - GAM Star Absolute Return Macro", "IE")]
+        self.assertEqual(self.garde(annuaire, self.doc("90728")), ["GAM Star Absolute Return Macro"])
 
     def test_cle_nom_fonds(self):
         self.assertNotEqual(ru.cle_nom_fonds("iShares $ Corp Bond"), ru.cle_nom_fonds("iShares € Corp Bond"))
@@ -350,7 +435,10 @@ class Ecriture(Base):
             self.assertTrue(texte.endswith(";\n"))
         m = re.search(r'ANNUAIRE_ZONES\["registres-ue"\] = (.*);\n$', zone, re.S)
         self.assertEqual(json.loads(m.group(1)), {"maj": "2026-10-11", "lignes": lignes})
-        m = re.search(r"const REGISTRES_UE_INFOS = (.*);\n$", fichier_infos, re.S)
+        # une affectation de variable globale (« var »), pas « const » : un second chargement du fichier (nouvel essai après un délai dépassé)
+        # ne doit pas lever « Identifier 'REGISTRES_UE_INFOS' has already been declared »
+        self.assertNotIn("const REGISTRES_UE_INFOS", fichier_infos)
+        m = re.search(r"^var REGISTRES_UE_INFOS = (.*);\n$", fichier_infos, re.S | re.M)
         self.assertEqual(json.loads(m.group(1)), infos)
         self.assertEqual(list(json.loads(m.group(1))), ["90728", "2103246"])   # par numéro croissant
 
