@@ -2,8 +2,9 @@
  * Page « Performances » : un graphique interactif de l'évolution d'un fonds.
  *
  * Même base que « Décrypte ton fonds » : l'annuaire (data/annuaire.js) et l'historique des valeurs liquidatives
- * publié par l'AMF (GECO). Pour un ETF étranger sans historique public, on affiche un fonds français qui suit
- * le même indice (« fonds jumeau »), en le signalant.
+ * publié par l'AMF (GECO). Un fonds américain (ou un fonds européen qui est aussi une série américaine) est tracé d'après
+ * les rendements mensuels déclarés à la SEC, déjà convertis en euros (js/etats-unis.js). Pour un ETF étranger sans
+ * historique public, on affiche un fonds français qui suit le même indice (« fonds jumeau »), en le signalant.
  *
  * Le fonds affiché est dans l'adresse (#ISIN), ce qui permet de passer d'un onglet à l'autre sans le perdre.
  */
@@ -68,15 +69,28 @@ function serieReference(ref) {
   return cacheSeries.get(ref.cle);
 }
 
-// Série d'un fonds de l'annuaire : son propre historique, ou celui de son « jumeau » français
+// Série d'un fonds de l'annuaire : son propre historique (GECO, ou rendements déclarés à la SEC pour un fonds américain),
+// ou celui de son « jumeau » français
 async function serieFonds(entree, isin) {
   if (entree.source === "G") {
     const h = await historiquePart(entree, isin);
     if (h.valeurs.length < 2) throw new Error("historique vide");
     return { ...h, nom: entree.nom, entree, isin: h.part.isin, jumeau: null };
   }
+  // Fonds américain : un point par mois (rendements déclarés à la SEC, en euros). La composition n'est pas utile ici
+  // (js/inventaire.js n'est pas chargé sur cette page). Si les données de la SEC ne se chargent pas, on essaie le chemin habituel.
+  let sec = null, secIndisponible = false;
+  try {
+    sec = await donneesSec(entree, isin, { composition: false });
+  } catch (err) {
+    secIndisponible = true;
+  }
+  if (sec && sec.historique) {
+    return { dates: sec.historique.dates, valeurs: sec.historique.valeurs, nom: entree.nom, entree, isin, jumeau: null, part: null, parts: null, sec };
+  }
   const jumeau = trouverJumeau(entree.nom, false);
-  if (!jumeau) throw new Error("aucune donnée publique pour ce fonds");
+  if (!jumeau) throw new Error(secIndisponible ? "données de la SEC indisponibles"
+    : sec ? "aucun rendement mensuel exploitable dans les données de la SEC" : "aucune donnée publique pour ce fonds");
   const h = await historiquePart(jumeau.fonds, jumeau.fonds.isins[0]);
   return { ...h, nom: entree.nom, entree, isin, jumeau };
 }
@@ -94,6 +108,9 @@ function debutPeriode(periode, fin, premiereDate) {
   if (periode === "max") return premiereDate;
   if (periode === "ytd") return new Date(fin.getFullYear() - 1, 11, 31);
   const p = PERIODES.find(x => x.cle === periode);
+  // Série qui s'arrête un dernier jour de mois (rendements mensuels de la SEC) : on remonte à la fin du mois voulu, sinon
+  // « 1 mois » partirait du 30 août pour une fin au 30 septembre et la série mensuelle commencerait fin juillet
+  if (new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() + 1).getDate() === 1) return new Date(fin.getFullYear(), fin.getMonth() - p.mois + 1, 0);
   const d = new Date(fin); d.setMonth(d.getMonth() - p.mois);
   return d;
 }
@@ -269,7 +286,8 @@ function majSurvol() {
     lignes.push(`<div class="bulle-ligne"><span class="pastille-serie serie-${s.couleur}"></span><span class="bulle-nom">${esc(s.nomCourt || s.nom)}</span><strong>${signe(pts[j].v)}</strong></div>`);
   });
   bulle.innerHTML = `<div class="bulle-date">${dateLongue(ref.d)}</div>${lignes.join("")}
-    <div class="bulle-valeur">Valeur liquidative${ETAT_PERF.principal.jumeau ? " (fonds jumeau)" : ""} : ${ref.vl.toLocaleString("fr-FR")} ${esc(ETAT_PERF.principal.part && ETAT_PERF.principal.part.parRefDevCode || "")}</div>`;
+    <div class="bulle-valeur">${ETAT_PERF.principal.sec ? `Valeur en euros (base 100) : ${ref.vl.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}`
+      : `Valeur liquidative${ETAT_PERF.principal.jumeau ? " (fonds jumeau)" : ""} : ${ref.vl.toLocaleString("fr-FR")} ${esc(ETAT_PERF.principal.part && ETAT_PERF.principal.part.parRefDevCode || "")}`}</div>`;
   bulle.hidden = false;
   const largeur = bulle.offsetWidth;
   bulle.style.left = Math.min(Math.max(0, x + 14), L - largeur) + "px";
@@ -283,6 +301,14 @@ function sourcesBce(comparaisons) {
   const compare = cle => comparaisons.some(c => c.cle === cle);
   return (compare("ref-monetaire") ? " et €STR de la Banque centrale européenne" : "")
     + (compare("ref-livrets") ? " et taux moyen des livrets (BCE, données de la Banque de France ; dernier taux publié appliqué aux mois pas encore publiés)" : "");
+}
+
+// Quand le graphique mêle un fonds américain (SEC) et un fonds suivi par l'AMF (GECO), la mention de l'autre source s'ajoute
+function sourcesMixtes(principal, comparaisons) {
+  const origine = c => (c.sec ? "sec" : REFERENCES.some(r => r.cle === c.cle && r.bce) ? "bce" : "geco");
+  const autres = comparaisons.map(origine);
+  if (principal.sec) return autres.includes("geco") ? " et valeurs liquidatives publiées par l'AMF (base GECO)" : "";
+  return autres.includes("sec") ? " et rendements mensuels déclarés à la SEC (EDGAR, formulaires N-PORT), convertis en euros (taux BCE)" : "";
 }
 
 function majLegendeEtChiffres() {
@@ -306,7 +332,7 @@ function majLegendeEtChiffres() {
       + tuile("Perte maximale", pct(c.perteMax), "max_drawdown");
   }
   const sources = document.getElementById("sources-bce");
-  if (sources) sources.textContent = sourcesBce(ETAT_PERF.comparaisons);
+  if (sources) sources.textContent = sourcesBce(ETAT_PERF.comparaisons) + sourcesMixtes(ETAT_PERF.principal, ETAT_PERF.comparaisons);
   document.querySelectorAll(".periodes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.periode === ETAT_PERF.periode)));
   document.querySelectorAll("[data-reference]").forEach(b => b.setAttribute("aria-pressed", String(ETAT_PERF.comparaisons.some(c => c.cle === b.dataset.reference))));
 }
@@ -336,6 +362,12 @@ function toutMettreAJour() {
 function afficherSquelette(entree, isin, principal) {
   const cle = cleEntree(entree, isin);
   const part = principal.part;
+  const sec = principal.sec;   // fonds américain : rendements mensuels déclarés à la SEC, en euros
+  // Une part de la SEC peut avoir pour nom son ticker ou son identifiant de classe : le ticker n'est répété que s'il apporte quelque chose
+  const partSec = sec && sec.part ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker && sec.part.ticker !== sec.part.nom ? ` (${esc(sec.part.ticker)})` : ""}` : "";
+  const identite = sec
+    ? (entree.source === "S" ? `Série SEC ${esc(cle)}` : `${esc(isin || "ISIN non publié")} · série SEC ${esc(sec.serie)}`) + partSec
+    : `${esc(isin || "ISIN non publié")}${part && !principal.jumeau ? ` · part « ${esc(part.parNom)} »` : ""}`;
   const distribuante = part && /distrib/i.test(part.parAffctnRevnuLib || "");
   const choixParts = principal.parts && principal.parts.length > 1 && !principal.jumeau
     ? `<label class="choix-part">Part : <select id="choix-part">${principal.parts.map(pa => `<option value="${esc(pa.isin)}"${pa.isin === part.isin ? " selected" : ""}>${esc(pa.parNom)} — ${esc(pa.isin)}${pa.parRefDevCode ? " (" + esc(pa.parRefDevCode) + ")" : ""}</option>`).join("")}</select></label>` : "";
@@ -343,7 +375,7 @@ function afficherSquelette(entree, isin, principal) {
   <article class="fiche perf">
     <header class="fiche-entete">
       <h1>${esc(entree.nom)}</h1>
-      <p>${esc(isin || "ISIN non publié")}${part && !principal.jumeau ? ` · part « ${esc(part.parNom)} »` : ""}${entree.gestionnaire ? ` · ${esc(entree.gestionnaire)}` : ""}</p>
+      <p>${identite}${entree.gestionnaire ? ` · ${esc(entree.gestionnaire)}` : ""}</p>
       <div class="actions-fiche">
         <a class="btn btn-simuler" href="simulateur.html#${esc(cle)}">${ICONE_SIMULER} Simuler mon investissement</a>
         <a class="btn-onglet" href="decrypte.html#${esc(cle)}">Décrypter ce fonds →</a>
@@ -375,11 +407,16 @@ function afficherSquelette(entree, isin, principal) {
         <summary>Performances par année civile (tableau)</summary>
         <div id="tableau-annuel"></div>
       </details>
-      <p class="note">Performances calculées sur la ${terme("valeur_liquidative", "valeur liquidative")}, frais de gestion déduits.
-        ${distribuante ? "<strong>Part distribuante :</strong> les revenus versés ne sont pas inclus, la performance réelle est donc un peu supérieure." : ""}
+      ${sec ? `<p class="note">Rendements mensuels déclarés à la SEC (${terme("n_port", "formulaire N-PORT")}), convertis en euros (taux BCE de fin de mois) : un point par mois.
         Les performances passées ne préjugent pas des performances futures.</p>
+      ${sec.historique.ignores ? `<p class="aide">Un ou plusieurs rendements mensuels aberrants déclarés à la SEC ont été écartés.</p>` : ""}`
+      : `<p class="note">Performances calculées sur la ${terme("valeur_liquidative", "valeur liquidative")}, frais de gestion déduits.
+        ${distribuante ? "<strong>Part distribuante :</strong> les revenus versés ne sont pas inclus, la performance réelle est donc un peu supérieure." : ""}
+        Les performances passées ne préjugent pas des performances futures.</p>`}
       ${principal.corrections && principal.corrections.length ? `<p class="aide">Historique corrigé par ce site : ${principal.corrections.map(c => `${esc(c.type)} le ${c.date.toLocaleDateString("fr-FR")}`).join(", ")} (les valeurs publiées ne sont pas ajustées).</p>` : ""}
-      <p class="source">Données brutes : valeurs liquidatives publiées par l'AMF (base GECO)<span id="sources-bce">${sourcesBce(ETAT_PERF.comparaisons)}</span>. Calculs : ce site.</p>
+      <p class="source">${sec
+        ? `Source : SEC – EDGAR (formulaires N-PORT), converti en euros (taux BCE)${sec.detail.date ? ` · données du ${dateFr(sec.detail.date)}` : ""}`
+        : "Données brutes : valeurs liquidatives publiées par l'AMF (base GECO)"}<span id="sources-bce">${sourcesBce(ETAT_PERF.comparaisons) + sourcesMixtes(principal, ETAT_PERF.comparaisons)}</span>. Calculs : ce site.</p>
     </section>
   </article>`;
   brancherEvenements();
@@ -417,9 +454,10 @@ function brancherEvenements() {
   let minuterie = 0;
   champ.addEventListener("input", () => {
     clearTimeout(minuterie);
-    minuterie = setTimeout(() => {
+    minuterie = setTimeout(async () => {
       const q = champ.value.trim();
-      const res = q.length < 2 ? [] : rechercherAnnuaire(q, 8).filter(e => e.isins.length || e.source !== "G");
+      const res = q.length < 2 ? [] : (await rechercherPartout(q, 8)).filter(e => e.isins.length || e.source !== "G");
+      if (champ.value.trim() !== q) return;   // le champ a changé pendant la recherche : la réponse suivante affichera les suggestions
       liste.hidden = !res.length;
       liste.innerHTML = res.map(e => `<li><button type="button" data-ajouter="${esc(cleEntree(e))}">${esc(e.nom)} <small>${esc(e.isins[0] || "")}</small></button></li>`).join("");
     }, 200);
@@ -428,7 +466,15 @@ function brancherEvenements() {
     const b = e.target.closest("[data-ajouter]");
     if (!b) return;
     liste.hidden = true; champ.value = "";
-    const entree = annuaireParIsin(b.dataset.ajouter) || annuaireParCle(b.dataset.ajouter);
+    const numero = numeroAffichage;
+    let entree;
+    try {
+      entree = await entreeParCle(b.dataset.ajouter);
+    } catch (err) {
+      if (numero === numeroAffichage) alert("Impossible de charger cette liste de fonds : recharge la page.");
+      return;
+    }
+    if (numero !== numeroAffichage) return;   // un autre fonds a été ouvert entre-temps
     if (entree) await ajouterComparaison("fonds-" + b.dataset.ajouter, entree.nom, () => serieFonds(entree, b.dataset.ajouter));
   });
   document.addEventListener("click", e => { if (!e.target.closest(".comparer-fonds")) liste.hidden = true; });
@@ -459,7 +505,7 @@ async function ajouterComparaison(cle, nom, charger) {
   if (leg) leg.appendChild(attente);
   try {
     const s = await charger();
-    ETAT_PERF.comparaisons.push({ cle, nom, nomCourt: nom.length > 38 ? nom.slice(0, 36) + "…" : nom, dates: s.dates, valeurs: s.valeurs, couleur: couleurLibre() });
+    ETAT_PERF.comparaisons.push({ cle, nom, nomCourt: nom.length > 38 ? nom.slice(0, 36) + "…" : nom, dates: s.dates, valeurs: s.valeurs, couleur: couleurLibre(), sec: !!s.sec });
   } catch (err) {
     alert(`Impossible de charger « ${nom} » : ${err.message}`);
   }
@@ -474,11 +520,21 @@ async function afficherPerformances() {
   document.title = "Performances · Décrypte ton fonds";
   if (!cle) { zonePerf.innerHTML = ""; return; }
 
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
+  // Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste
+  if (zoneDeCle(cle) !== "europe") zonePerf.innerHTML = `<div class="carte"><p class="chargement">Chargement du fonds…</p></div>`;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero !== numeroAffichage) return;
+    zonePerf.innerHTML = `<div class="carte"><p class="non-dispo">Impossible de charger cette liste de fonds : recharge la page.</p></div>`;
+    return;
+  }
+  if (numero !== numeroAffichage) return;
   if (!entree) { zonePerf.innerHTML = listePerf([], cle); return; }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Performances`;
-  zonePerf.innerHTML = `<div class="carte"><h1 class="titre-chargement">${esc(entree.nom)}</h1><p class="chargement">Chargement de l'historique des valeurs liquidatives…</p></div>`;
+  zonePerf.innerHTML = `<div class="carte"><h1 class="titre-chargement">${esc(entree.nom)}</h1><p class="chargement">${entree.source === "S" ? "Chargement des rendements déclarés à la SEC…" : "Chargement de l'historique des valeurs liquidatives…"}</p></div>`;
   zonePerf.scrollIntoView({ behavior: "smooth", block: "start" });
 
   let principal;
@@ -505,16 +561,27 @@ async function afficherPerformances() {
 }
 
 function listePerf(resultats, requete) {
-  if (!resultats.length) return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p></div>`;
+  if (!resultats.length) return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p>${noteZonesIncompletes(resultats)}</div>`;
   return `<div class="carte"><h2>${resultats.length >= 50 ? "Plus de 50" : resultats.length} fonds trouvés</h2>
+    ${noteZonesIncompletes(resultats)}
     <ul class="similaires resultats">${resultats.map(e => `<li><a href="#${esc(cleEntree(e))}">${esc(e.nom)}</a>
-      <small>${esc(e.isins[0] || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.source !== "G" ? (trouverJumeau(e.nom, false) ? " · via un fonds qui suit le même indice" : " · pas d'historique public") : ""}</small></li>`).join("")}</ul></div>`;
+      <small>${esc(e.isins[0] || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.source === "S" ? " · fonds américain (données de la SEC)" : e.source === "G" ? "" : serieSecDe(e) ? " · rendements déclarés à la SEC"
+        : trouverJumeau(e.nom, false) ? " · via un fonds qui suit le même indice" : " · pas d'historique public"}</small></li>`).join("")}</ul></div>`;
 }
 
-function lancerRecherchePerf(texte) {
-  const reels = rechercherAnnuaire(texte);
-  if (reels.length === 1) location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
-  else zonePerf.innerHTML = listePerf(reels, texte);
+let numeroRecherche = 0;   // évite qu'une ancienne recherche lente écrase une plus récente
+
+async function lancerRecherchePerf(texte) {
+  const recherche = ++numeroRecherche, affichage = numeroAffichage;
+  const avant = [...zonePerf.childNodes];
+  zonePerf.innerHTML = `<div class="carte"><p class="chargement">Recherche dans tous les pays…</p></div>`;
+  const reels = await rechercherPartout(texte);
+  if (recherche !== numeroRecherche || affichage !== numeroAffichage) return;   // autre recherche, ou autre fonds ouvert entre-temps
+  if (reels.length === 1) {
+    const adresse = location.hash;
+    location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (location.hash === adresse) zonePerf.replaceChildren(...avant);   // fonds déjà ouvert : l'adresse ne change pas, on remet son graphique
+  } else zonePerf.innerHTML = listePerf(reels, texte);
 }
 
 document.getElementById("form-recherche").addEventListener("submit", e => { e.preventDefault(); lancerRecherchePerf(champPerf.value); });

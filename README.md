@@ -186,6 +186,8 @@ n'est jamais cassée. Chaque bloc affiche sa source et l'heure de sa mise à jou
 | ETF étrangers cotés en Europe | ≈ 7 900 (dont ≈ 2 400 américains, signalés comme inaccessibles aux particuliers) | ESMA (registres FIRDS et FITRS) + Xetra, OpenFIGI, BCE, GLEIF, cours Deutsche Börse | Identité officielle (LEI, devise, places de cotation dans l'UE, société de gestion, compartiment, type, tranche d'encours), tickers, cours de clôture relevé chaque jour (Xetra), montant échangé en bourse, **notification pour la France** (registre ESMA), et composition estimée via un fonds français « jumeau » qui suit le même indice |
 | Fonds étrangers commercialisés en France | ≈ 8 500 | AMF – base GECO, + ESMA (FIRDS), BCE, GLEIF, cours Deutsche Börse | Identité ; pour ceux qui sont cotés dans l'UE, ISIN retrouvés par leur LEI ou par le nom (noms des bourses dans FIRDS ou nom officiel GLEIF : correspondance prudente, signalée « à vérifier dans le DIC »), et cours relevé chaque jour à la Bourse de Francfort quand il existe |
 | Autres fonds cotés en Europe, absents de la liste de l'AMF | ≈ 2 700 | ESMA (FIRDS), GLEIF, BCE, cours Deutsche Börse | Identité (nom officiel GLEIF, parts regroupées par compartiment grâce au LEI), **notification pour la France** (registre ESMA), cours quand il existe ; alerte « peut-être pas proposé en France », et alerte plus forte pour les fonds de droit non européen (sans DIC européen) |
+| Fonds américains (SEC) | ≈ 12 000 (12 183 séries au 3e trimestre 2026) | SEC – EDGAR (listes des séries et des parts, jeux de données N-PORT et résumés de prospectus) + BCE (taux de change) | Identité (société de gestion, parts et tickers, actif net et date, LEI), **composition** des dépôts N-PORT (10 premières lignes, pays, classes d'actif, devises ; positions courtes et produits dérivés écartés des répartitions, ce qui est signalé ; réinvestissement des garanties du prêt de titres écarté aussi), **rendements mensuels de chaque part en euros** depuis octobre 2019 (taux de change mensuels de la BCE ; performances sur 1, 3 et 5 ans, volatilité et perte maximale, graphique de Performances, simulateur), **frais** des résumés de prospectus (frais annuels bruts et nets, frais de gestion, droit d'entrée, frais de sortie différés), comparaison des parts du fonds. Pas de DIC : la fiche renvoie aux documents officiels du fonds (prospectus) et à EDGAR. Les fonds de l'annuaire européen qui ont le même LEI qu'une série américaine (≈ 2 200 ISIN) gagnent aussi composition, frais et rendements SEC |
+| Fonds irlandais et luxembourgeois (registre ESMA) | ≈ 15 700 (15 670 fiches actives au 11/10/2026 : ≈ 7 700 OPCVM (UCITS), ≈ 7 800 FIA, quelques ELTIF et EuVECA), absents des autres lignes | ESMA – registre de la commercialisation transfrontière des OPCVM et FIA + BCE (politique, tranche d'encours), GLEIF (fonds parapluie) | Identité seule, **sans ISIN** (aucune part cotée connue) : société de gestion, **autorité de contrôle**, **pays de commercialisation**, type (OPCVM, FIA, ELTIF, EuVECA), LEI, politique d'investissement et tranche d'encours quand la BCE les donne, fonds parapluie. Alerte « Réservé aux investisseurs professionnels » (FIA), « ELTIF : argent bloqué longtemps », « Réservé aux investisseurs avertis » (EuVECA), et « Fonds non notifié pour la France » quand la France n'est pas dans les pays du registre. Performances et simulateur comme pour les autres fonds étrangers (fonds jumeau, sinon profil type). Les autres fonds européens du site gagnent les mêmes lignes « Autorité de contrôle », « Commercialisé dans » et « Type (registre européen) » quand le registre les connaît (≈ 7 000 fonds) |
 
 ## Comment on calcule « Où est investi l'argent ? » (méthode maison)
 
@@ -248,8 +250,54 @@ notifiés au 07/10/2026, dont 308 fonds hors liste de l'AMF et 612 ETF). `societ
 par l'AMF (data.gouv.fr, Licence Ouverte 2.0 : 667 sociétés, environ 96 % des fonds français rattachés à leur agrément).
 La tâche `identite.yml` les relance le 20 de chaque mois.
 
+**Registre de l'ESMA (fonds irlandais et luxembourgeois).** Le même script lit en entier le registre de la commercialisation transfrontière des
+OPCVM et FIA (fiches actives, environ 6 requêtes ; fonctions pures dans `scripts/registres_ue.py`, testées par `python3 tests/test_registres_ue.py`) et ajoute :
+- à `data/identite.js` : `IDENTITE.autorites` (pays → nom de l'autorité de contrôle, le plus fréquent parmi les OPCVM de ce pays) et `IDENTITE.esmaFonds`
+  (LEI, ou `N<numéro>` pour un fonds GECO sans ISIN rapproché par son nom et son pays → `[société de gestion (index dans noms), pays de l'autorité, cadre, pays de commercialisation]`) ;
+  `notifFR` est calculé à partir du même registre ;
+- `data/annuaire-registres-ue.js` : la zone « registres-ue » (fonds irlandais et luxembourgeois absents du reste de l'annuaire, clé `R<numéro de la fiche ESMA>`),
+  chargée à la première recherche par nom ou à l'ouverture d'un fonds `R` (`js/zones.js`) ;
+- `data/registres-ue-infos.js` : pour chaque fonds `R`, LEI, pays de l'autorité, pays de commercialisation, politique et tranche d'encours (BCE), fonds parapluie (GLEIF),
+  chargé à l'ouverture de sa fiche (`js/app.js`). Si ce fichier ne se charge pas, la fiche garde l'identité de l'annuaire et signale « informations du registre ESMA indisponibles ».
+
+La **CSSF** (Luxembourg) n'est jamais interrogée : ses conditions interdisent toute reproduction sans autorisation écrite (demande préparée, pas encore reçue), rien n'en est repris.
+La **banque centrale d'Irlande** : un lien seulement (« Vérifier l'agrément sur le registre de la Banque centrale d'Irlande », `https://registers.centralbank.ie/`) sur la fiche des fonds
+domiciliés en Irlande, sans reprise de données (registre en PDF illisible de façon fiable, sans ISIN ni LEI).
+
 Pour finir, `python3 scripts/tests_annuaire.py` (quelques secondes, sans réseau) vérifie qu'aucun ISIN de fonds français
 n'a été rattaché par erreur à un autre fonds.
+
+## Fonds américains (SEC)
+
+```bash
+python3 scripts/construire_etats_unis.py            # nouveau trimestre seulement (comme la tâche mensuelle)
+python3 scripts/construire_etats_unis.py --complet  # tout recalculer depuis le 4e trimestre 2019 (long)
+python3 scripts/construire_etats_unis.py --forcer   # même sans nouveau trimestre (annuaire, frais, correspondances ISIN)
+```
+
+Ce script (bibliothèque standard Python, sans rien à installer) lit les fichiers publics de la SEC et les taux de change mensuels de la BCE, et écrit :
+`data/annuaire-etats-unis.js` (la zone « États-Unis » de l'annuaire : une ligne par série, au format de `data/annuaire.js`), `data/etats-unis/00.js` … `63.js`
+(les détails de chaque série, répartis en 64 fichiers d'après le numéro de série % 64) et `data/etats-unis-isin.js` (ISIN des fonds européens qui sont aussi une série américaine, retrouvés par leur LEI).
+Les rendements et les montants sont convertis en euros par le script ; le navigateur ne contacte jamais la SEC (les fichiers sont hébergés avec le site, et chargés à la demande par `js/zones.js` et `js/etats-unis.js`).
+
+La tâche `.github/workflows/etats-unis.yml` passe le 12 de chaque mois et ne fait rien (« Rien de nouveau ») tant que la SEC n'a pas publié un nouveau trimestre.
+Le premier calcul, ou un recalcul complet, se lance à la main : onglet **Actions** du dépôt GitHub → « Fonds américains (SEC) » → **Run workflow**, en cochant **complet**
+(une à plusieurs dizaines de minutes : les archives N-PORT font 400 à 500 Mo chacune, lues par plages d'octets sans les télécharger en entier).
+Les données représentent 20 à 25 Mo réécrits à chaque trimestre.
+
+Un lancement « complet » peut durer longtemps (le workflow s'arrête au bout de 90 minutes) et partage le groupe de concurrence `donnees-simulateur` avec les tâches
+quotidiennes (`contexte.yml` à 5 h 23 UTC, `cours.yml` à 5 h 41 et 13 h 41 UTC) et avec les tâches mensuelles de l'identité (le 20, 6 h 17 UTC) et des fonds américains (le 12, 5 h 37 UTC).
+GitHub n'y garde qu'une seule tâche en attente : une tâche quotidienne qui attendrait derrière un lancement complet pourrait être remplacée et sautée.
+Lance-le donc en dehors de ces heures : après 15 h 45, heure de Paris (le dernier relevé des cours part à 13 h 41 UTC, soit 15 h 41 en été), et ni le 12 ni le 20 du mois.
+
+Le tableau de prêt de titres de N-PORT (`SECURITIES_LENDING.tsv`) sert à retirer des répartitions et du top 10 les positions qui réinvestissent des garanties reçues en espèces
+(par exemple un fonds monétaire « Invesco Private Prime Fund » dans un fonds d'actions) : ce n'est ni une exposition ni un produit dérivé, mais un placement de l'argent du prêt,
+déjà compté dans l'actif net en plus des titres prêtés. Sans ce retrait, la somme des classes dépassait 100 % et la note « effet de levier » s'affichait à tort.
+Quand une part seulement d'une position réinvestit des garanties, seule cette part est retirée. Le résumé imprimé par le script compte ces positions à part des dérivés.
+
+Règles de la SEC respectées (sec.gov, « Website Dissemination ») : requêtes identifiées par un User-Agent qui nomme le site et donne un contact, au plus 5 requêtes par seconde (limite de la SEC : 10),
+aucun logo ni aucune image de la SEC. Les données de la SEC peuvent contenir des erreurs : chaque fiche cite « Source : SEC – EDGAR (…) · données du … », précise « converti en euros (taux BCE) »
+et rappelle de vérifier les documents officiels du fonds.
 
 ## Cours des fonds étrangers
 
@@ -263,7 +311,7 @@ Le fichier quotidien ne reste en ligne qu'un jour : l'historique se construit jo
 Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 - AMF (GECO), ESMA (FIRDS et FITRS : « reproduction… authorised… provided the source is acknowledged »), Deutsche Börse
   (liste Xetra ; cours différés gratuits hors usage payant), OpenFIGI (identifiants du domaine public), ISO 10383 (codes des
-  places de marché), BCE (réutilisation libre en citant la BCE), GLEIF (licence CC0).
+  places de marché), BCE (réutilisation libre en citant la BCE), GLEIF (licence CC0), SEC (EDGAR : voir le tableau des licences ci-dessous).
 - **À venir** : l'ESAP, point d'accès unique de l'Union européenne, publiera les DIC de tous les fonds à partir du 10/01/2028,
   gratuitement et sans restriction de réutilisation : ce sera la source des frais et du SRI des fonds étrangers.
 - **Non utilisés** faute d'autorisation : la liste et les cours d'Euronext (compilation et affichage public interdits sans accord
@@ -284,12 +332,15 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 | AMF (base GECO) | « Toute utilisation à des fins commerciales ou publicitaires est exclue », sauf accord | **Demande d'autorisation à envoyer avant d'ouvrir l'abonnement** (formulaire « Nous contacter ») |
 | Deutsche Börse (cours différés, fiches gratuites) | Gratuit hors revente | Demande de confirmation envoyée à data.services@deutsche-boerse.com |
 | BCE, ESMA, GLEIF, OpenFIGI, BLS, Trésor et Fed de New York | Autorisé (en citant la source) | Gardés |
+| SEC (EDGAR : listes des fonds, N-PORT, résumés de prospectus) | Autorisé : « Information presented on sec.gov is considered public information and may be copied or further distributed by users of the web site without the SEC's permission. » Conditions : pas de sceau, de logo ni d'image de la SEC ; au plus 10 requêtes par seconde (5 ici) ; requêtes identifiées par un User-Agent (les robots « non classés » sont refusés) ; données parfois erronées, à vérifier dans les dépôts complets | Gardée, citée « Source : SEC – EDGAR », sans logo |
 
 ## Sources officielles réutilisées en citant la source (décisions du 06/10/2026)
 
 | Source | Usage sur le site | Condition | Décision |
 |---|---|---|---|
-| ESMA – registre de la commercialisation transfrontière des OPCVM et FIA | OPCVM (UCITS) actifs notifiés pour la France seulement (un FIA notifié ne peut être proposé qu'aux investisseurs professionnels) : ligne « Commercialisation en France » sur la fiche des ETF et des fonds étrangers absents de la liste de l'AMF ; pour ces derniers, l'information « Notifié… » (section 5) remplace l'alerte « absent de la liste ». Affirmation positive seulement : un fonds absent du registre n'est pas déclaré « non commercialisé » | Reproduction autorisée en citant la source (comme FIRDS et FITRS) | Retenue |
+| ESMA – registre de la commercialisation transfrontière des OPCVM et FIA | Lu en entier (fiches actives). Notification pour la France (un FIA notifié ne peut être proposé qu'aux investisseurs professionnels) : ligne « Commercialisation en France » sur la fiche des ETF et des fonds étrangers absents de la liste de l'AMF ; pour ces derniers, l'information « Notifié… » (section 5) remplace l'alerte « absent de la liste ». Affirmation positive seulement : un fonds absent du registre n'est pas déclaré « non commercialisé ». Autorité de contrôle, pays de commercialisation et type de chaque fonds européen rapproché ; fonds irlandais et luxembourgeois absents du site (zone « registres-ue », fiche sans ISIN). Cité « ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) » | Reproduction autorisée en citant la source (comme FIRDS et FITRS) | Retenue |
+| CSSF (Luxembourg) – recherche d'entités | Aucun : « Aucune reproduction ou diffusion des informations reprises sur ce site n'est permise sans l'autorisation écrite préalable de la CSSF » | Autorisation écrite requise (demande préparée en brouillon, envoyée par l'utilisateur) | Écartée tant que la CSSF n'a pas répondu : jamais interrogée, rien repris |
+| Banque centrale d'Irlande – registres des fonds | Un lien « Vérifier l'agrément » sur la fiche des fonds domiciliés en Irlande, sans reprise de données | Réutilisation libre (CC BY 4.0), mais registre en PDF de 127 pages aux colonnes mêlées, sans ISIN ni LEI : illisible de façon fiable | Lien seulement (`registers.centralbank.ie` est dans `LIENS_SEULEMENT` de `verifier.py`) |
 | AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr) | « Agréée par l'AMF : n° …, depuis le … » et lien vers le site de la société (en https quand il répond ; aucun lien vers les sites HSBC, faute d'accord écrit), sur la fiche des fonds français dont la société est dans la liste (`data/societes.js`) | Licence Ouverte 2.0 : citer la source et la date de publication | Retenue |
 | BCE – taux moyen des livrets d'épargne en France (statistique compilée par la Banque de France) | Indicateur `livrets_fr` (Contexte & risques), repère « livret au taux moyen actuel » dans le simulateur, référence « Livrets d'épargne » dans Performances (le dernier taux publié est prolongé jour par jour jusqu'à la dernière valeur du fonds) | Réutilisation libre en citant la BCE | Retenue |
 | Webstat (Banque de France) | Aucun | Valeurs accessibles seulement avec un compte développeur et une clé (vérifié le 06/10/2026) | Écartée : la même statistique est diffusée sans clé par la BCE |
@@ -348,8 +399,15 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `js/infobulles.js` | Infobulles des termes techniques (toutes les pages) |
 | `js/createur.js` | Bouton « Créateur » et son animation |
 | `data/resume.js` | Chiffres de l'annuaire affichés sur l'accueil (générés par le script) |
+| `scripts/construire_etats_unis.py` | Fonds américains (SEC) : annuaire, composition N-PORT, rendements mensuels en euros, frais des prospectus (bibliothèque standard Python ; voir « Fonds américains (SEC) ») |
+| `.github/workflows/etats-unis.yml` | Tâche mensuelle des fonds américains, avec l'option « complet » pour tout recalculer |
+| `data/annuaire-etats-unis.js` / `data/etats-unis/NN.js` / `data/etats-unis-isin.js` | Zone « États-Unis » de l'annuaire ; détails des séries (64 fichiers, chargés à l'ouverture d'une fiche) ; ISIN européens rattachés à une série américaine (générés par le script) |
+| `js/zones.js` | Annuaire par zone : chargement à la demande, recherche dans tous les pays, ouverture d'un fonds par sa clé |
+| `js/etats-unis.js` | Fonds américains dans le navigateur : chargement des détails, historique, statistiques et composition au format du reste du site |
+| `data/annuaire-registres-ue.js` / `data/registres-ue-infos.js` | Zone « registres-ue » : fonds irlandais et luxembourgeois du registre de l'ESMA (clé `R<numéro>`) ; leurs informations (LEI, pays de commercialisation, politique, tranche d'encours, parapluie), chargées à l'ouverture d'une fiche (générés par `scripts/construire_identite.py`) |
+| `scripts/registres_ue.py` | Registre de l'ESMA : lecture, rapprochement avec l'annuaire, autorités, zone « registres-ue » (fonctions pures, bibliothèque standard Python) |
 | `data/societes.js` | Sociétés de gestion agréées par l'AMF : n° d'agrément, début d'autorisation, site (générée par `scripts/construire_identite.py`) |
-| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds irlandais ou luxembourgeois, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 

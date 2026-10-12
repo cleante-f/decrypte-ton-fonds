@@ -1,0 +1,13 @@
+adsh	tag	version	ddate	uom	series	class	measure	document	otherdims	iprx	value	footnote	footlen	dimn	dcml
+0001999371-25-012013	ExpensesOverAssets	oef/2025	20250831	pure	S000089799					0	0.0129	The cost of investing in swaps, including the embedded cost of the swap and the operating expenses of the referenced assets, is an indirect expense that is not included in the above fee table and is not reflected in the expense example.	236	1	32767
+0001999371-25-012013	ManagementFeesOverAssets	oef/2025	20250831	pure	S000089799					0	0.0129	The Funds investment adviser, Tidal Investments LLC (the Adviser), a Tidal Financial Group company, will pay, or require a sub-adviser to pay, all expenses incurred by the Fund (except for advisory fees and sub-advisory fees, as the case may be) excluding interest charges on any borrowings made for investment purposes, dividends and other expenses on securities sold short, taxes, brokerage commissions and other expenses incurred in placing orders for the purchase and sale of securities and other investme	843	1	32767
+0001623632-25-000915	MaximumSalesChargeImposedOnPurchasesOverOfferingPrice	oef/2024q3	20250731	pure	S000009579				Class=C000242771;	0	0.0000		0	2	4
+0001623632-25-000915	MaximumDeferredSalesChargeOverOther	oef/2024q3	20250731	pure	S000009579				Class=C000242771;	0	0.0000		0	2	4
+0001623632-25-000915	ManagementFeesOverAssets	oef/2024q3	20250731	pure	S000009579				Class=C000242771;	0	0.0015		0	2	4
+0001623632-25-000915	ExpensesOverAssets	oef/2024q3	20250731	pure	S000009579				Class=C000242771;	0	0.0055		0	2	4
+0001623632-25-000915	NetExpensesOverAssets	oef/2024q3	20250731	pure	S000009579				Class=C000242771;	0	0.0050		0	2	4
+0001623632-25-001296	NetExpensesOverAssets	oef/2024q3	20250731	pure	S000009578			AdministrativeShares	Class=C000242771;	0	0.0045		0	3	4
+0001623632-25-001296	MaximumSalesChargeImposedOnPurchasesOverOfferingPrice	oef/2024q3	20250731	pure	S000009578			AdministrativeShares	Class=C000242771;	0	0.0000		0	3	4
+0001623632-25-001296	MaximumDeferredSalesChargeOverOther	oef/2024q3	20250731	pure	S000009578			AdministrativeShares	Class=C000242771;	0	0.0000		0	3	4
+0001623632-25-001296	ManagementFeesOverAssets	oef/2024q3	20250731	pure	S000009578			AdministrativeShares	Class=C000242771;	0	0.0015		0	3	4
+0001623632-25-001296	ExpensesOverAssets	oef/2024q3	20250731	pure	S000009578			AdministrativeShares	Class=C000242771;	0	0.0053		0	3	4

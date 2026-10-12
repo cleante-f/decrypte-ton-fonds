@@ -28,6 +28,13 @@ test("pied de page identique sur les 10 pages", () => {
   for (const nom of PAGES) assert.equal(bloc(lirePage(nom), "footer"), modele, nom);
   for (const attendu of ["ni un conseil en investissement, ni une recommandation", 'href="mentions-legales.html"', 'href="cgv.html"',
     'href="confidentialite.html"', "GLEIF"]) assert.ok(modele.includes(attendu), attendu);
+  assert.ok(modele.includes("Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF, OpenFIGI et SEC (EDGAR)."));
+});
+
+test("confidentialité : la SEC est citée parmi les sources lues par nos serveurs, pas par le navigateur", () => {
+  const texte = lirePage("confidentialite").replace(/\s+/g, " ");
+  assert.ok(texte.includes("et de la SEC, le régulateur américain (liste des fonds américains, inventaires N-PORT, résumés de prospectus). Ton navigateur ne contacte jamais ces services."));
+  assert.ok(!/<th scope="row">[^<]*SEC/.test(texte), "la SEC ne figure pas dans les tableaux des services contactés par le navigateur");
 });
 
 test("décrypte : réglages des alertes sous la recherche", () => {
@@ -49,7 +56,8 @@ test("accueil : textes corrigés et trois outils", () => {
   assert.ok(!html.includes("Euronext"), "Euronext encore cité");
   assert.ok(!main.includes("0 €"), "« 0 € » encore présent");
   for (const id of ["nb-total", "nb-francais", "nb-etf", "date-maj"]) assert.ok(main.includes(`id="${id}"`), id);
-  assert.ok(main.includes("AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF et OpenFIGI"));
+  assert.ok(main.includes("AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF, OpenFIGI et SEC (EDGAR)"));
+  assert.ok(main.includes("Sources officielles : AMF, BCE, ESMA, Deutsche Börse, SEC."));
   const titres = [...main.matchAll(/<h2 class="outil-titre">([^<]+)<\/h2>/g)].map(m => m[1]);
   assert.deepEqual(titres, ["Décrypte ton fonds", "Performances", "Simulateur"]);
   for (const action of ["Décrypter un fonds →", "Voir les performances →", "Simuler →"]) assert.ok(main.includes(action), action);
@@ -128,4 +136,22 @@ test("Turnstile chargé par le script, en mode comptes seulement", () => {
 test("_routes.json : js/mode-site.js exclu des Functions", () => {
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   assert.ok(routes.exclude.includes("/js/mode-site.js"));
+});
+
+// ---- Annuaire par zone (fonds américains de la SEC) : scripts des trois outils et fichiers publics ----
+test("décrypte, performances, simulateur : correspondance des fonds américains après l'annuaire, js/zones.js après js/geco.js", () => {
+  for (const nom of ["decrypte", "performances", "simulateur"]) {
+    const scripts = [...lirePage(nom).matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+    const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${nom} : ${src} absent`); return i; };
+    assert.equal(place("data/etats-unis-isin.js"), place("data/annuaire.js") + 1, `${nom} : data/etats-unis-isin.js juste après data/annuaire.js`);
+    assert.equal(place("js/zones.js"), place("js/geco.js") + 1, `${nom} : js/zones.js juste après js/geco.js`);
+    assert.equal(place("js/etats-unis.js"), place("js/zones.js") + 1, `${nom} : js/etats-unis.js juste après js/zones.js (il s'en sert pour charger ses morceaux)`);
+    assert.ok(!scripts.some(src => src.startsWith("data/etats-unis/")), `${nom} : les morceaux de données ne se chargent qu'à la demande (js/etats-unis.js)`);
+    assert.ok(!scripts.includes("data/annuaire-etats-unis.js"), `${nom} : la zone ne se charge qu'à la demande (js/zones.js)`);
+  }
+});
+
+test("_routes.json : annuaire et correspondance des fonds américains, js/zones.js et js/etats-unis.js exclus des Functions", () => {
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  for (const chemin of ["/data/annuaire-etats-unis.js", "/data/etats-unis-isin.js", "/js/zones.js", "/js/etats-unis.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
 });

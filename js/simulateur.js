@@ -132,27 +132,43 @@ async function chargerAnalyse(entree, isin, { composition = true, progression = 
     if (!historique) historique = d.historique || null;
     A.sourceHistorique = "reel";
   } else {
-    const jumeau = trouverJumeau(entree.nom, false);
-    if (jumeau) {
-      progression(`Chargement de l'historique d'un fonds français qui suit le même indice (${jumeau.indice})…`);
-      A.jumeau = jumeau;
-      const r = await historiqueCompletGeco(jumeau.fonds, jumeau.fonds.isins[0]);
-      historique = r.historique;
-      A.sourceHistorique = "jumeau";
-      try { documents = await gecoJson(`/document/byCompartAndProduct?compartCode=c${jumeau.fonds.cmpId}&prdCode=p${jumeau.fonds.prdId}`); } catch (e) { documents = []; }
-    } else A.sourceHistorique = "profil";
+    // Fonds américain (ou fonds européen qui est aussi une série américaine) : données déclarées à la SEC (js/etats-unis.js).
+    // Les rendements mensuels, déjà en euros, remplacent le fonds jumeau ; sans rendements, on retombe sur le chemin habituel.
+    // La composition et les frais de la SEC servent dans les deux cas. Si le fichier de données ne se charge pas, on le dit.
+    if (serieSecDe(entree, isin)) {
+      progression("Lecture des données déposées à la SEC…");
+      try { A.sec = await donneesSec(entree, isin); } catch (e) { A.secIndisponible = true; }
+    }
+    if (A.sec && A.sec.historique) {
+      historique = A.sec.historique;
+      A.sourceHistorique = "sec";
+    } else {
+      const jumeau = trouverJumeau(entree.nom, false);
+      if (jumeau) {
+        progression(`Chargement de l'historique d'un fonds français qui suit le même indice (${jumeau.indice})…`);
+        A.jumeau = jumeau;
+        const r = await historiqueCompletGeco(jumeau.fonds, jumeau.fonds.isins[0]);
+        historique = r.historique;
+        A.sourceHistorique = "jumeau";
+        if (!(A.sec && A.sec.compo)) {   // la composition de la SEC rend la lecture des rapports du jumeau inutile
+          try { documents = await gecoJson(`/document/byCompartAndProduct?compartCode=c${jumeau.fonds.cmpId}&prdCode=p${jumeau.fonds.prdId}`); } catch (e) { documents = []; }
+        }
+      } else A.sourceHistorique = "profil";
+    }
   }
   A.historique = historique;
   A.derniereVL = historique && historique.dates.length ? historique.dates[historique.dates.length - 1] : null;
 
-  // Exposition : analyse des rendements (3 dernières années)
-  if (historique && historique.valeurs.length >= 60) {
+  // Exposition : composition déclarée à la SEC si elle existe, sinon analyse des rendements (3 dernières années). Les points
+  // mensuels de la SEC ne se prêtent pas à l'analyse des rendements (styleAvecCache), qui travaille sur des cours plus fréquents.
+  const expoSec = A.sec && A.sec.compo ? expositionsDepuisComposition(A.sec.compo) : [];
+  if (!expoSec.length && A.sourceHistorique !== "sec" && historique && historique.valeurs.length >= 60) {
     progression("Analyse des rendements : à quoi le fonds est-il réellement exposé ?");
     try { A.st = await styleAvecCache(A.jumeau ? A.jumeau.fonds.isins[0] : isin, historique); } catch (e) { A.st = null; }
   }
   const styleOk = A.st && A.st.r2 >= 0.5;
-  A.expo = styleOk ? A.st.expositions.map(x => ({ cle: x.cle, poids: x.poids })) : expositionsParDefaut(entree);
-  A.sourceExpo = styleOk ? "style" : "defaut";
+  A.expo = expoSec.length ? expoSec : styleOk ? A.st.expositions.map(x => ({ cle: x.cle, poids: x.poids })) : expositionsParDefaut(entree);
+  A.sourceExpo = expoSec.length ? "sec" : styleOk ? "style" : "defaut";
 
   // Historique long : réel + reconstitué avant la création du fonds
   progression("Reconstitution de l'historique long (fonds de référence depuis les années 1990)…");
@@ -160,8 +176,9 @@ async function chargerAnalyse(entree, isin, { composition = true, progression = 
   const couche = styleOk && Math.abs(A.st.dollar.couche) >= 10 ? A.st.dollar.couche : 0;
   const dollar = couche ? await serieDollarMensuelle().catch(() => null) : null;
   const reel = historique ? rendementsMensuels(niveauxMensuels(historique)) : new Map();
-  // Reconstitution quand l'exposition est bien identifiée, ou faute de mieux quand l'historique réel est trop court
-  const proxy = (styleOk && A.st.r2 >= 0.75) || A.sourceExpo === "defaut" || reel.size < 36 ? reconstituer(A.expo, couche, longues, dollar) : null;
+  // Reconstitution quand l'exposition est bien identifiée (analyse des rendements, ou composition déclarée à la SEC), avec un profil
+  // type, ou faute de mieux quand l'historique réel est trop court. Un fonds américain est traité comme un fonds français.
+  const proxy = (styleOk && A.st.r2 >= 0.75) || A.sourceExpo === "defaut" || A.sourceExpo === "sec" || reel.size < 36 ? reconstituer(A.expo, couche, longues, dollar) : null;
   A.comb = historiqueCombine(reel, proxy);
   A.referencesUtilisees = proxy ? SERIES_LONGUES.filter(s => A.expo.some(x => x.cle === s.cle)) : [];
   if (A.comb.r.length < 24) throw new Error("historique trop court pour une simulation fiable (moins de 2 ans de données)");
@@ -170,24 +187,31 @@ async function chargerAnalyse(entree, isin, { composition = true, progression = 
   A.marcheMondial = mondial;
   A.comportement = mondial && mondial.size ? comportementMarche(A.comb, mondial) : null;
 
-  // Frais courants : lus dans le DIC, sinon hypothèse signalée
+  // Frais courants : lus dans le DIC, ou dans le prospectus déposé à la SEC (fonds américain : frais nets si publiés, sinon bruts),
+  // sinon hypothèse signalée
   const dic = A.dic;
+  const fraisSecLus = A.sec && A.sec.frais && typeof A.sec.frais.retenu === "number" ? A.sec.frais : null;
   if (dic && dic.gestion !== null && dic.gestion !== undefined) { A.ter = (dic.gestion || 0) + (dic.transaction || 0); A.terSource = "dic"; }
+  else if (fraisSecLus) { A.ter = fraisSecLus.retenu; A.terSource = "sec"; }
   else { A.ter = entree.etf || /\bETF\b|UCITS/i.test(entree.nom) ? 0.25 : 1.5; A.terSource = "hypothese"; }
-  A.entreeMax = dic && dic.entree ? dic.entree : 0;
+  A.entreeMax = dic && dic.entree ? dic.entree : A.terSource === "sec" && fraisSecLus.entree ? fraisSecLus.entree : 0;
   A.distribuante = /distrib/i.test((A.part && A.part.parAffctnRevnuLib) || "") || (!A.part && indicesDuNom(entree.nom).distribution);
   A.synthetique = estSynthetique(entree, indicesDuNom(entree.nom), dic);
   A.taux = tauxActuels();
   calculerModele(A, S.plan.primeActions);
 
-  // Composition détaillée (lecture du rapport annuel) : plus longue, on ne l'attend pas
-  A.compo = A.st ? assemblerComposition(null, A.st, A.part) : null;
-  if (composition && documents.length) {
-    A.compoEnCours = true;
-    A.promesseCompo = inventaireAvecCache(documents, A.jumeau ? A.jumeau.fonds.nom : entree.nom, () => {}, A.st)
-      .then(inv => { A.compo = assemblerComposition(inv, A.st, A.part) || A.compo; })
-      .catch(() => {})
-      .finally(() => { A.compoEnCours = false; });
+  // Composition : celle du dernier inventaire N-PORT d'un fonds américain (aucune lecture d'inventaire). Sinon, lecture du rapport
+  // annuel : plus longue, on ne l'attend pas
+  if (A.sec && A.sec.compo) A.compo = A.sec.compo;
+  else {
+    A.compo = A.st ? assemblerComposition(null, A.st, A.part) : null;
+    if (composition && documents.length) {
+      A.compoEnCours = true;
+      A.promesseCompo = inventaireAvecCache(documents, A.jumeau ? A.jumeau.fonds.nom : entree.nom, () => {}, A.st)
+        .then(inv => { A.compo = assemblerComposition(inv, A.st, A.part) || A.compo; })
+        .catch(() => {})
+        .finally(() => { A.compoEnCours = false; });
+    }
   }
   return A;
 }
@@ -277,16 +301,42 @@ function calculer(A = S.fonds, plan = S.plan) {
 // ---------- Recherche d'un fonds ----------
 
 const champSimu = document.getElementById("champ-recherche");
-document.getElementById("form-recherche").addEventListener("submit", e => {
+let numeroRecherche = 0;   // évite qu'une ancienne recherche lente écrase une plus récente
+document.getElementById("form-recherche").addEventListener("submit", async e => {
   e.preventDefault();
-  const reels = rechercherAnnuaire(champSimu.value);
-  if (reels.length === 1) location.hash = cleEntree(reels[0], reels[0].isins.includes(champSimu.value.trim().toUpperCase()) ? champSimu.value.trim().toUpperCase() : null);
-  else zoneFonds.innerHTML = afficherListe(champSimu.value, reels);
+  const texte = champSimu.value;
+  const recherche = ++numeroRecherche, ouverture = numeroChargement;
+  const avant = [...zoneFonds.childNodes];
+  zoneFonds.innerHTML = `<div class="carte"><p class="chargement">Recherche dans tous les pays…</p></div>`;
+  const reels = await rechercherPartout(texte);
+  if (recherche !== numeroRecherche || ouverture !== numeroChargement) return;   // autre recherche, ou autre fonds ouvert entre-temps
+  if (reels.length === 1) {
+    const adresse = location.hash;
+    location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (location.hash === adresse) zoneFonds.replaceChildren(...avant);   // fonds déjà ouvert : l'adresse ne change pas, on remet sa carte
+  } else zoneFonds.innerHTML = afficherListe(texte, reels);
 });
 document.getElementById("exemples").innerHTML = "<span>Exemples :</span> " + EXEMPLES_SIMU.filter(([i]) => annuaireParIsin(i))
   .map(([i, n]) => `<a href="#${i}" class="chip">${esc(n)}</a>`).join(" ");
 
 // ---------- Affichage du fonds choisi ----------
+
+// Les rendements de la SEC arrivent par trimestre, avec un décalage de plusieurs semaines : au-delà de 6 mois, la donnée est ancienne
+const JOURS_SEC_ANCIEN = 183;
+
+// « nom » (ticker) d'une part déclarée à la SEC (HTML échappé). Le nom d'une part peut être son ticker ou son identifiant de classe :
+// le ticker n'est répété que s'il apporte quelque chose. "" sans part.
+function libellePartSec(part) {
+  if (!part || !part.nom) return "";
+  return `« ${esc(part.nom)} »${part.ticker && part.ticker !== part.nom ? ` (${esc(part.ticker)})` : ""}`;
+}
+
+// Provenance d'un fonds sans aucun rendement publié (A.sourceHistorique === "profil") : un profil type, jamais les données de l'AMF.
+// La SEC n'est citée que si sa composition ou ses frais ont servi.
+function sourceProfilType(A) {
+  const sec = [A.sourceExpo === "sec" && "composition", A.terSource === "sec" && "frais"].filter(Boolean);
+  return `profil type, faute de rendement publié pour ce fonds${sec.length ? ` ; ${sec.join(" et ")} : SEC (EDGAR)` : ""}`;
+}
 
 function carteFonds(A, message) {
   const e = A ? A.entree : S.chargement.entree, isin = A ? A.isin : S.chargement.isin;
@@ -295,18 +345,20 @@ function carteFonds(A, message) {
   if (e.etf) badges.push("ETF");
   if (A && A.part && A.part.parAffctnRevnuLib) badges.push(A.part.parAffctnRevnuLib);
   if (A && A.dic && A.dic.sri) badges.push(`Risque ${A.dic.sri}/7`);
-  if (A) badges.push(`Frais courants ${pct(A.ter, 2)}${A.terSource === "hypothese" ? " (hypothèse)" : ""}`);
+  if (A) badges.push(`Frais courants ${pct(A.ter, 2)}${A.terSource === "hypothese" ? " (hypothèse)" : A.terSource === "sec" ? " (prospectus SEC)" : ""}`);
   return `<article class="carte carte-fonds-simu">
     <div class="fonds-simu-titre">
       <div><p class="surtitre">Fonds simulé</p><h2>${esc(e.nom)}</h2>
-        <p class="aide">${esc(isin || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}</p></div>
+        <p class="aide">${esc(e.source === "S" ? `Série SEC ${cle}` : isin || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}</p></div>
       <div class="actions-fiche"><a class="btn-onglet" href="decrypte.html#${esc(cle)}">Décrypter ce fonds →</a><a class="btn-onglet" href="performances.html#${esc(cle)}">Performances →</a></div>
     </div>
     ${badges.length ? `<div class="etiquettes">${badges.map(b => `<span class="etiquette">${esc(b)}</span>`).join("")}</div>` : ""}
     ${message ? `<p class="chargement">${esc(message)}</p>` : ""}
-    ${A && A.jumeau ? `<p class="note">Pas d'historique public et gratuit pour cet ETF étranger : la simulation s'appuie sur un fonds français qui suit le <strong>même indice (${esc(A.jumeau.indice)})</strong>, <a href="decrypte.html#${esc(A.jumeau.fonds.isins[0])}">${esc(A.jumeau.fonds.nom)}</a>. Les frais courants de l'ETF sont une hypothèse modifiable dans les options.</p>` : ""}
-    ${A && A.sourceHistorique === "profil" ? `<p class="note">Aucun historique public pour ce fonds ni pour un fonds comparable : la simulation utilise un <strong>profil type</strong> déduit de sa classification ou de son nom. Résultats très approximatifs.</p>` : ""}
-    ${A && A.derniereVL ? `<p class="source">Dernière valeur liquidative utilisée : ${A.derniereVL.toLocaleDateString("fr-FR")} (AMF – GECO)${(Date.now() - A.derniereVL) / 864e5 > 15 ? " — <strong>donnée ancienne</strong>" : ""}.</p>` : ""}
+    ${A && A.jumeau ? `<p class="note">Pas d'historique public et gratuit pour cet ETF étranger : la simulation s'appuie sur un fonds français qui suit le <strong>même indice (${esc(A.jumeau.indice)})</strong>, <a href="decrypte.html#${esc(A.jumeau.fonds.isins[0])}">${esc(A.jumeau.fonds.nom)}</a>.${A.terSource === "hypothese" ? " Les frais courants de l'ETF sont une hypothèse modifiable dans les options." : ""}</p>` : ""}
+    ${A && A.secIndisponible ? `<p class="non-dispo">Les données de la SEC sur ce fonds n'ont pas pu être chargées : recharge la page pour réessayer.</p>` : ""}
+    ${A && A.sourceHistorique === "profil" ? `<p class="note">${A.sec ? "Aucun rendement mensuel dans les données de la SEC pour ce fonds ni historique pour un fonds comparable" : "Aucun historique public pour ce fonds ni pour un fonds comparable"} : la simulation utilise un <strong>profil type</strong> déduit de ${A.sourceExpo === "sec" ? "sa composition déclarée à la SEC" : "sa classification ou de son nom"}. Résultats très approximatifs.</p>` : ""}
+    ${A && A.derniereVL && A.sourceHistorique === "sec" ? `<p class="source">Dernier rendement mensuel utilisé : ${esc(A.derniereVL.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }))} (SEC – N-PORT)${libellePartSec(A.sec.part) ? `, part ${libellePartSec(A.sec.part)}` : ""}${(Date.now() - A.derniereVL) / 864e5 > JOURS_SEC_ANCIEN ? " — <strong>donnée ancienne</strong>" : ""}.</p>`
+    : A && A.derniereVL ? `<p class="source">Dernière valeur liquidative utilisée : ${A.derniereVL.toLocaleDateString("fr-FR")} (AMF – GECO)${(Date.now() - A.derniereVL) / 864e5 > 15 ? " — <strong>donnée ancienne</strong>" : ""}.</p>` : ""}
   </article>`;
 }
 
@@ -314,7 +366,17 @@ async function afficherDepuisAdresse() {
   const cle = decodeURIComponent(location.hash.slice(1));
   const numero = ++numeroChargement;
   if (!cle) { zoneFonds.innerHTML = ""; zoneAssistant.hidden = true; zoneResultats.innerHTML = ""; document.title = "Simulateur · Décrypte ton fonds"; return; }
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
+  // Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste
+  if (zoneDeCle(cle) !== "europe") zoneFonds.innerHTML = `<div class="carte"><p class="chargement">Chargement du fonds…</p></div>`;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero !== numeroChargement) return;
+    zoneFonds.innerHTML = `<div class="carte"><p class="non-dispo">Impossible de charger cette liste de fonds : recharge la page.</p></div>`;
+    return;
+  }
+  if (numero !== numeroChargement) return;
   if (!entree) { zoneFonds.innerHTML = afficherListe(cle, []); return; }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Simulateur`;
@@ -400,9 +462,9 @@ function optionsAvancees() {
       <label>Inflation (% par an) ${champNombre("inflation", p.inflation ?? "", `step="0.1" placeholder="${String(infl).replace(".", ",")}"`)}
         <small>Par défaut : ${pct(infl)} = inflation attendue à long terme par les prévisionnistes de la BCE${indicateurCtx("anticipations_inflation") ? ` (enquête ${esc(indicateurCtx("anticipations_inflation").date.replace("-Q", " T"))})` : ""}.</small></label>
       <label>${terme("frais_courants", "Frais courants du fonds")} (% par an) ${champNombre("fraisCourants", p.fraisCourants ?? "", `step="0.01" placeholder="${A ? String(Math.round(A.ter * 100) / 100).replace(".", ",") : ""}"`)}
-        <small>${A ? (A.terSource === "dic" ? `Lus dans le DIC : ${pct(A.ter, 2)}.` : `Non disponibles : hypothèse de ${pct(A.ter, 2)}, à vérifier dans le DIC.`) : ""}</small></label>
+        <small>${A ? (A.terSource === "dic" ? `Lus dans le DIC : ${pct(A.ter, 2)}.` : A.terSource === "sec" ? `Lus dans le prospectus déposé à la SEC : ${pct(A.ter, 2)}.` : `Non disponibles : hypothèse de ${pct(A.ter, 2)}, à vérifier dans ${documentDesFrais([{ entree: A.entree, A }])}.`) : ""}</small></label>
       <label>${terme("frais_entree", "Frais d'entrée")} (% de chaque versement) ${champNombre("entree", p.entree, 'step="0.1" min="0"')}
-        <small>${A && A.entreeMax ? `Le DIC prévoit jusqu'à ${pct(A.entreeMax)} : souvent nuls en ligne.` : "Souvent nuls pour un ETF."}</small></label>
+        <small>${A && A.entreeMax ? `${A.terSource === "sec" ? "Le prospectus déposé à la SEC" : "Le DIC"} prévoit jusqu'à ${pct(A.entreeMax)} : souvent nuls en ligne.` : "Souvent nuls pour un ETF."}</small></label>
       <label>Frais de courtage (€ par ordre) ${champNombre("courtageFixe", p.courtageFixe, 'step="0.5" min="0"')}</label>
       <label>Frais de courtage (% par ordre) ${champNombre("courtagePct", p.courtagePct, 'step="0.05" min="0"')}</label>
       <label>Frais de change (% de chaque versement) ${champNombre("change", p.change, 'step="0.05" min="0"')}
@@ -662,8 +724,8 @@ function resume(C) {
 function rappelFrais(C) {
   const A = C.A, f = C.P.frais;
   const saisi = v => v !== null && v !== undefined && v !== "";
-  const origineCourants = saisi(S.plan.fraisCourants) ? "ta valeur" : A.terSource === "dic" ? "DIC" : "hypothèse";
-  const entreeDic = A.entreeMax && !f.entree ? ` (jusqu'à ${pct(A.entreeMax, 1)} selon le DIC)` : "";
+  const origineCourants = saisi(S.plan.fraisCourants) ? "ta valeur" : A.terSource === "dic" ? "DIC" : A.terSource === "sec" ? "prospectus SEC" : "hypothèse";
+  const entreeDic = A.entreeMax && !f.entree ? ` (jusqu'à ${pct(A.entreeMax, 1)} selon ${A.terSource === "sec" ? "le prospectus SEC" : "le DIC"})` : "";
   return `<span class="rappel-frais">Frais courants ${pct(f.courants, 2)} / an <em>(${origineCourants})</em> · Frais d'entrée ${pct(f.entree, Number.isInteger(f.entree) ? 0 : 1)}${entreeDic}</span>`;
 }
 
@@ -863,7 +925,7 @@ function carteHistorique(A) {
   ].map(([n, v]) => `<div class="tuile"><span>${n}</span><strong class="${v === null ? "" : v >= 0 ? "hausse" : "baisse"}">${v === null ? "—" : pctSigne(v)}</strong></div>`).join("");
   return `<section class="carte">
     <h2>Ce que dit l'historique</h2>
-    <p class="aide">${A.comb.nbReconstitues ? `Historique réel du fonds depuis ${esc(moisFr(premierReel))} ; avant, historique <strong>reconstitué</strong> à partir de son exposition estimée (${terme("analyse_style", "analyse des rendements")}) appliquée à des fonds de référence très anciens.` : `Historique réel du fonds${A.jumeau ? " jumeau" : ""} depuis ${esc(moisFr(h.debut))}.`}
+    <p class="aide">${A.comb.nbReconstitues ? `${premierReel ? `Historique réel du fonds depuis ${esc(moisFr(premierReel))} ; avant, historique` : "Pas d'historique réel pour ce fonds : historique"} <strong>reconstitué</strong> à partir de ${A.sourceExpo === "sec" ? "sa composition (dernier inventaire déposé à la SEC)" : `son exposition estimée (${terme("analyse_style", "analyse des rendements")})`} appliquée à des fonds de référence très anciens.` : `Historique réel du fonds${A.jumeau ? " jumeau" : ""} depuis ${esc(moisFr(h.debut))}.`}
       Les performances passées ne préjugent pas des performances futures.</p>
     <div class="chiffres-cles">${tuiles}</div>
     <dl class="grille-infos">
@@ -876,7 +938,7 @@ function carteHistorique(A) {
       ${cmp ? `<div class="large"><dt>Selon les conditions de marché (actions mondiales)</dt><dd>Les mois de hausse des marchés, le fonds a fait en moyenne ${pctSigne(cmp.fondsHausse)} (marché : ${pctSigne(cmp.marcheHausse)}) ;
         les mois de baisse, ${pctSigne(cmp.fondsBaisse)} (marché : ${pctSigne(cmp.marcheBaisse)}). Il capte donc environ ${pct(cmp.captureHausse * 100, 0)} des hausses et ${pct(cmp.captureBaisse * 100, 0)} des baisses.</dd></div>` : ""}
     </dl>
-    <p class="source">Données brutes : valeurs liquidatives publiées par l'AMF (base GECO)${A.referencesUtilisees.length ? ` ; fonds de référence : ${A.referencesUtilisees.map(r => esc(r.nom)).join(", ")}` : ""}. Calculs : ce site, en données mensuelles, du ${esc(moisFr(h.debut))} au ${esc(moisFr(h.fin))}.</p>
+    <p class="source">Données brutes : ${A.sourceHistorique === "sec" ? "rendements mensuels déclarés à la SEC (EDGAR, formulaires N-PORT), convertis en euros au taux de change de la BCE" : A.sourceHistorique === "profil" ? sourceProfilType(A) : "valeurs liquidatives publiées par l'AMF (base GECO)"}${A.referencesUtilisees.length ? ` ; fonds de référence : ${A.referencesUtilisees.map(r => esc(r.nom)).join(", ")}` : ""}. Calculs : ce site, en données mensuelles, du ${esc(moisFr(h.debut))} au ${esc(moisFr(h.fin))}.</p>
   </section>`;
 }
 
@@ -893,9 +955,16 @@ function comprendre(C) {
   return `<div class="comprendre-contenu">
     <h3>Données utilisées</h3>
     <ul>
-      <li>Historique mensuel ${A.jumeau ? `du fonds jumeau ${esc(A.jumeau.fonds.nom)}` : "du fonds"} : ${A.comb.nbReels} mois réels${A.comb.nbReconstitues ? ` et ${A.comb.nbReconstitues} mois reconstitués` : ""}, du ${esc(moisFr(A.comb.mois[0]))} au ${esc(moisFr(A.comb.mois[A.comb.mois.length - 1]))}. Source : AMF (GECO)${A.derniereVL ? `, dernière valeur liquidative du ${A.derniereVL.toLocaleDateString("fr-FR")}` : ""}.</li>
-      <li>Exposition du fonds : ${A.sourceExpo === "style" ? `analyse des rendements des 3 dernières années (${terme("r2", "R²")} = ${pct(A.st.r2 * 100, 0)})` : "profil type déduit de la classification ou du nom (pas d'analyse possible)"} : ${A.expo.map(x => `${esc((FACTEURS.find(f => f.cle === x.cle) || { nom: x.cle }).nom)} ${pct(x.poids, 0)}`).join(", ")}.</li>
-      <li>Frais : ${A.terSource === "dic" ? `DIC « ${esc(A.dic.document.docName)} » du ${dateFr(A.dic.document.dateEffet)}` : "hypothèse (frais non disponibles automatiquement)"}.</li>
+      <li>Historique mensuel ${A.jumeau ? `du fonds jumeau ${esc(A.jumeau.fonds.nom)}` : "du fonds"} : ${A.comb.nbReels} mois réels${A.sourceHistorique === "sec" ? " (rendements déclarés à la SEC, convertis en euros au taux BCE)" : ""}${A.comb.nbReconstitues ? ` et ${A.comb.nbReconstitues} mois reconstitués` : ""}, du ${esc(moisFr(A.comb.mois[0]))} au ${esc(moisFr(A.comb.mois[A.comb.mois.length - 1]))}.
+        ${A.sourceHistorique === "sec" ? `Source : SEC – EDGAR (formulaires N-PORT)${A.derniereVL ? `, dernier rendement mensuel : ${esc(A.derniereVL.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }))}` : ""}.${A.sec.historique.ignores ? " Un ou plusieurs rendements mensuels aberrants déclarés à la SEC ont été écartés." : ""}`
+        : A.sourceHistorique === "profil" ? `Source : ${sourceProfilType(A)}.`
+        : `Source : AMF (GECO)${A.derniereVL ? `, dernière valeur liquidative du ${A.derniereVL.toLocaleDateString("fr-FR")}` : ""}.`}</li>
+      <li>Exposition du fonds : ${A.sourceExpo === "style" ? `analyse des rendements des 3 dernières années (${terme("r2", "R²")} = ${pct(A.st.r2 * 100, 0)})`
+        : A.sourceExpo === "sec" ? `inventaire N-PORT du ${dateFr(A.sec.compo.sec.date)} (SEC – EDGAR) : les actions sont réparties selon les zones des titres, les obligations comptées pour moitié à long terme et pour moitié à court terme, les liquidités avec le monétaire`
+        : "profil type déduit de la classification ou du nom (pas d'analyse possible)"} : ${A.expo.map(x => `${esc((FACTEURS.find(f => f.cle === x.cle) || { nom: x.cle }).nom)} ${pct(x.poids, 0)}`).join(", ")}.</li>
+      <li>Frais : ${A.terSource === "dic" ? `DIC « ${esc(A.dic.document.docName)} » du ${dateFr(A.dic.document.dateEffet)}`
+        : A.terSource === "sec" ? `prospectus déposé à la SEC${A.sec.frais.date ? ` (résumé du ${dateFr(A.sec.frais.date)})` : ""}, frais ${A.ter === A.sec.frais.net ? "nets" : "bruts"} de la part ${libellePartSec(A.sec.part)}`
+        : "hypothèse (frais non disponibles automatiquement)"}.</li>
       <li>Taux d'intérêt (BCE) : ${tauxTexte(t.taux10, "emprunts d'État à 10 ans")} ; ${tauxTexte(t.taux3, "à 3 ans")} ; ${tauxTexte(t.estr, "€STR")}.</li>
       <li>Inflation : ${indicateurCtx("anticipations_inflation") ? `enquête de la BCE auprès des prévisionnistes (${esc(periodeFr(indicateurCtx("anticipations_inflation").date))})` : "valeur par défaut de 2 %"}${S.plan.inflation !== null && S.plan.inflation !== "" ? " — remplacée par ta valeur" : ""}.</li>
       ${livret ? `<li>Repère livret : taux moyen des livrets d'épargne des ménages en France (BCE, données de la Banque de France, ${esc(periodeFr(livret.date))}).</li>` : ""}
@@ -1177,10 +1246,11 @@ zoneResultats.addEventListener("input", e => {
   const champ = e.target.closest("[data-recherche-fonds]");
   if (champ) {
     clearTimeout(minuterieRecherche);
-    minuterieRecherche = setTimeout(() => {
+    minuterieRecherche = setTimeout(async () => {
       const liste = document.getElementById("suggestions-" + champ.dataset.rechercheFonds);
       const q = champ.value.trim();
-      const res = q.length < 2 ? [] : rechercherAnnuaire(q, 8).filter(x => x.isins.length || x.source !== "G");
+      const res = q.length < 2 ? [] : (await rechercherPartout(q, 8)).filter(x => x.isins.length || x.source !== "G");
+      if (champ.value.trim() !== q) return;   // le champ a changé pendant la recherche : la réponse suivante affichera les suggestions
       liste.hidden = !res.length;
       liste.innerHTML = res.map(x => `<li><button type="button" data-ajouter-fonds="${esc(cleEntree(x))}" data-cible="${champ.dataset.rechercheFonds}">${esc(x.nom)} <small>${esc(x.isins[0] || "")}</small></button></li>`).join("");
     }, 200);
@@ -1198,8 +1268,15 @@ zoneResultats.addEventListener("input", e => {
 });
 
 async function ajouterFonds(cible, cle) {
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
-  if (!entree) return;
+  const numero = numeroChargement;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero === numeroChargement) alert("Impossible de charger cette liste de fonds : recharge la page.");
+    return;
+  }
+  if (numero !== numeroChargement || !entree) return;   // un autre fonds a été ouvert entre-temps, ou fonds inconnu
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   if (cible === "comparer") {
     if (S.comparaisons.some(c => cleEntree(c.entree, c.isin) === cle) || cle === cleEntree(S.fonds.entree, S.fonds.isin)) return;
@@ -1232,6 +1309,14 @@ function calculComparaison(A) {
     A.calcComparaison = { cle: JSON.stringify(S.plan) + A.modele.g, C };
   }
   return A.calcComparaison.C;
+}
+
+// Où vérifier des frais supposés (terSource « hypothese ») : le DIC d'un fonds européen, le prospectus d'un fonds américain
+// (source S : il n'a pas de DIC), les deux si la liste mélange les deux sortes de fonds. `fonds` : [{ entree, A }…]
+function documentDesFrais(fonds) {
+  const sansFrais = fonds.filter(x => x.A && x.A.terSource === "hypothese");
+  const americain = sansFrais.some(x => x.entree.source === "S"), autre = sansFrais.some(x => x.entree.source !== "S");
+  return americain && autre ? "le DIC ou le prospectus" : americain ? "le prospectus" : "le DIC";
 }
 
 function panneauComparer() {
@@ -1272,7 +1357,7 @@ function panneauComparer() {
       ${ligneMetrique(terme("volatilite", "Volatilité"), x => pct(x.A.modele.sigma * 100))}
       ${ligneMetrique(terme("max_drawdown", "Pire baisse"), x => pctSigne(h(x).perteMax.valeur, 0))}
       <p class="cmp-groupe">Coûts et structure</p>
-      ${ligneMetrique(terme("frais_courants", "Frais courants"), x => pct(x.A.ter, 2) + (x.A.terSource === "hypothese" ? " *" : ""))}
+      ${ligneMetrique(terme("frais_courants", "Frais courants"), x => pct(x.A.ter, 2) + (x.A.terSource === "hypothese" ? " *" : x.A.terSource === "sec" ? " <small>(prospectus SEC)</small>" : ""))}
       ${ligneMetrique("Diversification", x => { const c = x.A.compo; return c && c.inventaire && c.inventaire.nbLignes ? `${c.inventaire.nbLignes} lignes` : `${x.A.expo.length} grande(s) exposition(s)`; })}
       ${ligneMetrique("Rendement attendu retenu (avant frais)", x => pct(x.A.modele.g * 100, 1))}
       <p class="cmp-groupe">Projection (${dureeTexte(S.calc.T)})</p>
@@ -1283,7 +1368,7 @@ function panneauComparer() {
       ${ligneMetrique("Coût des frais (central)", x => eurosEstimes(x.C.scen.central.coutFrais))}
       ${ligneMetrique("Risque de perte à l'échéance", x => pct(probabiliteDePerte(x.C.res, x.C.T) * 100, 0))}
     </div>
-    ${prets.some(x => x.A.terSource === "hypothese") ? `<p class="aide">* frais non disponibles automatiquement : hypothèse à vérifier dans le DIC.</p>` : ""}
+    ${prets.some(x => x.A.terSource === "hypothese") ? `<p class="aide">* frais non disponibles automatiquement : hypothèse à vérifier dans ${documentDesFrais(prets)}.</p>` : ""}
     <h3>Exposition géographique et par classe d'actifs</h3>
     <div class="deux-colonnes cmp-expositions">${prets.map(x => `<div><h4><span class="pastille-serie serie-${x.couleur}"></span> ${esc(court(x.entree.nom))}</h4>${barres(zones(x))}
       ${(() => { const p = profilDuFonds(x.A); return p.secteurs ? `<p class="aide">Principaux secteurs : ${p.secteurs.slice(0, 3).map(s => `${esc(s.nom)} ${pct(s.poids, 0)}`).join(", ")}</p>` : p.tech >= 5 ? `<p class="aide">Technologie américaine ≈ ${Math.round(p.tech)} %</p>` : ""; })()}</div>`).join("")}</div>
@@ -1441,7 +1526,10 @@ function panneauContexte() {
           return barres(p.lignesDetenues.map((l, i) => ({ nom: l.nom, poids: l.poids, lien: liens[i] })), null, Math.min(100, Math.ceil(Math.max(...p.lignesDetenues.map(l => l.poids)) / 10) * 10)) + aideLiensFonds(liens); })()}</div>` : ""}
     </div>
     <p class="aide">Taille des entreprises : ${/SMALL|MID CAP|PETITES|MOYENNES/i.test(A.entree.nom) ? "petites et moyennes capitalisations (d'après le nom du fonds)" : /S&P|MSCI|STOXX|NASDAQ|CAC|TOPIX|DAX|FTSE/i.test(A.entree.nom) ? "grandes et moyennes capitalisations (indice suivi)" : "non disponible automatiquement"}.</p>
-    <p class="source">${c && c.inventaire && c.inventaire.document ? `Inventaire du ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)} (AMF – GECO) et analyse` : "Analyse"} des rendements (valeurs liquidatives AMF, taux BCE). Calculs : ce site. <a href="decrypte.html#${esc(cleEntree(A.entree, A.isin))}">Voir la fiche complète →</a></p>
+    <p class="source">${c && c.principale === "sec"
+        ? `Inventaire N-PORT du ${dateFr(c.sec.date)} (SEC – EDGAR)${A.sourceHistorique === "sec" ? ", rendements mensuels déclarés à la SEC convertis en euros (taux BCE)" : ""}.`
+        : A.sourceHistorique === "profil" || A.sourceHistorique === "sec" ? `Profil type déduit de la classification ou du nom du fonds (pas d'analyse possible)${A.sourceHistorique === "sec" ? ", rendements mensuels déclarés à la SEC convertis en euros (taux BCE)" : ""}.`
+        : `${c && c.inventaire && c.inventaire.document ? `Inventaire du ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)} (AMF – GECO) et analyse` : "Analyse"} des rendements (valeurs liquidatives AMF, taux BCE).`} Calculs : ce site. <a href="decrypte.html#${esc(cleEntree(A.entree, A.isin))}">Voir la fiche complète →</a></p>
   </section>
 
   ${themes.length ? `<section class="carte">

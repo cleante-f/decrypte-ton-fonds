@@ -113,9 +113,14 @@ test("un seul hébergeur visible en mode gratuit", () => {
   }
 });
 
-test("date de mise à jour : 7 octobre 2026, commune aux deux modes", () => {
-  for (const nom of ["confidentialite", "mentions-legales"])
-    assert.ok(texte(communATous(nom)).includes("Page mise à jour le 7 octobre 2026."), nom);
+test("dates de mise à jour (confidentialité : 11 octobre 2026, mentions légales : 7 octobre 2026), communes aux deux modes", () => {
+  for (const [nom, date] of [["confidentialite", "11 octobre 2026"], ["mentions-legales", "7 octobre 2026"]])
+    assert.ok(texte(communATous(nom)).includes(`Page mise à jour le ${date}.`), nom);
+});
+
+test("confidentialité : les liens vers les sources officielles (SEC, Banque centrale d'Irlande) sont cités avec les autres liens externes", () => {
+  const liens = texte(communATous("confidentialite"));
+  assert.ok(liens.includes("Les liens vers d'autres sites (communiqués, LinkedIn, Euronext, EDGAR de la SEC, registre de la Banque centrale d'Irlande…) ne transmettent rien tant que tu ne cliques pas."));
 });
 
 // ---- Pages de compte (connexion, compte, abonnement, cgv) : elles n'existent qu'en mode comptes ----

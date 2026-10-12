@@ -19,10 +19,19 @@ document.getElementById("exemples").innerHTML =
 
 // ---------- Recherche et navigation ----------
 
-function lancerRecherche(texte) {
-  const reels = rechercherAnnuaire(texte);
+let rechercheEnCours = 0; // évite qu'une ancienne recherche lente écrase une plus récente
+let affichageEnCours = 0; // évite qu'une ancienne réponse lente écrase une fiche plus récente
+
+async function lancerRecherche(texte) {
+  const recherche = ++rechercheEnCours, affichage = affichageEnCours;
+  const avant = [...zoneResultat.childNodes];
+  zoneResultat.innerHTML = `<div class="carte"><p class="chargement">Recherche dans tous les pays…</p></div>`;
+  const reels = await rechercherPartout(texte);
+  if (recherche !== rechercheEnCours || affichage !== affichageEnCours) return; // autre recherche, ou autre fonds ouvert entre-temps
   if (reels.length === 1) {
+    const adresse = location.hash;
     location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (location.hash === adresse) zoneResultat.replaceChildren(...avant); // fonds déjà ouvert : l'adresse ne change pas, on remet sa fiche
   } else {
     zoneResultat.innerHTML = afficherListe(texte, reels);
   }
@@ -33,16 +42,23 @@ document.getElementById("form-recherche").addEventListener("submit", e => {
   lancerRecherche(champ.value);
 });
 
-let affichageEnCours = 0; // évite qu'une ancienne réponse lente écrase une fiche plus récente
-
 async function afficherDepuisAdresse() {
   const cle = decodeURIComponent(location.hash.slice(1));
   const numero = ++affichageEnCours;
   document.title = "Décrypte ton fonds";
   if (!cle) { zoneResultat.innerHTML = ""; return; }
 
-  // Fonds de l'annuaire (fiche générée automatiquement)
-  const entree = annuaireParIsin(cle) || annuaireParCle(cle);
+  // Fonds de l'annuaire (fiche générée automatiquement). Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste.
+  if (zoneDeCle(cle) !== "europe") zoneResultat.innerHTML = `<div class="carte"><p class="chargement">Chargement du fonds…</p></div>`;
+  let entree;
+  try {
+    entree = await entreeParCle(cle);
+  } catch (err) {
+    if (numero !== affichageEnCours) return;
+    zoneResultat.innerHTML = `<div class="carte"><p class="non-dispo">Impossible de charger cette liste de fonds : recharge la page.</p></div>`;
+    return;
+  }
+  if (numero !== affichageEnCours) return; // l'utilisateur a changé de fonds entre-temps
   if (!entree) {
     zoneResultat.innerHTML = afficherListe(cle, []);
     return;
@@ -50,7 +66,9 @@ async function afficherDepuisAdresse() {
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Décrypte ton fonds`;
   const enGeco = entree.source === "G";
-  zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco);
+  const avecSec = entree.source === "S" || (!enGeco && !!serieSecDe(entree, isin));   // fonds américain, ou fonds européen qui est aussi une série américaine
+  const avecRegistre = entree.source === "R";   // fonds irlandais ou luxembourgeois du registre de l'ESMA : ses informations se chargent à l'ouverture
+  zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco || avecSec || avecRegistre);
   zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });
 
   let donnees = { erreurs: [] };
@@ -59,7 +77,11 @@ async function afficherDepuisAdresse() {
     const y = window.scrollY;
     try {
       zoneResultat.innerHTML = afficherFicheAuto(entree, isin, donnees, false);
-      activerGraphiqueVL(zoneResultat, donnees.historique || (donnees.cours && donnees.cours.historique));
+      // Graphiques interactifs : le premier de la page suit la première source qui a un historique (GECO, SEC, cours en bourse) ;
+      // quand un fonds américain coté en Europe a les deux derniers, le second graphique est celui du cours
+      const historiqueSec = donnees.sec && donnees.sec.historique, historiqueCours = donnees.cours && donnees.cours.historique;
+      activerGraphiqueVL(zoneResultat, donnees.historique || historiqueSec || historiqueCours);
+      if (!donnees.historique && historiqueSec && historiqueCours) activerGraphiqueVL(zoneResultat, historiqueCours, 1);
     } catch (err) {
       console.error("Erreur d'affichage de la fiche :", err); // on garde l'affichage précédent
     }
@@ -96,17 +118,66 @@ async function afficherDepuisAdresse() {
     return;
   }
 
-  // Fonds étrangers : cours relevés chaque jour sur Xetra et à Francfort (js/cours.js), chargés en parallèle
-  if (typeof chargerCours === "function") {
+  // Fonds américain (SEC) : tout vient des données déclarées à la SEC (js/etats-unis.js), ni cours en bourse ni fonds français comparable.
+  // La fiche affichée pendant le chargement dit « Chargement des données… » ; on ne la remplace qu'une fois les données là.
+  if (entree.source === "S") {
+    try {
+      donnees.sec = await donneesSec(entree, isin);
+    } catch (err) {
+      donnees.erreurs.push("données de la SEC indisponibles (" + err.message + ")");
+    }
+    if (numero !== affichageEnCours) return;
+    donnees.composition = { fini: true, c: donnees.sec && donnees.sec.compo };
+    rendre();
+    return;
+  }
+
+  // Fonds du registre de l'ESMA (source R) : LEI, pays de commercialisation, politique, taille et parapluie sont dans un fichier chargé
+  // à l'ouverture de la fiche. S'il manque, l'identité reste affichée (société de gestion, type) et l'erreur est signalée en bas de fiche.
+  if (entree.source === "R") {
+    try {
+      const promesse = chargerScript("data/registres-ue-infos.js");
+      await promesse;
+      if (typeof REGISTRES_UE_INFOS === "undefined") {
+        if (_scriptsCharges.get("data/registres-ue-infos.js") === promesse) _scriptsCharges.delete("data/registres-ue-infos.js");   // fichier inattendu : la prochaine fiche le recharge
+        throw new Error("fichier sans les informations attendues");
+      }
+    } catch (err) {
+      donnees.erreurs.push("informations du registre ESMA indisponibles (" + err.message + ")");
+    }
+    if (numero !== affichageEnCours) return;
+  }
+
+  // Fonds étrangers : cours relevés chaque jour sur Xetra et à Francfort (js/cours.js), chargés en parallèle.
+  // Un fonds du registre de l'ESMA n'a pas d'ISIN, donc pas de cours à chercher.
+  if (entree.source !== "R" && typeof chargerCours === "function") {
     chargerCours(isin)
       .then(c => { donnees.cours = c; donnees.coursFini = true; })
       .catch(() => { donnees.coursFini = true; })
       .then(rendre);
   }
 
-  // ETF étrangers et fonds sans données : on passe par un fonds français qui suit le même indice
-  donnees.composition = { fini: false, progression: "Recherche d'un fonds français qui suit le même indice…" };
+  // Fonds européen qui est aussi une série américaine : ses données de la SEC (composition, rendements en euros, frais) se chargent
+  // en même temps que le cours. Si la SEC donne la composition, elle remplace la recherche d'un fonds jumeau.
+  donnees.composition = { fini: false, progression: avecSec ? "Lecture des données de la SEC…" : "Recherche d'un fonds français qui suit le même indice…" };
   rendre();
+  if (avecSec) {
+    try {
+      donnees.sec = await donneesSec(entree, isin);
+    } catch (err) {
+      donnees.erreurs.push("données de la SEC indisponibles (" + err.message + ")");
+    }
+    if (numero !== affichageEnCours) return;
+    if (donnees.sec && donnees.sec.compo) {
+      donnees.composition = { fini: true, c: donnees.sec.compo };
+      rendre();
+      return;
+    }
+    donnees.composition = { fini: false, progression: "Recherche d'un fonds français qui suit le même indice…" };
+    rendre();
+  }
+
+  // ETF étrangers et fonds sans données : on passe par un fonds français qui suit le même indice
   const jumeau = trouverJumeau(entree.nom);
   if (!jumeau) { donnees.composition = { fini: true, c: null }; rendre(); return; }
   donnees.composition.jumeau = jumeau;

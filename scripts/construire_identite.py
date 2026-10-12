@@ -9,8 +9,10 @@ Sources (publiques, gratuites et réutilisables) :
      un compartiment, fonds maître d'un fonds nourricier, date de création de l'entité.
   3. ESMA – registre FITRS des calculs de transparence MiFID (réutilisation autorisée en citant la source) :
      montant moyen échangé chaque jour en bourse dans l'Union européenne et caractère « liquide ».
-  4. ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) :
-     OPCVM actifs notifiés pour la France.
+  4. ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source),
+     lu en entier : OPCVM actifs notifiés pour la France, autorité de contrôle et pays de commercialisation de chaque fonds
+     européen de l'annuaire, et les fonds irlandais et luxembourgeois absents de l'annuaire (data/annuaire-registres-ue.js,
+     data/registres-ue-infos.js ; fonctions pures dans scripts/registres_ue.py). La CSSF n'est pas interrogée.
   5. AMF – liste des sociétés de gestion de portefeuille agréées (data.gouv.fr, Licence Ouverte 2.0) → data/societes.js
 Le lien se fait par le LEI de chaque part, lu dans data/firds.js (scripts/construire_annuaire.py).
 
@@ -38,6 +40,8 @@ from pathlib import Path
 DATA = Path(__file__).resolve().parent.parent / "data"
 SORTIE = DATA / "identite.js"
 SORTIE_SOCIETES = DATA / "societes.js"
+SORTIE_ZONE_UE = DATA / "annuaire-registres-ue.js"
+SORTIE_INFOS_UE = DATA / "registres-ue-infos.js"
 ENTETES = {"User-Agent": "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)"}
 BCE_PAGE = "https://www.ecb.europa.eu/stats/financial_corporations/list_of_financial_institutions/html/index.en.html"
 GLEIF_COPIES = "https://leidata-preview.gleif.org/api/v2/golden-copies/publishes/latest"
@@ -255,6 +259,30 @@ def commercialisation(leis):
     return res
 
 
+# Champs lus dans le registre (vus dans une vraie réponse le 10/10/2026). funds_lei et funds_manager_lei manquent pour beaucoup de fiches
+# (5 112 OPCVM irlandais sans LEI) ; funds_manager_comp_cou_code est le nom de l'autorité de contrôle, funds_ca_cou_code son pays.
+CHAMPS_ESMA = ["id", "funds_lei", "funds_national_name", "funds_legal_framework_name", "funds_manager_lei", "funds_manager_nat_name",
+               "funds_manager_comp_cou_code", "funds_ca_cou_code", "funds_domicile_cou_code", "funds_host_country_codes", "funds_status_code"]
+
+
+def registre_esma(par_page=5000, pages=None):
+    """Toutes les fiches actives du registre de la commercialisation transfrontière (type_s:parent, statut ACTV), par pages
+    de `par_page` fiches triées par numéro (0,5 s entre deux requêtes). `pages` limite le nombre de pages lues (essais)."""
+    docs, debut = [], 0
+    while pages is None or debut // par_page < pages:
+        params = urllib.parse.urlencode({
+            "q": "type_s:parent AND funds_status_code:ACTV", "wt": "json", "rows": par_page, "start": debut, "sort": "id asc",
+            "fl": ",".join(CHAMPS_ESMA)})
+        reponse = json.loads(telecharger(f"{ESMA_CBDIF}?{params}"))["response"]
+        docs += reponse["docs"]
+        debut += par_page
+        print(f"  ESMA : {min(debut, reponse['numFound'])}/{reponse['numFound']} fiches")
+        if not reponse["docs"] or debut >= reponse["numFound"]:
+            break
+        time.sleep(0.5)
+    return docs
+
+
 # ---------- 5. AMF : sociétés de gestion de portefeuille agréées ----------
 def site_propre(texte):
     """Adresse de site internet saisie par l'AMF, ou « » si ce n'en est pas une (« NA », e-mail, « Under%20construction »…).
@@ -340,7 +368,29 @@ def mettre_a_jour_societes(fichier=SORTIE_SOCIETES):
         print(f"::warning::Liste AMF des sociétés de gestion non mise à jour ({message}) : ancien fichier gardé")   # visible dans GitHub Actions
 
 
+def ecrire_registres_ue(lignes, infos, maj, dossier=DATA):
+    """Écrit la zone « registres-ue » (lignes au format de ANNUAIRE) et les informations de ses fiches (numéro de fiche → liste)."""
+    def json_compact(valeur):
+        return json.dumps(valeur, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    dossier = Path(dossier)
+    (dossier / SORTIE_ZONE_UE.name).write_text(
+        "/* Généré par scripts/construire_identite.py — ne pas modifier à la main.\n"
+        " * Source : ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source).\n"
+        " * Fonds actifs irlandais et luxembourgeois absents de l'annuaire, au format de ANNUAIRE. */\n"
+        'ANNUAIRE_ZONES["registres-ue"] = ' + json_compact({"maj": maj, "lignes": lignes}) + ";\n", encoding="utf-8")
+    infos = dict(sorted(infos.items(), key=lambda x: int(x[0])))
+    (dossier / SORTIE_INFOS_UE.name).write_text(
+        "/* Généré par scripts/construire_identite.py — ne pas modifier à la main.\n"
+        " * Source : ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source) ;\n"
+        " * politique d'investissement et tranche d'encours : BCE ; fonds parapluie : GLEIF (licence CC0).\n"
+        " * numéro de fiche ESMA → [LEI, pays de l'autorité, pays de commercialisation séparés par des espaces,\n"
+        " *   politique BCE (codes de identite.js), tranche d'encours BCE (1 à 8, 0 si inconnue), nom du fonds parapluie] */\n"
+        "var REGISTRES_UE_INFOS = " + json_compact(infos) + ";\n", encoding="utf-8")   # var et non const : le fichier peut être chargé deux fois
+
+
 def main():
+    import registres_ue as ru   # ici et non en tête de fichier : registres_ue importe ce module
+
     annuaire = lire_js("annuaire.js", "ANNUAIRE")
     firds = lire_js("firds.js", "FIRDS")
     isins = {i for l in annuaire if l[0] in "ENU" for i in (l[7] or "").split()}
@@ -348,16 +398,29 @@ def main():
     leis = set(lei_de.values())
     print(f"{len(isins)} parts de fonds étrangers, {len(leis)} LEI distincts")
 
-    print("1/5 BCE – liste des fonds d'investissement…")
+    print("1/6 ESMA – registre de la commercialisation transfrontière (lu en entier)…")
+    docs = registre_esma()
+    if len(docs) < 20000:   # 27 775 fiches actives le 10/10/2026 : une lecture bien plus courte est une panne, pas une nouveauté
+        raise RuntimeError(f"registre de l'ESMA incomplet : {len(docs)} fiches actives seulement")
+    zone_ue = [d for d in ru.actives(docs) if d.get("funds_domicile_cou_code") in ru.PAYS_ZONE]
+    leis_ue = {d["funds_lei"] for d in zone_ue if d.get("funds_lei")} - leis   # candidats à la zone : leur fonds parapluie est cherché chez GLEIF
+
+    print("2/6 BCE – liste des fonds d'investissement…")
     bce = liste_bce()
-    print("2/5 GLEIF – fonds parapluies, fonds maîtres, dates de création…")
-    liens, date_gleif, _ = liens_gleif(leis)
-    autres = {x for l in liens.values() for x in l.values()}
+    print("3/6 GLEIF – fonds parapluies, fonds maîtres, dates de création…")
+    liens, date_gleif, _ = liens_gleif(leis | leis_ue)
+    liens_ue = {lei: liens.pop(lei) for lei in leis_ue if lei in liens}
+    autres = {x for l in liens.values() for x in l.values()} | {l["parapluie"] for l in liens_ue.values() if "parapluie" in l}
     fiches = fiches_gleif(leis | autres)
-    print("3/5 ESMA FITRS – montants échangés en bourse…")
+    print("4/6 ESMA FITRS – montants échangés en bourse…")
     liq = liquidite(isins)
-    print("4/5 ESMA – commercialisation transfrontière des fonds…")
-    notif = commercialisation(leis)
+
+    print("5/6 ESMA – rapprochement du registre avec l'annuaire…")
+    notif = notifies_france([d for d in docs if d.get("funds_lei") in leis])
+    noms_lei, fonds_n = ru.depuis_annuaire(annuaire, lei_de, fiches)
+    lies, restes = ru.rapprocher(docs, leis, noms_lei, fonds_n)
+    candidats = [d for d in restes if d.get("funds_domicile_cou_code") in ru.PAYS_ZONE]
+    nouveaux = ru.hors_annuaire(candidats, ru.noms_annuaire(annuaire))   # sans les copies de fonds déjà sur le site (même nom, même pays)
 
     # Table des noms (sociétés de gestion, parapluies, maîtres) pour alléger le fichier
     noms, index_noms = [], {}
@@ -386,24 +449,38 @@ def main():
     annees = [v[2] for v in liq.values()]
     annee_fitrs = max(set(annees), key=annees.count) if annees else 0
     liq = {i: v if v[2] != annee_fitrs else v[:2] for i, v in liq.items()}
+    esma_fonds = {cle: ru.entree_esma(doc, lambda n: nom_id(joli(ru.propre(n)))) for cle, doc in sorted(lies.items())}
     contenu = {"maj": date.today().isoformat(), "bce": dates_bce[-1] if dates_bce else "", "gleif": date_gleif, "fitrs": annee_fitrs,
                "esma": date.today().isoformat(), "noms": noms, "fonds": fonds, "liquidite": {i: v for i, v in sorted(liq.items())},
-               "notifFR": sorted(notif)}
+               "notifFR": sorted(notif), "autorites": ru.autorites(docs), "esmaFonds": esma_fonds}
     SORTIE.write_text(
         "/* Généré par scripts/construire_identite.py — ne pas modifier à la main.\n"
-        " * Sources : BCE (liste des fonds d'investissement), GLEIF (licence CC0), ESMA (registre FITRS).\n"
+        " * Sources : BCE (liste des fonds d'investissement), GLEIF (licence CC0), ESMA (registres FITRS et de la commercialisation\n"
+        " * transfrontière).\n"
         " * fonds : LEI → [société de gestion, fonds parapluie, fonds maître (index dans noms) : voir l'ordre ci-dessous]\n"
         " *   [gestion, parapluie, politique (A actions, O obligations, M mixte, I immobilier, C crédit, H alternatif,\n"
         " *    N infrastructures, P matières premières, X autre), ETF (1/0), UCITS (1/0), tranche d'encours (1 à 8), création, maître]\n"
         " * liquidite : ISIN → [montant moyen échangé par jour en bourse dans l'UE (M€), liquide (1/0), année du calcul si ≠ fitrs]\n"
         " * notifFR : LEI des OPCVM actifs notifiés pour la commercialisation en France (ESMA, registre de la commercialisation\n"
-        " *   transfrontière) ; esma : date du relevé */\n"
+        " *   transfrontière) ; esma : date du relevé\n"
+        " * autorites : pays → nom de l'autorité de contrôle des OPCVM de ce pays (ESMA, la plus fréquente)\n"
+        " * esmaFonds : LEI (ou « N<numéro> » pour un fonds GECO sans ISIN rapproché par son nom et son pays) → [société de gestion\n"
+        " *   (index dans noms), pays de l'autorité de contrôle, cadre (UCITS, AIF, ELTIF, EuVECA, EuSEF), pays de commercialisation\n"
+        " *   séparés par des espaces] */\n"
         "const IDENTITE = " + json.dumps(contenu, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
     print(f"\n✓ {len(fonds)} fonds (BCE : {sum(1 for x in leis if x in bce)}, parapluie GLEIF : "
           f"{sum(1 for x in leis if 'parapluie' in liens.get(x, {}))}, nourriciers : {sum(1 for x in leis if 'maitre' in liens.get(x, {}))}), "
           f"liquidité de {len(liq)} parts, {len(notif)} OPCVM actifs notifiés pour la France (ESMA) → {SORTIE.name} ({SORTIE.stat().st_size / 1e3:.0f} Ko)")
 
-    print("5/5 AMF – sociétés de gestion agréées…")
+    ecrire_registres_ue(ru.lignes_registres(nouveaux, joli), ru.infos_registres(nouveaux, bce, {**liens, **liens_ue}, fiches),
+                        date.today().isoformat())
+    par_geco = sum(1 for k in lies if re.fullmatch(r"N\d+", k))   # clés « N<numéro> » (un LEI peut aussi commencer par N)
+    print(f"✓ registre ESMA : {len(docs)} fiches actives lues, {len(lies)} rapprochées de l'annuaire "
+          f"({par_geco} par le nom d'un fonds GECO), {len(candidats) - len(nouveaux)} écartées "
+          f"(même nom, ou même compartiment, et même pays qu'un fonds de l'annuaire), {len(nouveaux)} nouveaux fonds irlandais et luxembourgeois "
+          f"→ {SORTIE_ZONE_UE.name} ({SORTIE_ZONE_UE.stat().st_size / 1e3:.0f} Ko), {SORTIE_INFOS_UE.name} ({SORTIE_INFOS_UE.stat().st_size / 1e3:.0f} Ko)")
+
+    print("6/6 AMF – sociétés de gestion agréées…")
     mettre_a_jour_societes()
 
 

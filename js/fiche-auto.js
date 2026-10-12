@@ -4,6 +4,11 @@
  * - Fonds français (source "G") : données en direct depuis GECO + lecture du DIC (voir geco.js)
  * - ETF étrangers (source "E")  : identité seulement (Euronext / Xetra) + indices tirés du nom
  * - Fonds étrangers sans ISIN (source "N") : identité seulement (GECO)
+ * - Fonds irlandais et luxembourgeois du registre de l'ESMA (source "R", zone « registres-ue ») : identité seulement, sans ISIN :
+ *   société de gestion, autorité de contrôle, pays de commercialisation, type (OPCVM, FIA…), LEI, politique et taille (BCE)
+ * - Fonds américains (source "S", annuaire des États-Unis) : identité, composition N-PORT, rendements en euros et frais,
+ *   déclarés à la SEC (d.sec, voir etats-unis.js). Un fonds européen qui est aussi une série américaine (E, U, N) reçoit
+ *   les mêmes blocs SEC en plus de son identité européenne.
  *
  * Tout ce qui ne peut pas être obtenu automatiquement est signalé comme « non disponible » : on n'invente rien.
  */
@@ -11,7 +16,9 @@
 const LIENS = {
   geco: e => `https://geco.amf-france.org/produit-d-epargne/c${e.cmpId}`,
   document: d => `${GECO_API}/document/download/${d.idInterne}`,
-  justetf: isin => `https://www.justetf.com/fr/etf-profile.html?isin=${isin}`
+  justetf: isin => `https://www.justetf.com/fr/etf-profile.html?isin=${isin}`,
+  edgar: serie => `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${serie}&type=485&count=10`,
+  banqueCentraleIrlande: "https://registers.centralbank.ie/"   // lien seulement : aucune donnée de ce registre n'est reprise
 };
 
 // Ce que chaque classification AMF implique (définitions réglementaires simplifiées)
@@ -212,15 +219,122 @@ function notifieFrance(e) {
   return e.isins.some(i => { const f = FIRDS.fonds[i]; return !!(f && f[0] && _notifFR.has(f[0])); });
 }
 
-// Fonds étrangers seulement : les fonds français ont déjà la fiche complète de l'AMF
+// ---------- Registre de la commercialisation transfrontière de l'ESMA : autorité, pays, type ----------
+
+const CITATION_ESMA = "ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source)";
+// Cadres juridiques du registre → libellés du site (data/annuaire-registres-ue.js écrit déjà ces libellés dans la ligne d'un fonds R)
+const CADRES = { UCITS: "OPCVM (UCITS)", AIF: "FIA", ELTIF: "ELTIF", EuVECA: "EuVECA", EuSEF: "EuSEF" };
+const CADRE_DE_LIBELLE = Object.fromEntries(Object.entries(CADRES).map(([cadre, libelle]) => [libelle, cadre]));   // « FIA » → AIF
+
+const possedeCle = (objet, cle) => !!objet && Object.prototype.hasOwnProperty.call(objet, cle);
+
+// Pays d'une liste « FR IT NL » du registre : sans doublon (le registre en répète parfois), la France en tête
+function listePays(texte) {
+  const pays = [...new Set(String(texte || "").split(" ").filter(Boolean))];
+  return pays.includes("FR") ? ["FR", ...pays.filter(p => p !== "FR")] : pays;
+}
+
+// Ce que le registre de l'ESMA dit d'un fonds : { gestion, autorite (code du pays de l'autorité), cadre (UCITS, AIF, ELTIF, EuVECA,
+// EuSEF), pays (codes des pays de commercialisation, France en tête ; null si on ne les connaît pas), lei, politique, tranche,
+// parapluie }, ou null quand le registre ne dit rien.
+//  - fonds R (zone registres-ue) : REGISTRES_UE_INFOS (fichier chargé à l'ouverture de la fiche) et sa ligne de l'annuaire. Sans
+//    le fichier, on ne connaît que la société de gestion et le cadre : ni autorité ni pays (pays null), et surtout pas « aucun pays ».
+//  - fonds européens (E, U, N) : IDENTITE.esmaFonds, par le LEI de FIRDS d'abord (un LEI peut commencer par N, comme la clé d'un
+//    fonds GECO sans ISIN : on ne distingue jamais les deux par leur première lettre), puis par « N<numéro> » pour un fonds N.
+//  - fonds français (G) et américains (S) : null.
+function esmaDe(e, isin) {
+  if (e.source === "G" || e.source === "S") return null;
+  if (e.source === "R") {
+    const base = { gestion: e.gestionnaire || "", cadre: possedeCle(CADRE_DE_LIBELLE, e.nature) ? CADRE_DE_LIBELLE[e.nature] : "" };
+    const x = typeof REGISTRES_UE_INFOS !== "undefined" && possedeCle(REGISTRES_UE_INFOS, e.cmpId) ? REGISTRES_UE_INFOS[e.cmpId] : null;
+    if (!x) return { ...base, autorite: "", pays: null, lei: "", politique: "", tranche: 0, parapluie: "" };
+    const [lei, autorite, pays, politique, tranche, parapluie] = x;
+    return { ...base, autorite: autorite || "", pays: listePays(pays), lei: lei || "", politique: politique || "", tranche: tranche || 0, parapluie: parapluie || "" };
+  }
+  if (typeof IDENTITE === "undefined" || !IDENTITE.esmaFonds) return null;
+  const parLei = typeof FIRDS !== "undefined" && FIRDS ? FIRDS.fonds : null;
+  let lei = "", x = null;
+  for (const i of [isin, ...e.isins]) {
+    const l = parLei && typeof i === "string" && possedeCle(parLei, i) ? parLei[i][0] : "";
+    if (l && possedeCle(IDENTITE.esmaFonds, l)) { lei = l; x = IDENTITE.esmaFonds[l]; break; }
+  }
+  if (!x && e.source === "N" && possedeCle(IDENTITE.esmaFonds, e.source + e.cmpId)) x = IDENTITE.esmaFonds[e.source + e.cmpId];
+  if (!x) return null;
+  const [gestion, autorite, cadre, pays] = x;
+  const nomGestion = gestion >= 0 ? (IDENTITE.noms || [])[gestion] : "";
+  return { gestion: nomGestion || "", autorite: autorite || "", cadre: cadre || "", pays: listePays(pays), lei, politique: "", tranche: 0, parapluie: "" };
+}
+
+const nomPays = code => PAYS[code] || code;
+
+// « Central Bank of Ireland (CBI), Irlande » ; le pays seul quand le registre ne donne pas le nom de l'autorité (Italie, Danemark…)
+function libelleAutorite(code) {
+  const nom = typeof IDENTITE !== "undefined" && IDENTITE && possedeCle(IDENTITE.autorites, code) ? IDENTITE.autorites[code] : "";
+  return nom ? `${nom}, ${nomPays(code)}` : nomPays(code);
+}
+
+// Lignes d'identité venues du registre. `gestionDeja` : la société de gestion est déjà affichée (liste de la BCE).
+// Pour un fonds R, le registre donne aussi le LEI, et la BCE et le GLEIF la politique, la taille et le fonds parapluie.
+function lignesEsma(e, esma, gestionDeja) {
+  const lignes = [];
+  if (esma.gestion && !e.gestionnaire && !gestionDeja) lignes.push([terme("societe_gestion", "Société de gestion"), esc(esma.gestion)]);
+  if (esma.autorite) lignes.push([terme("autorite_controle", "Autorité de contrôle"), esc(libelleAutorite(esma.autorite))]);
+  if (esma.pays && esma.pays.length) lignes.push([terme("commercialisation", "Commercialisé dans"), esc(`${esma.pays.map(nomPays).join(", ")} (${esma.pays.length} pays)`)]);
+  if (esma.cadre) lignes.push([terme("fia", "Type (registre européen)"), esc(CADRES[esma.cadre] || esma.cadre)]);
+  if (e.source === "R") {
+    const bce = typeof IDENTITE !== "undefined" && IDENTITE ? IDENTITE.bce : "";
+    if (esma.lei) lignes.push([terme("lei", "Identifiant LEI"), esc(esma.lei)]);
+    if (esma.politique) lignes.push(["Politique d'investissement", `principalement en ${esc(POLITIQUES_BCE[esma.politique] || "autres actifs")}`]);
+    if (esma.tranche && TRANCHES_ENCOURS[esma.tranche - 1]) lignes.push([terme("encours", "Encours"),
+      `${TRANCHES_ENCOURS[esma.tranche - 1]} <small>(tranche publiée par la BCE${bce ? ` au ${dateFr(bce)}` : ""}, toutes parts confondues)</small>`]);
+    if (esma.parapluie) lignes.push([terme("compartiment", "Compartiment de"), esc(esma.parapluie)]);
+  }
+  return lignes;
+}
+
+// Citation de la BCE et du GLEIF pour les informations d'un fonds R qui en viennent (le reste vient de l'ESMA, cité avec l'annuaire)
+function sourceBceGleifRegistre(esma) {
+  if (typeof IDENTITE === "undefined" || !IDENTITE) return "";
+  const srcs = [(esma.politique || esma.tranche) && "BCE – liste des fonds d'investissement de la zone euro", esma.parapluie && "GLEIF – registre des LEI (licence CC0)"].filter(Boolean);
+  return srcs.length ? source({ document: srcs.join(", ") + " (réutilisation autorisée en citant la source)", date: IDENTITE.maj }) : "";
+}
+
+// Alertes tirées du registre pour un fonds de la zone registres-ue (même forme que celles de detecterPiegesAuto) :
+// le cadre juridique (FIA, ELTIF, EuVECA, EuSEF) puis la commercialisation en France. Sans les pays (informations pas chargées),
+// pas d'alerte de commercialisation : on ne sait pas.
+function alertesRegistre(e, esma) {
+  if (!esma) return [];
+  const a = [];
+  if (esma.cadre === "AIF") a.push({ niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs professionnels",
+    texte: "D'après le registre européen de l'ESMA, ce fonds est un FIA : sa commercialisation dans d'autres pays de l'Union vise les investisseurs professionnels. Un particulier ne peut en général pas y souscrire." });
+  else if (esma.cadre === "ELTIF") a.push({ niveau: "attention", terme: "fia", titre: "ELTIF : argent bloqué longtemps",
+    texte: "Fonds européen d'investissement à long terme (entreprises non cotées, infrastructures) : l'argent est en général bloqué plusieurs années." });
+  else if (esma.cadre === "EuVECA" || esma.cadre === "EuSEF") a.push({ niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs avertis",
+    texte: "Fonds européen de capital-risque ou d'entrepreneuriat social : réservé aux investisseurs professionnels ou qui investissent au moins 100 000 €." });
+  if (Array.isArray(esma.pays)) {
+    if (!esma.pays.includes("FR")) a.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds non notifié pour la France",
+      texte: "D'après le registre européen de l'ESMA, ce fonds n'est pas déclaré pour être proposé en France : ton intermédiaire ne peut en général pas te le vendre." });
+    else a.push({ niveau: "info", terme: "commercialisation", titre: "Notifié pour la commercialisation en France (registre européen)",
+      texte: esma.cadre && esma.cadre !== "UCITS"
+        // FIA, ELTIF, EuVECA, EuSEF : l'alerte du cadre dit déjà « réservé aux professionnels », l'information ne dit pas le contraire
+        ? "D'après le registre européen de l'ESMA, ce fonds est déclaré pour être commercialisé en France, en principe auprès d'investisseurs professionnels."
+        : "Le fonds est déclaré pour être proposé en France, mais aucune part cotée en bourse n'est connue : demande à ton intermédiaire s'il le propose et où trouver son DIC en français." });
+  }
+  return a;
+}
+
+// Fonds étrangers seulement : les fonds français ont déjà la fiche complète de l'AMF, et les fonds américains (S) ne sont pas dans
+// les registres européens (leur identité vient de la SEC). Un fonds R n'a pas d'ISIN : son identité vient du seul registre de l'ESMA.
 function identiteEsma(e, isin) {
-  if (typeof FIRDS === "undefined" || e.source === "G") return { lignes: [], devise: "", source: "" };
-  const f = isin && FIRDS.fonds[isin];
-  const parNom = e.source === "N" && FIRDS.parNom.includes(e.source + e.cmpId);
+  if (e.source === "G" || e.source === "S") return { lignes: [], devise: "", source: "" };
+  const firds = typeof FIRDS !== "undefined" ? FIRDS : null;
+  if (!firds && e.source !== "R") return { lignes: [], devise: "", source: "" };
+  const f = firds && isin && firds.fonds[isin];
+  const parNom = !!firds && e.source === "N" && firds.parNom.includes(e.source + e.cmpId);
   const lignes = [];
   if (f && f[0]) lignes.push([terme("lei", "Identifiant LEI"), esc(f[0])]);
   if (f && f[2].length) {
-    const places = f[2].map(m => ({ mic: m, p: FIRDS.places[m] })).filter(x => x.p);
+    const places = f[2].map(m => ({ mic: m, p: firds.places[m] })).filter(x => x.p);
     const reglementes = places.filter(x => x.p[2]), autres = places.filter(x => !x.p[2]);
     const cites = [...reglementes, ...autres].slice(0, 4);
     const total = f[3] || places.length;   // firds.js ne garde que les 6 principales places
@@ -239,9 +353,13 @@ function identiteEsma(e, isin) {
   if (notifie) lignes.push([terme("commercialisation", "Commercialisation en France"),
     "fonds notifié (registre européen de l'ESMA)<br><small>La notification vise le fonds dans son ensemble : vérifie que cette part (devise, couverture) est proposée par ton intermédiaire.</small>", true]);
   const reg = identiteRegistres(e, f && f[0], isin);
-  return { lignes: [...reg.lignes, ...lignes], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
-    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: FIRDS.maj }) : "") + reg.source
-      + (notifie ? source({ document: "ESMA – registre de la commercialisation transfrontière des OPCVM et FIA (réutilisation autorisée en citant la source)", date: IDENTITE.esma }) : "") };
+  const registre = esmaDe(e, isin);
+  const lignesRegistre = registre ? lignesEsma(e, registre, !!reg.gestion) : [];
+  // Un fonds R cite le registre avec son annuaire (afficherFicheAuto) ; il ne reste ici que la BCE et le GLEIF
+  const sourceRegistre = e.source === "R" ? (registre ? sourceBceGleifRegistre(registre) : "") : (notifie || registre ? source({ document: CITATION_ESMA, date: IDENTITE.esma }) : "");
+  return { lignes: [...reg.lignes, ...lignes, ...lignesRegistre], parNom, devise: f ? f[1] : "", maitre: reg.maitre, liquidite: reg.liquidite, politique: reg.politique,
+    source: (f || parNom ? source({ document: "ESMA – registre FIRDS des instruments cotés (réutilisation autorisée en citant la source) et liste ISO 10383 des places de marché", date: firds.maj }) : "") + reg.source
+      + sourceRegistre };
 }
 
 // ---------- Agrément de la société de gestion (data/societes.js, liste AMF) ----------
@@ -268,7 +386,7 @@ const TRANCHES_ENCOURS = ["moins de 1 million d'euros", "1 à 5 millions d'euros
   "100 à 500 millions d'euros", "500 millions à 1 milliard d'euros", "1 à 5 milliards d'euros", "plus de 5 milliards d'euros"];
 
 function identiteRegistres(e, lei, isin) {
-  const vide = { lignes: [], source: "", maitre: "", liquidite: null, politique: "" };
+  const vide = { lignes: [], source: "", maitre: "", liquidite: null, politique: "", gestion: "" };
   if (typeof IDENTITE === "undefined") return vide;
   const x = lei && IDENTITE.fonds[lei];
   const nom = k => (x && x[k] >= 0 ? IDENTITE.noms[x[k]] : "");
@@ -287,7 +405,7 @@ function identiteRegistres(e, lei, isin) {
   const srcs = [x && "BCE – liste des fonds d'investissement de la zone euro", x && "GLEIF – registre des LEI (licence CC0)",
     liq && "ESMA – registre FITRS"].filter(Boolean);
   return {
-    lignes, maitre: nom(7), politique: x ? x[2] : "",
+    lignes, maitre: nom(7), gestion: nom(0), politique: x ? x[2] : "",
     liquidite: liq ? { montant: liq[0], liquide: liq[1] === 1, annee: liq[2] || IDENTITE.fitrs } : null,
     source: source({ document: srcs.join(", ") + " (réutilisation autorisée en citant la source)", date: IDENTITE.maj })
   };
@@ -323,6 +441,115 @@ function ligneLiquiditeEtranger(liq, e) {
     : { niveau: e.etf ? "moyen" : "faible", texte: `Seulement ${montant} échangés par jour en bourse en moyenne en ${liq.annee} (part jugée peu liquide par l'ESMA).${e.etf ? " L'écart entre prix d'achat et de vente peut être plus large : préfère les ordres à cours limité." : ""}` };
 }
 
+// ---------- Fonds américains (SEC) : données déclarées dans d.sec (voir etats-unis.js) ----------
+
+// « Non précisé » (pays) et « Non précisée » (devise) : la SEC n'a pas donné l'information. Ce n'est ni un pays dominant,
+// ni une devise étrangère : ces parts restent dans les graphiques, mais ne comptent dans aucune alerte.
+const estNonPrecis = x => /^non precis/.test(normaliser(x && x.nom));
+
+// Part de la composition en devises autres que l'euro (en %), ou null si aucune devise n'est connue
+function partHorsEuro(devises) {
+  const connues = (devises || []).filter(x => !estNonPrecis(x));
+  if (!connues.some(x => x.poids > 0)) return null;
+  return connues.filter(x => x.nom !== "EUR").reduce((t, x) => t + x.poids, 0);
+}
+
+// Ligne « Risque de change » d'un fonds dont la composition vient de la SEC (null sans devise connue)
+function risqueChangeSec(c) {
+  const horsEuro = c && c.principale === "sec" ? partHorsEuro(c.devises) : null;
+  if (horsEuro === null) return null;
+  return { niveau: horsEuro < 10 ? "faible" : horsEuro < 50 ? "moyen" : "élevé",
+    texte: `${pct(horsEuro, 0)} des actifs en devises hors euro, d'après la composition déclarée à la SEC.` };
+}
+
+// Source avec une date, ou sans date quand la SEC n'en donne pas
+function sourceSec(document, date) {
+  return date ? source({ document, date }) : `<p class="source">Source : ${esc(document)}</p>`;
+}
+
+// Alertes sur les frais d'un fonds américain (résultat de fraisSec, etats-unis.js). Les frais annuels jugés sont les frais
+// retenus (nets sauf s'ils dépassent les bruts) ; les droits d'entrée et les frais de sortie comptent chacun pour eux-mêmes.
+// Un champ absent (null) ne donne rien : jamais d'exception sur un fonds sans frais lisibles.
+function alertesFraisSec(frais) {
+  const alertes = [];
+  if (!frais) return alertes;
+  const annuel = frais.retenu !== undefined ? frais.retenu : frais.net ?? frais.brut ?? null;
+  if (typeof annuel === "number") {
+    const cout = euros(valeurFinale(10000, 5, 10) - valeurFinale(10000, 5 - annuel, 10));
+    if (annuel >= SEUILS_FRAIS.rouge) alertes.push({ niveau: "alerte", terme: "frais_courants", titre: `Frais annuels élevés : ${pct(annuel, 2)}`,
+      texte: `Sur 10 000 € placés 10 ans à 5 % brut par an, ces frais coûteraient environ ${cout}. Un ETF comparable coûte souvent moins de 0,3 % par an.` });
+    else if (annuel >= SEUILS_FRAIS.orange) alertes.push({ niveau: "attention", terme: "frais_courants", titre: `Frais annuels assez élevés : ${pct(annuel, 2)}`,
+      texte: `Sur 10 000 € placés 10 ans à 5 % brut par an, ces frais coûteraient environ ${cout}.` });
+  }
+  if (frais.entree > 0) alertes.push({ niveau: "attention", terme: "frais_entree", titre: `Droits d'entrée jusqu'à ${pct(frais.entree, 2)}`,
+    texte: `Sur 10 000 € investis, jusqu'à ${euros(100 * frais.entree)} peuvent être prélevés dès le départ. Vérifie dans le prospectus s'ils s'appliquent à la façon dont tu achètes.` });
+  if (frais.sortie > 0) alertes.push({ niveau: "attention", terme: "frais_sortie", titre: `Frais de sortie jusqu'à ${pct(frais.sortie, 2)}`,
+    texte: `Revendre tes parts peut te coûter jusqu'à ${pct(frais.sortie, 2)} du montant retiré, souvent seulement pendant les premières années (frais « différés »).` });
+  return alertes;
+}
+
+// Bloc « Frais (prospectus déposé à la SEC) » : ce qui existe, « non publié » sinon
+function blocFraisSec(frais) {
+  const annuel = x => (x === null || x === undefined ? "non publié" : pct(x, 2) + " / an");
+  const unique = x => (x === null || x === undefined ? "non publié" : x === 0 ? "aucun" : "jusqu'à " + pct(x, 2));
+  return listeInfos([
+    [terme("frais_courants", "Frais annuels bruts"), annuel(frais.brut)],
+    [terme("frais_nets", "Frais annuels nets"), annuel(frais.net)],
+    [terme("frais_courants", "Frais de gestion"), annuel(frais.gestion)],
+    [terme("frais_entree", "Droits d'entrée maximum"), unique(frais.entree)],
+    [terme("frais_sortie", "Frais de sortie différés"), unique(frais.sortie)]
+  ]);
+}
+
+const aDesFraisSec = f => !!f && [f.brut, f.net, f.gestion, f.entree, f.sortie].some(x => typeof x === "number");
+
+// Bloc « Performances et risque » d'après les rendements mensuels de la part, convertis en euros. Les points mensuels sont le
+// rythme de déclaration à la SEC, pas la fréquence de valorisation du fonds (les fonds américains sont valorisés chaque jour) :
+// aucune note sur une « valeur calculée de façon mensuelle ». Sans fonds américain (d.sec absent), rien, sauf pour une série SEC.
+function blocPerformancesSec(sec, e) {
+  if (!sec) return e.source === "S" ? nonDispo("Performances non disponibles : nous n'avons pas de données de la SEC sur ce fonds.") : "";
+  const p = sec.part, h = sec.historique, s = sec.stats;
+  if (!h) return nonDispo(`${p ? "Cette part n'a" : "Ce fonds n'a"} pas d'historique de rendements déclaré à la SEC.`);
+  const stats = s ? listeInfos([
+    [terme("performance_annualisee", "Performance annualisée") + " 1 an", pct(s.perf.a1)],
+    [terme("performance_annualisee", "Performance annualisée") + " 3 ans", pct(s.perf.a3)],
+    [terme("performance_annualisee", "Performance annualisée") + " 5 ans", pct(s.perf.a5)],
+    [terme("volatilite", "Volatilité") + " 1 an", pct(s.volatilite.a1)],
+    [terme("volatilite", "Volatilité") + " 3 ans", pct(s.volatilite.a3)],
+    [terme("volatilite", "Volatilité") + " 5 ans", pct(s.volatilite.a5)],
+    [terme("max_drawdown", "Perte maximale"), `${pct(s.maxDrawdown.valeur)} <small>(${esc(s.maxDrawdown.periode)})</small>`]
+  ]) : nonDispo("Historique de moins d'un an : la performance annualisée et la volatilité ne sont pas calculées.");
+  return `<h3>Performances et risque${p ? ` <small>(part « ${esc(p.nom)} »)</small>` : ""}</h3>
+    ${stats}
+    ${h.ignores ? `<p class="note">Un ou plusieurs rendements mensuels aberrants déclarés à la SEC ont été écartés.</p>` : ""}
+    ${graphiqueVL(h, "Valeur d'une part en euros (base 100)")}
+    <p class="note">Rendements mensuels déclarés à la SEC (${terme("n_port", "formulaire N-PORT")}), frais déduits, convertis en euros (taux BCE de fin de mois).
+      Les performances passées ne préjugent pas des performances futures.</p>
+    ${sourceSec("SEC – EDGAR (formulaires N-PORT), converti en euros (taux BCE)", sec.detail && sec.detail.date)}`;
+}
+
+// Frais d'une part pour la liste de la section 6
+function libelleFraisPart(part) {
+  const f = fraisSec(part);
+  if (!f || f.retenu === null) return "frais non publiés";
+  return `frais ${f.retenu === f.net ? "nets" : "bruts"} ${pct(f.retenu, 2)} par an`;
+}
+
+// Section 6 d'un fonds américain : les parts du fonds (même portefeuille, frais et tickers différents)
+function comparaisonSec(sec) {
+  const parts = ((sec.detail && sec.detail.parts) || []).map(lirePartSec);
+  if (!parts.length) return `<p>Aucune part n'est déclarée pour ce fonds dans les données de la SEC.</p>`;
+  const affichee = sec.part ? sec.part.classe : null;
+  const intro = parts.length > 1
+    ? `Ce fonds existe en <strong>${parts.length} parts</strong>. Elles ont le même portefeuille, mais des frais et des tickers différents. Une autre part est parfois moins chère.`
+    : "Ce fonds n'a qu'une seule part.";
+  return `<p>${intro}</p>
+    <ul class="similaires">${parts.map(pa => {
+      const nom = `${esc(pa.nom)}${pa.ticker ? ` — ${esc(pa.ticker)}` : ""}`;
+      return `<li>${pa.classe === affichee ? `<strong>${nom} (cette part)</strong>` : nom} <small>${esc(libelleFraisPart(pa))}</small></li>`;
+    }).join("")}</ul>`;
+}
+
 // ---------- Détection des pièges (fonds automatiques) ----------
 
 // Fonds réservés aux investisseurs avertis, reconnaissables à leur nom (même règle dans scripts/construire_annuaire.py)
@@ -334,6 +561,9 @@ function detecterPiegesAuto(e, d) {
   const dic = d && d.dic;
   const k = e.classification;
 
+  // Fonds du registre de l'ESMA (zone registres-ue) : cadre juridique (FIA, ELTIF…) et commercialisation en France d'après le registre
+  const registre = e.source === "R" ? alertesRegistre(e, esmaDe(e)) : [];
+
   // Où le fonds peut être vendu
   if (horsEee(e)) p.push({ niveau: "alerte", terme: "dic", titre: `Fonds de droit non européen (${PAYS[e.pays] || e.pays})`,
     texte: "Ce fonds n'a pas de DIC européen : les banques et courtiers ne peuvent en général pas le proposer aux particuliers en France, et il n'offre pas les protections des fonds européens (règles UCITS). Cherche plutôt un ETF ou un fonds européen qui suit le même indice." });
@@ -342,11 +572,14 @@ function detecterPiegesAuto(e, d) {
   else if (e.source === "U") p.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds absent de la liste des fonds vendus en France",
     texte: "Ce fonds est coté sur une bourse européenne, mais nous ne l'avons pas trouvé parmi les fonds étrangers déclarés à l'AMF (base GECO) : il n'est peut-être pas proposé en France. Ton intermédiaire peut refuser l'ordre, et ses documents sont souvent en anglais ou en allemand seulement." });
 
-  const agrement = societeAmf(e.gestionnaire);
+  p.push(...registre);
+
+  const agrement = e.source === "S" ? null : societeAmf(e.gestionnaire);   // la structure déposante d'un fonds américain n'est pas dans la liste de l'AMF
   if (agrement && agrement[3] !== "Vivant") p.push({ niveau: "attention", terme: "societe_gestion", titre: `Agrément de la société de gestion : ${agrement[3]}`,
     texte: "La liste des sociétés de gestion agréées publiée par l'AMF indique ce statut pour la société qui gère ce fonds. Renseigne-toi auprès de ton intermédiaire avant d'investir." });
 
-  if (e.source !== "G" && RESERVE_AVERTIS.test(e.nom)) p.push({ niveau: "attention", terme: "opcvm", titre: "Fonds réservé aux investisseurs avertis",
+  // (un fonds du registre dit déjà « Réservé aux investisseurs… » d'après son cadre : pas de deuxième alerte du même genre)
+  if (e.source !== "G" && RESERVE_AVERTIS.test(e.nom) && !registre.some(a => a.titre.startsWith("Réservé aux investisseurs"))) p.push({ niveau: "attention", terme: "opcvm", titre: "Fonds réservé aux investisseurs avertis",
     texte: "D'après son nom, c'est un fonds spécialisé (SIF ou RAIF luxembourgeois, ou fonds « spécial » allemand) : il est réservé aux investisseurs professionnels ou avertis, avec en général un montant minimum élevé (au moins 125 000 € pour un SIF luxembourgeois)." });
 
   // Structure du fonds
@@ -364,7 +597,7 @@ function detecterPiegesAuto(e, d) {
     texte: "Les sommes sont en général bloquées 5 ans (PEE) ou jusqu'à la retraite (PERCO/PERECO), sauf cas de déblocage anticipé prévus par la loi." });
   if (/titres de l.entreprise/i.test(k)) p.push({ niveau: "alerte", terme: "top10", titre: "Investi dans une seule entreprise : la vôtre",
     texte: "Si l'entreprise traverse des difficultés, vous risquez de perdre à la fois une partie de votre épargne et votre emploi. C'est une concentration extrême." });
-  if (!e.public) p.push({ niveau: "info", terme: "opcvm", titre: "Fonds réservé",
+  if (!e.public && e.source !== "R") p.push({ niveau: "info", terme: "opcvm", titre: "Fonds réservé",
     texte: "Ce fonds est réservé à une catégorie d'investisseurs (institutionnels, salariés d'une entreprise, 20 porteurs au plus…)." });
 
   // Informations lues dans le DIC
@@ -390,6 +623,9 @@ function detecterPiegesAuto(e, d) {
     if (dic.levier) p.push({ niveau: "attention", terme: "levier", titre: "Effet de levier possible",
       texte: "Le DIC mentionne un effet de levier : les gains comme les pertes peuvent être amplifiés." });
   }
+
+  // Frais déclarés dans le prospectus déposé à la SEC (fonds américain, ou fonds européen qui est aussi une série américaine)
+  if (d && d.sec) p.push(...alertesFraisSec(d.sec.frais));
 
   // Révélé par l'inventaire (moteur 1)
   const compo = e.source === "G" && d && d.composition && d.composition.c;
@@ -474,8 +710,9 @@ function graphiqueVL(h, legende = "Valeur liquidative de la part") {
   </figure>`;
 }
 
-function activerGraphiqueVL(racine, h) {
-  const fig = racine.querySelector(".graphique-vl");
+// `rang` : numéro du graphique dans la page (0 = le premier), quand une fiche en a plusieurs
+function activerGraphiqueVL(racine, h, rang = 0) {
+  const fig = racine.querySelectorAll(".graphique-vl")[rang];
   if (!fig || !h) return;
   const zone = fig.querySelector(".graphique-zone"), curseur = fig.querySelector(".curseur-vl"), bulle = fig.querySelector(".bulle-vl");
   const n = h.valeurs.length;
@@ -530,7 +767,8 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
     const methodes = {
       inventaire: () => `calculée par nos soins à partir des <strong>${c.inventaire.nbLignes} lignes</strong> de l'${terme("inventaire", "inventaire")} publié dans le ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)}`,
       tableaux: () => `lue dans les tableaux de répartition du ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)}`,
-      style: () => `estimée par l'${terme("analyse_style", "analyse des rendements")} (fiabilité : ${esc(c.qualite ? c.qualite.texte : "n.d.")})`
+      style: () => `estimée par l'${terme("analyse_style", "analyse des rendements")} (fiabilité : ${esc(c.qualite ? c.qualite.texte : "n.d.")})`,
+      sec: () => `déclarée par le fonds à la SEC (${terme("n_port", "formulaire N-PORT")}${c.sec.lignes ? `, ${c.sec.lignes.toLocaleString("fr-FR")} lignes` : ""}) au ${dateFr(c.sec.date)}`
     };
     const methode = methodes[c.principale]();
     const top = (c.top10 || []).slice(0, 10);
@@ -551,19 +789,21 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
           return barres(top.map((l, i) => ({ nom: l.nom, poids: l.poids, lien: liens[i] })), null, Math.min(100, Math.ceil(Math.max(...top.map(l => l.poids), 1) / 10) * 10)) + aideLiensFonds(liens); })()}` : ""}
       ${top.length && !synth && !c.lignesSontDesFonds && typeof blocActusEntreprises === "function" ? blocActusEntreprises(top) : ""}
       ${c.principale !== "style" && c.style ? blocStyle(c.style, c.qualite) : c.principale === "style" ? blocStyle(c.style, c.qualite) : ""}`;
-  } else if (!chargement && compo && compo.fini) {
+  } else if (!chargement && (compo ? compo.fini : e.source === "S")) {
     corps += nonDispo(e.source === "G"
       ? "Composition non calculable : aucun rapport annuel lisible dans GECO et historique de valeurs liquidatives insuffisant."
+      : e.source === "S" ? "Composition non disponible : ce fonds n'a pas déposé d'inventaire N-PORT récent à la SEC."
       : "Composition non calculable : aucune donnée publique gratuite pour ce fonds et aucun fonds français ne suit un indice reconnu dans son nom.");
   }
   if (!chargement && compo && !compo.fini) {
     corps += `<p class="chargement" id="progression-compo">${esc(compo.progression || "Analyse de la composition en cours…")}</p>`;
   }
-  if (!chargement && !compo && e.source !== "G") corps += `<p class="chargement">Recherche d'un fonds français comparable…</p>`;
+  if (!chargement && !compo && e.source !== "G" && e.source !== "S") corps += `<p class="chargement">Recherche d'un fonds français comparable…</p>`;
 
   const sources = [];
   if (c && c.inventaire && c.inventaire.document) sources.push(`<a href="${GECO_API}/document/download/${c.inventaire.document.idInterne}" target="_blank" rel="noopener">${esc(c.inventaire.document.docTypeLib)} du ${dateFr(c.inventaire.document.dateEffet)}</a> (AMF – GECO)`);
   if (c && c.style) sources.push("valeurs liquidatives (AMF – GECO) et taux de la Banque centrale européenne");
+  if (c && c.sec) sources.push("formulaire N-PORT (SEC – EDGAR)");
   return `<section class="carte"><h2><span class="num-section">2.</span> Où est investi l'argent ?</h2>
     ${objectif}${corps}
     ${sources.length ? `<p class="source">Données brutes : ${sources.join(" ; ")}. Calculs : ce site.</p>` : ""}
@@ -577,8 +817,13 @@ function sectionConcentrationAuto(e, d, chargement) {
   const alertes = [];
   if (c && c.principale) {
     const seuils = chargerSeuils();
-    const brutes = alertesConcentration(pseudoFonds(c), seuils);
+    // Une part « Non précisé(e) » (pays ou devise inconnus de la SEC) reste dans les graphiques mais ne compte dans aucune alerte
+    const pf = pseudoFonds(c);
+    pf.repartition.pays = pf.repartition.pays.filter(x => !estNonPrecis(x));
+    pf.repartition.devises = pf.repartition.devises.filter(x => !estNonPrecis(x));
+    const brutes = alertesConcentration(pf, seuils);
     for (const a of brutes) {
+      if (a.cle === "devise" && c.principale === "sec" && !pf.repartition.devises.length) continue;   // aucune devise connue : ni alerte ni « peu d'exposition »
       // Avec l'analyse des rendements, seuls les États-Unis et le Japon sont identifiables comme pays
       if (a.cle === "pays" && c.principale === "style" && a.niveau === "vert") {
         // on juge la concentration géographique sur la seule partie actions
@@ -617,7 +862,9 @@ function sectionConcentrationAuto(e, d, chargement) {
     <h2><span class="num-section">3.</span> Surexposition et concentration</h2>
     ${c && c.principale ? `<p class="aide">Alertes calculées sur la composition ci-dessus. Seuils modifiables dans « Réglages des alertes ».</p>` : ""}
     ${alertes.length ? `<ul class="liste-alertes">${alertes.map(a => `<li class="alerte alerte-${a.niveau}">${pastille(a.niveau)}<div><strong>${esc(a.titre)}</strong><p>${esc(a.explication)}</p></div></li>`).join("")}</ul>` : ""}
-    ${chargement || enCours ? `<p class="chargement">Calcul en attente de la composition…</p>` : !(c && c.principale) ? nonDispo("Composition non disponible : les alertes ci-dessus (s'il y en a) sont déduites de la classification AMF.") : ""}
+    ${chargement || enCours ? `<p class="chargement">Calcul en attente de la composition…</p>` : !(c && c.principale)
+      ? nonDispo(e.source === "S" ? "Composition non disponible : ce fonds n'a pas déposé d'inventaire N-PORT récent à la SEC, donc aucune alerte de concentration n'est calculée."
+        : "Composition non disponible : les alertes ci-dessus (s'il y en a) sont déduites de la classification AMF.") : ""}
   </section>`;
 }
 
@@ -627,9 +874,18 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const part = d && d.part;
   const aujourdHui = new Date().toISOString().slice(0, 10);
   const srcGeco = { document: "AMF – base GECO (en direct)", date: aujourdHui };
-  const srcAnnuaire = { document: e.source === "E" ? "ESMA (registre FIRDS), liste Xetra et OpenFIGI" : e.source === "U" ? "ESMA (registre FIRDS) et GLEIF (registre des LEI)" : "AMF – base GECO", date: ANNUAIRE_DATE };
+  const estSec = e.source === "S";                           // fonds américain : identité et données viennent de la SEC
+  const sec = d && d.sec;                                    // données de la SEC (série américaine, ou fonds européen qui en est aussi une)
+  const detailSec = sec && sec.detail;
+  const serieSec = estSec ? cleEntree(e) : sec && sec.serie;
+  const estR = e.source === "R";                             // fonds irlandais ou luxembourgeois du registre de l'ESMA : pas d'ISIN
+  const zoneUS = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["etats-unis"] : null;
+  const zoneUE = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["registres-ue"] : null;
+  const srcAnnuaire = estSec ? { document: "SEC – EDGAR (liste des séries et parts, tickers)", date: zoneUS && zoneUS.maj }
+    : estR ? { document: CITATION_ESMA, date: zoneUE && zoneUE.maj }
+    : { document: e.source === "E" ? "ESMA (registre FIRDS), liste Xetra et OpenFIGI" : e.source === "U" ? "ESMA (registre FIRDS) et GLEIF (registre des LEI)" : "AMF – base GECO", date: ANNUAIRE_DATE };
   const esma = identiteEsma(e, isin);
-  const agrement = ligneAgrement(e);
+  const agrement = estSec ? null : ligneAgrement(e);
   const srcDic = dic ? { document: `DIC « ${dic.document.docName} »${dic.autrePart ? ` (part ${dic.autrePart})` : ""}`, date: dic.document.dateEffet } : null;
 
   // Types
@@ -647,10 +903,12 @@ function afficherFicheAuto(e, isin, d, chargement) {
 
   const entete = `
     <p class="bandeau-auto">Fiche générée <strong>automatiquement</strong> à partir de sources publiques.
-      Les éléments non disponibles sont signalés : vérifie toujours le DIC officiel.</p>
+      Les éléments non disponibles sont signalés : vérifie toujours ${estSec ? "les documents officiels du fonds (prospectus)" : "le DIC officiel"}.</p>
     <header class="fiche-entete">
       <h1>${esc(e.nom)}</h1>
-      <p>${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
+      <p>${estSec ? `Série SEC ${esc(serieSec)}${sec && sec.part ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker ? ` (${esc(sec.part.ticker)})` : ""}` : ""}`
+        : estR ? `Registre de l'ESMA, fiche n° ${esc(e.cmpId)}`
+        : `${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}`}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
       ${types.length ? `<div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>` : ""}
       ${enBref(e, d)}
       <div class="actions-fiche">
@@ -665,22 +923,32 @@ function afficherFicheAuto(e, isin, d, chargement) {
     <h2><span class="num-section">1.</span> Identité du fonds</h2>
     <div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>
     ${listeInfos([
-      [terme("isin", "ISIN"), esc(isin || "non publié") + (esma.parNom ? `<br><small>Retrouvé par le nom du fonds dans le registre européen FIRDS : vérifie-le dans le DIC.</small>` : ""), esma.parNom],
-      e.tickers.length && [terme("ticker", "Ticker(s)"), esc(e.tickers.slice(0, 6).join(", "))],
+      estSec ? [terme("serie_sec", "Numéro de série SEC"), esc(serieSec)]
+        : estR ? [terme("isin", "ISIN"), "aucun connu<br><small>Aucune part de ce fonds n'est cotée en bourse dans l'Union européenne d'après les registres publics : pas d'ISIN connu.</small>", true]
+        : [terme("isin", "ISIN"), esc(isin || "non publié") + (esma.parNom ? `<br><small>Retrouvé par le nom du fonds dans le registre européen FIRDS : vérifie-le dans le DIC.</small>` : ""), esma.parNom],
+      !estSec && serieSec && [terme("serie_sec", "Série SEC (États-Unis)"), esc(serieSec)
+        + `<br><small>Ce fonds est aussi déclaré à la SEC : sa composition, ses rendements en euros et ses frais viennent de là.</small>`, true],
+      e.tickers.length && [terme("ticker", "Ticker(s)"), esc(e.tickers.slice(0, 6).join(", ")) + (estSec && e.tickers.length > 6 ? ` et ${e.tickers.length - 6} autres` : "")],
       e.marches && ["Cotation", esc(e.marches)],
-      e.gestionnaire && [terme("societe_gestion", "Société de gestion"), esc(e.gestionnaire)],
+      e.gestionnaire && [terme("societe_gestion", estSec ? "Structure déposante (SEC)" : "Société de gestion"), esc(e.gestionnaire)],
       agrement,
       [terme("domicile", "Domiciliation"), esc(PAYS[e.pays] || e.pays || "n.d.")],
       [`Devise${part ? " de la part" : ""}`, esc((part && part.parRefDevCode) || e.devise || esma.devise || "n.d.")],
-      e.nature && ["Forme juridique", esc(e.nature)],
+      e.nature && !estR && ["Forme juridique", esc(e.nature)],   // pour un fonds R, la « nature » est le cadre du registre : ligne « Type (registre européen) »
       d && d.encours ? [terme("encours", "Encours"), `${d.encours.montant.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} M€ <small>au ${dateFr(d.encours.date)}${d.encours.horsEuro ? ", parts en euros uniquement" : ""}</small>`]
         : e.source === "G" && [terme("encours", "Encours"), chargement ? "chargement…" : "non disponible"],
       e.dateCreation && [e.source === "N" ? "Commercialisé en France depuis" : "Création", dateFr(e.dateCreation)],
       d && d.parts && d.parts.length > 1 && [terme("part", "Parts du fonds"), `${d.parts.length} parts (voir section 6)`],
+      estSec && detailSec && detailSec.parts && detailSec.parts.length > 1 && [terme("part", "Parts du fonds"), `${detailSec.parts.length} parts (voir section 6)`],
+      estSec && detailSec && detailSec.actif > 0 && [terme("encours", "Actif net"),
+        `${(detailSec.actif / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: detailSec.actif >= 1e7 ? 0 : 1 })} M€ <small>${detailSec.date ? `au ${dateFr(detailSec.date)} ` : ""}(converti au taux BCE de fin de mois)</small>`],
+      estSec && detailSec && detailSec.lei && [terme("lei", "Identifiant LEI"), esc(detailSec.lei)],
       e.classification && [terme("classification_amf", "Classification AMF"), `${esc(e.classification)}${CLASSIFICATIONS[e.classification] ? `<br><small>${esc(CLASSIFICATIONS[e.classification])}</small>` : ""}`, true],
       ...esma.lignes
     ])}
     ${e.source === "G" ? `<p class="aide"><a href="${LIENS.geco(e)}" target="_blank" rel="noopener">Voir la fiche officielle sur GECO (AMF)</a></p>` : ""}
+    ${serieSec ? `<p class="aide"><a href="${esc(LIENS.edgar(serieSec))}" target="_blank" rel="noopener">Documents officiels du fonds sur EDGAR (SEC)</a></p>` : ""}
+    ${e.pays === "IE" ? `<p class="aide"><a href="${LIENS.banqueCentraleIrlande}" target="_blank" rel="noopener">Vérifier l'agrément sur le registre de la Banque centrale d'Irlande</a></p>` : ""}
     ${source(srcAnnuaire)}${esma.source}${agrement ? source({ document: "AMF – liste des sociétés de gestion de portefeuille agréées, data.gouv.fr (Licence Ouverte 2.0)", date: SOCIETES.publication }) : ""}
   </section>`;
 
@@ -694,18 +962,23 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const marchesDuJour = !chargement && typeof blocMarchesDevises === "function"
     ? blocMarchesDevises(poidsParZone(compoMarches), { couvert: !!(compoMarches && compoMarches.couvertureChange) || nomIdx.couvert }) : "";
   const blocMarches = marchesDuJour ? `<h3>Les marchés et devises de ce fonds</h3>${marchesDuJour}` : "";
+  const ligne = (cle, lib, x) => `<div><dt>${terme(cle, lib)}</dt><dd><span class="niveau niveau-${normaliser(x.niveau).replace(/\s/g, "-")}">${esc(x.niveau)}</span> ${esc(x.texte)}</dd></div>`;
   let sectionRisque;
-  if (e.source !== "G") {
+  if (chargement) {
+    sectionRisque = `<section class="carte"><h2><span class="num-section">4.</span> Risque</h2><p class="chargement">${e.source === "G" ? "Calcul à partir de l'historique des valeurs liquidatives…" : "Chargement des données…"}</p></section>`;
+  } else if (e.source !== "G") {
     const liquidite = ligneLiquiditeEtranger(esma.liquidite, e);
+    const changeSec = risqueChangeSec(compoMarches);
+    const lignesRisque = [changeSec && ligne("risque_change", "Risque de change", changeSec), liquidite && ligne("risque_liquidite", "Risque de liquidité", liquidite)].filter(Boolean);
     sectionRisque = `<section class="carte"><h2><span class="num-section">4.</span> Risque</h2>
-      ${nonDispo("L'indicateur SRI n'est pas disponible gratuitement pour ce fonds de droit étranger : consulte son DIC sur le site de la société de gestion.")}
+      ${nonDispo(estSec ? "Pas d'indicateur SRI : il vient du DIC européen, que les fonds américains n'ont pas."
+        : "L'indicateur SRI n'est pas disponible gratuitement pour ce fonds de droit étranger : consulte son DIC sur le site de la société de gestion.")}
       ${nomIdx.levier ? `<p class="resume">Produit à levier ou inversé : réservé à des investisseurs très avertis, sur de courtes durées.</p>` : ""}
-      ${blocCoursEtranger(d && d.cours, d && d.coursFini, e.etf)}
-      ${liquidite ? `<dl class="grille-risques"><div><dt>${terme("risque_liquidite", "Risque de liquidité")}</dt><dd><span class="niveau niveau-${liquidite.niveau}">${liquidite.niveau}</span> ${esc(liquidite.texte)}</dd></div></dl>
-        ${source({ document: "ESMA – registre FITRS des calculs de transparence MiFID (montant moyen échangé par jour)", date: IDENTITE.maj })}` : ""}
+      ${blocPerformancesSec(sec, e)}
+      ${estSec || estR ? "" : blocCoursEtranger(d && d.cours, d && d.coursFini, e.etf)}
+      ${lignesRisque.length ? `<dl class="grille-risques">${lignesRisque.join("")}</dl>` : ""}
+      ${liquidite ? source({ document: "ESMA – registre FITRS des calculs de transparence MiFID (montant moyen échangé par jour)", date: IDENTITE.maj }) : ""}
       ${blocMarches}</section>`;
-  } else if (chargement) {
-    sectionRisque = `<section class="carte"><h2><span class="num-section">4.</span> Risque</h2><p class="chargement">Calcul à partir de l'historique des valeurs liquidatives…</p></section>`;
   } else {
     const s = d.stats;
     const sri = dic && dic.sri;
@@ -713,7 +986,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
     const profil = sri ? `Ce fonds est adapté à un profil ${PROFILS_SRI[sri]}${s && s.maxDrawdown.valeur < -1 ? `, prêt à voir son placement baisser temporairement d'environ ${pct(Math.abs(s.maxDrawdown.valeur), 0)}` : ""}${duree ? ` et à rester investi au moins ${duree}` : ""}.` : null;
     const deviseEtr = part && part.parRefDevCode && part.parRefDevCode !== "EUR";
     const compo = d.composition && d.composition.c && d.composition.c.principale ? d.composition.c : null;
-    const horsEuroCalc = compo && compo.devises && compo.devises.length ? compo.devises.filter(x => x.nom !== "EUR").reduce((t, x) => t + x.poids, 0) : null;
+    const horsEuroCalc = compo && compo.devises && compo.devises.length ? partHorsEuro(compo.devises) : null;   // une devise « Non précisée » ne compte pas comme hors euro
     const change = deviseEtr ? { niveau: "élevé", texte: `Part libellée en ${part.parRefDevCode}.` }
       : compo && compo.couvertureChange ? { niveau: "faible", texte: "Couverture de change détectée (part « hedged », contrats de change à terme ou analyse des rendements)." }
       : horsEuroCalc !== null ? { niveau: horsEuroCalc < 10 ? "faible" : horsEuroCalc < 50 ? "moyen" : "élevé", texte: `${pct(horsEuroCalc, 0)} des actifs en devises hors euro, d'après notre analyse de la composition.` }
@@ -729,7 +1002,6 @@ function afficherFicheAuto(e, isin, d, chargement) {
       : /mixte/i.test(e.classification) ? { niveau: "moyen", texte: "Partie obligataire probable." }
       : /Actions/.test(e.classification) ? { niveau: "non concerné", texte: "Fonds principalement investi en actions." }
       : { niveau: "non déterminé", texte: "" };
-    const ligne = (cle, lib, x) => `<div><dt>${terme(cle, lib)}</dt><dd><span class="niveau niveau-${normaliser(x.niveau).replace(/\s/g, "-")}">${esc(x.niveau)}</span> ${esc(x.texte)}</dd></div>`;
     sectionRisque = `
     <section class="carte">
       <h2><span class="num-section">4.</span> Risque</h2>
@@ -767,30 +1039,39 @@ function afficherFicheAuto(e, isin, d, chargement) {
     const pieges = detecterPiegesAuto(e, d);
     const importants = pieges.filter(p => p.niveau !== "info"), infos = pieges.filter(p => p.niveau === "info");
     const rendu = p => `<li class="alerte alerte-${p.niveau}">${pastille(p.niveau)}<div><strong>${terme(p.terme, p.titre)}</strong>${p.texte ? `<p>${esc(p.texte)}</p>` : ""}${p.lien ? `<p>${p.lien.type === "fiche" ? "Voir la fiche du fonds détenu" : "Voir la page officielle du fonds détenu"} : ${lienFonds(p.lien, p.lienTexte || "ce fonds")}</p>` : ""}</div></li>`;
+    // Sans DIC (fonds américains), les frais viennent du résumé du prospectus déposé à la SEC (fraisSec, etats-unis.js)
+    const avecFraisSec = !dic && (estSec || !!sec);
+    const fraisSecLus = !dic && !!sec && aDesFraisSec(sec.frais);
     const frais = dic ? listeInfos([
       [terme("frais_courants", "Frais de gestion"), dic.gestion !== null && dic.gestion !== undefined ? pct(dic.gestion, 2) + " / an" : "non lu"],
       [terme("frais_transaction", "Frais de transaction"), dic.transaction !== null && dic.transaction !== undefined ? pct(dic.transaction, 2) + " / an" : "non lu"],
       [terme("frais_entree", "Droits d'entrée"), dic.entree === 0 ? "aucun" : dic.entree ? "jusqu'à " + pct(dic.entree) : "non lu"],
       [terme("frais_sortie", "Frais de sortie"), dic.sortie === 0 ? "aucun" : dic.sortie ? "jusqu'à " + pct(dic.sortie) : "non lu"],
       [terme("surperformance", "Surperformance"), dic.performance ? "oui" : "aucune détectée"]
-    ]) : nonDispo(e.source === "G" ? "Frais non disponibles : aucun DIC publié dans GECO pour ce fonds." : "Frais non disponibles automatiquement pour ce fonds étranger : consulte son DIC.");
-    const analyseLimitee = !dic ? `<p class="note">Analyse limitée : sans DIC, les pièges liés aux frais, à la structure (fonds nourricier, fonds de fonds) et au levier ne peuvent pas être vérifiés.</p>` : "";
+    ]) : avecFraisSec ? (!sec ? nonDispo("Frais non disponibles : nous n'avons pas de données de la SEC sur ce fonds. Consulte son prospectus sur EDGAR.")
+        : fraisSecLus ? blocFraisSec(sec.frais)
+        : nonDispo("Frais non publiés : aucun chiffre de frais n'a pu être lu dans le prospectus déposé à la SEC."))
+      : nonDispo(e.source === "G" ? "Frais non disponibles : aucun DIC publié dans GECO pour ce fonds." : "Frais non disponibles automatiquement pour ce fonds étranger : consulte son DIC.");
+    const analyseLimitee = !dic && !fraisSecLus ? `<p class="note">Analyse limitée : sans DIC, les pièges liés aux frais, à la structure (fonds nourricier, fonds de fonds) et au levier ne peuvent pas être vérifiés.</p>` : "";
     sectionPiegesHtml = `
     <section class="carte carte-pieges">
       <h2><span class="num-section">5.</span> Conditions particulières et pièges</h2>
       ${importants.length ? `<ul class="liste-alertes">${importants.map(rendu).join("")}</ul>`
         : `<p class="rien">✓ Rien de particulier détecté${dic ? "" : " dans les informations disponibles"}.</p>`}
       ${analyseLimitee}
-      <h3>Frais${dic ? " (lus dans le DIC)" : ""}</h3>
+      <h3>Frais${dic ? " (lus dans le DIC)" : avecFraisSec ? " (prospectus déposé à la SEC)" : ""}</h3>
       ${frais}
+      ${avecFraisSec && sec ? `<p class="aide">Données déclarées à la SEC : vérifie le prospectus officiel avant toute décision.</p>` : ""}
       ${infos.length ? `<ul class="liste-alertes liste-infos">${infos.map(rendu).join("")}</ul>` : ""}
       ${srcDic ? source(srcDic) : ""}
+      ${fraisSecLus ? sourceSec("SEC – EDGAR (résumés des prospectus)", sec.frais.date) : ""}
     </section>`;
   }
 
   // ----- 6. Comparaison : autres parts du même fonds -----
   let comparaison = nonDispo("La comparaison automatique avec des fonds similaires n'est pas encore disponible pour les fiches automatiques.");
-  if (d && d.parts && d.parts.length > 1) {
+  if (sec) comparaison = comparaisonSec(sec) + comparaison;
+  else if (d && d.parts && d.parts.length > 1) {
     comparaison = `<p>Ce fonds existe en <strong>${d.parts.length} parts</strong>. Elles ont le même portefeuille, mais des frais, des devises ou des montants minimums différents. Une autre part est parfois moins chère ou accessible dans ton contrat.</p>
       <ul class="similaires">${d.parts.map(pa => `<li>${pa.isin === (part && part.isin) ? "<strong>" : `<a href="#${esc(pa.isin)}">`}${esc(pa.parNom)} — ${esc(pa.isin)}${pa.isin === (part && part.isin) ? " (cette part)</strong>" : "</a>"}
         <small>${esc(pa.parRefDevCode || "")} ${pa.parAffctnRevnuLib ? "· " + esc(pa.parAffctnRevnuLib) : ""} ${pa.parStatutCode && pa.parStatutCode !== "VIV" ? "· fermée" : ""}</small></li>`).join("")}</ul>` + comparaison;
@@ -800,5 +1081,5 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const erreurs = d && d.erreurs && d.erreurs.length ? `<p class="aide">Informations manquantes : ${esc(d.erreurs.join(" ; "))}.</p>` : "";
 
   return `<article class="fiche">${entete}${identite}${sectionRepartition}${sectionConcentration}${sectionRisque}${sectionPiegesHtml}${sectionComparaison}${erreurs}
-    <p class="rappel-legal">Information pédagogique, pas un conseil en investissement. Vérifie le DIC officiel avant toute décision.</p></article>`;
+    <p class="rappel-legal">Information pédagogique, pas un conseil en investissement. Vérifie ${estSec ? "les documents officiels du fonds (prospectus)" : "le DIC officiel"} avant toute décision.</p></article>`;
 }

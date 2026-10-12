@@ -1,6 +1,8 @@
 # Mise à jour mensuelle de l'identité des fonds étrangers (scripts/construire_identite.py → data/identite.js) :
 # société de gestion, type et taille (BCE), fonds parapluie (GLEIF), montant échangé en bourse (ESMA FITRS),
-# notification pour la France (ESMA), sociétés de gestion agréées (AMF, data.gouv.fr) → data/societes.js.
+# notification pour la France, autorité de contrôle et pays de commercialisation (ESMA, registre de la commercialisation
+# transfrontière) et fonds irlandais et luxembourgeois absents de l'annuaire → data/annuaire-registres-ue.js et
+# data/registres-ue-infos.js, sociétés de gestion agréées (AMF, data.gouv.fr) → data/societes.js.
 # La BCE publie sa liste des fonds une fois par mois, vers le milieu du mois suivant.
 name: Identité des fonds étrangers
 
@@ -31,7 +33,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/identite.js data/societes.js
+          git add data/identite.js data/societes.js data/annuaire-registres-ue.js data/registres-ue-infos.js
           if git diff --cached --quiet; then
             echo "Rien de nouveau."
           else
