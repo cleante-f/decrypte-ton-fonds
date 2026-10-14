@@ -236,7 +236,10 @@ python3 scripts/construire_annuaire.py
 ```
 
 Ce script régénère `data/annuaire.js` (environ 3,5 Mo), `data/resume.js` et `data/firds.js` (identité ESMA des fonds
-étrangers). Il n'utilise que Python, sans rien à installer, et dure 15 à 20 minutes (OpenFIGI limite les requêtes sans clé).
+étrangers). Il n'utilise que Python, sans rien à installer, et dure environ une heure (OpenFIGI limite les requêtes sans clé ; il cherche les symboles
+de tous les ETF sur les bourses européennes : Euronext, Londres, Suisse, Allemagne, Vienne, Madrid, pays nordiques, Varsovie, Prague, Budapest).
+Les fonds étrangers commercialisés en France sont tous repris de GECO : les OPCVM, et les FIA (réservés aux investisseurs professionnels), marqués « réservé »
+avec leur type (FIA, ELTIF, EuVECA, EuSEF) et l'alerte qui va avec.
 Une mise à jour par mois suffit. Ensuite :
 
 ```bash
@@ -250,12 +253,13 @@ notifiés au 07/10/2026, dont 308 fonds hors liste de l'AMF et 612 ETF). `societ
 par l'AMF (data.gouv.fr, Licence Ouverte 2.0 : 667 sociétés, environ 96 % des fonds français rattachés à leur agrément).
 La tâche `identite.yml` les relance le 20 de chaque mois.
 
-**Registre de l'ESMA (fonds irlandais et luxembourgeois).** Le même script lit en entier le registre de la commercialisation transfrontière des
+**Registre de l'ESMA (fonds européens hors France).** Le même script lit en entier le registre de la commercialisation transfrontière des
 OPCVM et FIA (fiches actives, environ 6 requêtes ; fonctions pures dans `scripts/registres_ue.py`, testées par `python3 tests/test_registres_ue.py`) et ajoute :
 - à `data/identite.js` : `IDENTITE.autorites` (pays → nom de l'autorité de contrôle, le plus fréquent parmi les OPCVM de ce pays) et `IDENTITE.esmaFonds`
   (LEI, ou `N<numéro>` pour un fonds GECO sans ISIN rapproché par son nom et son pays → `[société de gestion (index dans noms), pays de l'autorité, cadre, pays de commercialisation]`) ;
   `notifFR` est calculé à partir du même registre ;
-- `data/annuaire-registres-ue.js` : la zone « registres-ue » (fonds irlandais et luxembourgeois absents du reste de l'annuaire, clé `R<numéro de la fiche ESMA>`),
+- `data/annuaire-registres-ue.js` : la zone « registres-ue » (fonds européens absents du reste de l'annuaire, de tous les pays sauf la France, dont GECO a déjà tous les fonds ;
+  clé `R<numéro de la fiche ESMA>`),
   chargée à la première recherche par nom ou à l'ouverture d'un fonds `R` (`js/zones.js`) ;
 - `data/registres-ue-infos.js` : pour chaque fonds `R`, LEI, pays de l'autorité, pays de commercialisation, politique et tranche d'encours (BCE), fonds parapluie (GLEIF),
   chargé à l'ouverture de sa fiche (`js/app.js`). Si ce fichier ne se charge pas, la fiche garde l'identité de l'annuaire et signale « informations du registre ESMA indisponibles ».
@@ -278,6 +282,11 @@ python3 scripts/construire_etats_unis.py --forcer   # même sans nouveau trimest
 Ce script (bibliothèque standard Python, sans rien à installer) lit les fichiers publics de la SEC et les taux de change mensuels de la BCE, et écrit :
 `data/annuaire-etats-unis.js` (la zone « États-Unis » de l'annuaire : une ligne par série, au format de `data/annuaire.js`), `data/etats-unis/00.js` … `63.js`
 (les détails de chaque série, répartis en 64 fichiers d'après le numéro de série % 64) et `data/etats-unis-isin.js` (ISIN des fonds européens qui sont aussi une série américaine, retrouvés par leur LEI).
+La zone reprend toutes les séries de la liste annuelle de la SEC, avec ou sans ticker, sauf les comptes séparés des contrats d'assurance (types d'entité 32 et 33 : rentes variables,
+assurance-vie), et toutes les séries qui ont déposé un rapport N-PORT. Les fonds qui déposent leurs rapports N-PORT **sans numéro de série** (ETF organisés en « unit investment trust »
+comme SPY, DIA ou MDY, fonds fermés, fonds « à intervalles » : 708 au 3e trimestre 2026) sont rangés sous une pseudo-série `S` + (900 000 000 + CIK du déposant), lue dans
+`REGISTRANT.tsv`, avec le ticker de `company_tickers.json` ; le site affiche « CIK 884394 (SEC) » et renvoie à EDGAR par le CIK. Les numéros factices (`S000000000`, `C000000000`)
+sont traités comme absents.
 Les rendements et les montants sont convertis en euros par le script ; le navigateur ne contacte jamais la SEC (les fichiers sont hébergés avec le site, et chargés à la demande par `js/zones.js` et `js/etats-unis.js`).
 
 La tâche `.github/workflows/etats-unis.yml` passe le 12 de chaque mois et ne fait rien (« Rien de nouveau ») tant que la SEC n'a pas publié un nouveau trimestre.
@@ -404,10 +413,10 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `data/annuaire-etats-unis.js` / `data/etats-unis/NN.js` / `data/etats-unis-isin.js` | Zone « États-Unis » de l'annuaire ; détails des séries (64 fichiers, chargés à l'ouverture d'une fiche) ; ISIN européens rattachés à une série américaine (générés par le script) |
 | `js/zones.js` | Annuaire par zone : chargement à la demande, recherche dans tous les pays, ouverture d'un fonds par sa clé |
 | `js/etats-unis.js` | Fonds américains dans le navigateur : chargement des détails, historique, statistiques et composition au format du reste du site |
-| `data/annuaire-registres-ue.js` / `data/registres-ue-infos.js` | Zone « registres-ue » : fonds irlandais et luxembourgeois du registre de l'ESMA (clé `R<numéro>`) ; leurs informations (LEI, pays de commercialisation, politique, tranche d'encours, parapluie), chargées à l'ouverture d'une fiche (générés par `scripts/construire_identite.py`) |
+| `data/annuaire-registres-ue.js` / `data/registres-ue-infos.js` | Zone « registres-ue » : fonds européens du registre de l'ESMA, hors France (clé `R<numéro>`) ; leurs informations (LEI, pays de commercialisation, politique, tranche d'encours, parapluie), chargées à l'ouverture d'une fiche (générés par `scripts/construire_identite.py`) |
 | `scripts/registres_ue.py` | Registre de l'ESMA : lecture, rapprochement avec l'annuaire, autorités, zone « registres-ue » (fonctions pures, bibliothèque standard Python) |
 | `data/societes.js` | Sociétés de gestion agréées par l'AMF : n° d'agrément, début d'autorisation, site (générée par `scripts/construire_identite.py`) |
-| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds irlandais ou luxembourgeois, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 
