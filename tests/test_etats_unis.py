@@ -1343,6 +1343,31 @@ class Principal(unittest.TestCase):
         self.assertEqual((lignes[900884394][3], lignes[900884394][10]), ("State Street SPDR S&P 500 ETF Trust", "SPY"))
         self.assertEqual(cu.lire_details_existants(self.dossier)["S900884394"]["parts"][0][3], "2026-04")
 
+    def test_main_fonds_sans_numero_de_serie_retire_s_il_ne_depose_plus(self):   # trimestre suivant sans dépôt de SPY : il sort de la zone
+        self.archives[(True, "2026q3")] = self.archive_avec_spy_et_mdy()
+        self.assertEqual(self.lancer(), 0)
+        self.publie["nport"] = "2026q4"
+        self.liste_publiee = 2026
+        self.archives[(True, "2026q4")] = self.archive_4e_trimestre()
+        self.assertEqual(self.lancer(aujourd_hui=date(2027, 1, 12)), 0)
+        self.assertNotIn(900884394, [l[1] for l in cu.lire_zone_existante(self.dossier)["lignes"]])
+
+    def test_main_serie_deposee_hors_liste_gardee_sans_nouveau_trimestre(self):   # série connue seulement par N-PORT : --forcer la garde
+        mf = json.loads(lire_fichier("sec_tickers_mf.json"))
+        mf["data"] = [l for l in mf["data"] if l[1] != "S000030390"]
+        liste = "".join(l for l in lire_fichier("sec_series.csv").splitlines(keepends=True) if "S000030390" not in l)
+        (self.dossier / "firds.js").write_text(FIRDS_TEST.replace('"IE0000000001":["5493003R6Z966WCNR691","USD",[],2],', ""), encoding="utf-8")
+
+        def telechargement(url, plage=None):
+            contenu = self.faux_telechargement(url, plage)
+            return json.dumps(mf).encode() if url == cu.TICKERS else liste.encode() if "series-class" in url else contenu
+
+        with mock.patch.object(cu, "telecharger", side_effect=telechargement):
+            self.assertEqual(self.lancer(), 0)
+            self.assertIn(30390, [l[1] for l in cu.lire_zone_existante(self.dossier)["lignes"]])   # déposée au dernier trimestre
+            self.assertEqual(self.lancer("--forcer"), 0)
+        self.assertIn(30390, [l[1] for l in cu.lire_zone_existante(self.dossier)["lignes"]])
+
     def test_main_isin_d_une_serie_hors_zone(self):   # LEI d'un ancien détail sans nom connu : la série n'est pas dans la zone, ses ISIN non plus
         lei = "ABCDEFGHIJ0123456789"
         (self.dossier / "firds.js").write_text(FIRDS_TEST.replace('"LU1681043599"', f'"US0000000042":["{lei}","USD",[],1],"LU1681043599"'), encoding="utf-8")

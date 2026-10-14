@@ -860,8 +860,11 @@ def main(argv=None, dossier: Path = DATA, aujourd_hui: date | None = None) -> in
         isin_serie = {}
     noms_nport = {s: d["nom"] for s, d in anciens.items() if d.get("nom")}
     noms_nport.update({s: i["SERIES_NAME"] for s, i in infos_serie.items() if i.get("SERIES_NAME")})
-    liste.update(fiches_cik(noms_nport, tickers_cik))   # fonds sans numéro de série (SPY, DIA, fonds fermés…), connus par N-PORT
-    lignes = lignes_annuaire(tickers_mf, liste, noms_nport, set(isin_serie.values()) | set(infos_serie))
+    # Séries qui déposent des rapports N-PORT : celles du dernier trimestre lu ; sans trimestre lu (--forcer), celles de la zone déjà écrite.
+    # Un fonds qui ne dépose plus sort donc de la zone au trimestre suivant (sauf s'il est dans la liste de la SEC).
+    deposants = set(infos_serie) if a_lire else {f"S{l[1]:09d}" for l in (existant or {}).get("lignes", [])}
+    liste.update(fiches_cik({s: noms_nport[s] for s in deposants if s in noms_nport}, tickers_cik))   # fonds sans numéro de série (SPY…)
+    lignes = lignes_annuaire(tickers_mf, liste, noms_nport, set(isin_serie.values()) | deposants)
     dans_la_zone = {f"S{l[1]:09d}" for l in lignes}
     isin_serie = {isin: serie for isin, serie in isin_serie.items() if serie in dans_la_zone}
     details = {}

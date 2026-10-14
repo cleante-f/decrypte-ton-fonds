@@ -508,7 +508,7 @@ test("données réelles : chaque fonds du registre a son autorité, ses pays et 
       assert.ok(!html.includes(">Fonds réservé<"));
     }
   });
-  assert.deepEqual([...cadres].sort(), ["AIF", "ELTIF", "EuVECA", "UCITS"]);
+  assert.deepEqual([...cadres].sort(), ["AIF", "ELTIF", "EuSEF", "EuVECA", "UCITS"]);
   assert.ok(sansFrance > 1000 && sansNomAutorite > 0, "des fonds ne sont pas notifiés pour la France ; au moins une autorité sans nom (Italie)");
 });
 

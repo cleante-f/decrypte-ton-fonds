@@ -431,6 +431,7 @@ test("données réelles : registre ESMA, clés uniques et informations pour chaq
   assert.ok(zone.lignes.length > 10000);
   assert.match(zone.maj, /^\d{4}-\d{2}-\d{2}$/);
   const infos = vm.runInContext(lire("data/registres-ue-infos.js") + ";REGISTRES_UE_INFOS", vm.createContext({}));
+  const PAYS = vm.runInContext("PAYS", m.ctx), paysVus = new Set();
   const cles = new Set();
   for (const l of zone.lignes) {
     const e = m.ctx.lireEntree(l);
@@ -438,13 +439,15 @@ test("données réelles : registre ESMA, clés uniques et informations pour chaq
     assert.match(cle, /^R\d+$/);
     assert.equal(m.ctx.zoneDeCle(cle), "registres-ue");
     assert.equal(e.isins.length, 0, cle);
-    assert.ok(["IE", "LU"].includes(e.pays), cle);
+    assert.ok(e.pays !== "FR" && PAYS[e.pays], `${cle} : ${e.pays}`);   // tous les pays sauf la France (GECO), chacun avec son nom français
+    paysVus.add(e.pays);
     assert.ok(["OPCVM (UCITS)", "FIA", "ELTIF", "EuVECA", "EuSEF"].includes(e.nature), `${cle} : ${e.nature}`);
     assert.equal(e.public, e.nature === "OPCVM (UCITS)", cle);
     assert.ok(infos[e.cmpId], `${cle} : informations absentes`);
     cles.add(cle);
   }
   assert.equal(cles.size, zone.lignes.length, "une clé par ligne");
+  for (const p of ["IE", "LU", "DE", "SE", "AT", "LI"]) assert.ok(paysVus.has(p), p);
   assert.equal((await m.ctx.entreeParCle("R90728")).nom, "GAM Star Absolute Return Macro");
   assert.deepEqual(noms(m.ctx.rechercherZone("registres-ue", "gam star absolute")), ["GAM Star Absolute Return Macro"]);
 });
