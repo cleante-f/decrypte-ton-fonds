@@ -363,24 +363,26 @@ test("afficherListe : origine d'après ZONES, note si une zone n'a pas pu être 
   assert.ok(incomplet.includes("Certains fonds n'ont pas pu être chargés (Fonds américain (SEC)) : réessaie dans un instant."), incomplet);
   const vide = panne.ctx.afficherListe("zzzz", await panne.ctx.rechercherPartout("zzzz"));
   assert.ok(vide.includes("Aucun fonds trouvé pour « zzzz »") && vide.includes("fonds américains déclarés à la SEC"));
+  assert.ok(vide.includes("les autres fonds européens du registre de l'ESMA (Irlande, Luxembourg, Allemagne, Suède…)"), "le registre couvre tous les pays");
+  assert.ok(!vide.includes("irlandais et luxembourgeois"));
   assert.ok(vide.includes("réessaie dans un instant"), "une zone en échec est signalée même sans résultat");
   assert.ok(!m.ctx.afficherListe("zzzz", []).includes("réessaie"), "liste vide sans propriété incomplet");
 });
 
-test("afficherListe : fonds irlandais ou luxembourgeois du registre ESMA, et note si cette zone n'a pas pu être chargée", async () => {
+test("afficherListe : fonds européens du registre ESMA (tous pays sauf la France), et note si cette zone n'a pas pu être chargée", async () => {
   const m = monde({ fichiers: { [FICHIER_ZONE]: ZONE_US, [FICHIER_UE]: texteZone("registres-ue", [GAM_STAR, QUAESTIO]) } });
   for (const f of ["js/glossaire.js", "js/affichage.js"]) vm.runInContext(lire(f), m.ctx, { filename: f });
   const html = m.ctx.afficherListe("gam", await m.ctx.rechercherPartout("gam"));
   assert.ok(html.includes('<a href="#R90728">GAM Star Absolute Return Macro</a>'));
-  assert.ok(html.includes("ISIN non publié · Fonds irlandais ou luxembourgeois (registre ESMA) · GAM Fund Management Limited"), html);
+  assert.ok(html.includes("ISIN non publié · Fonds européen (registre ESMA) · GAM Fund Management Limited"), html);
   assert.ok(!html.includes("hors Europe") && !html.includes("réservé"));
   const fia = m.ctx.afficherListe("quaestio", await m.ctx.rechercherPartout("quaestio"));
-  assert.ok(fia.includes('<a href="#R2103248">') && fia.includes("Fonds irlandais ou luxembourgeois (registre ESMA)") && fia.includes("· réservé"), "un FIA est signalé « réservé »");
+  assert.ok(fia.includes('<a href="#R2103248">') && fia.includes("Fonds européen (registre ESMA)") && fia.includes("· réservé"), "un FIA est signalé « réservé »");
 
   const panne = monde({ fichiers: { [FICHIER_ZONE]: ZONE_US, [FICHIER_UE]: undefined } });
   for (const f of ["js/glossaire.js", "js/affichage.js"]) vm.runInContext(lire(f), panne.ctx, { filename: f });
   const incomplet = panne.ctx.afficherListe("amundi", await panne.ctx.rechercherPartout("amundi"));
-  assert.ok(incomplet.includes("Certains fonds n'ont pas pu être chargés (Fonds irlandais ou luxembourgeois (registre ESMA)) : réessaie dans un instant."), incomplet);
+  assert.ok(incomplet.includes("Certains fonds n'ont pas pu être chargés (Fonds européen (registre ESMA)) : réessaie dans un instant."), incomplet);
   assert.ok(!incomplet.includes("Fonds américain"));
 });
 

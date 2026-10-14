@@ -4,7 +4,7 @@
  * - Fonds français (source "G") : données en direct depuis GECO + lecture du DIC (voir geco.js)
  * - ETF étrangers (source "E")  : identité seulement (Euronext / Xetra) + indices tirés du nom
  * - Fonds étrangers sans ISIN (source "N") : identité seulement (GECO)
- * - Fonds irlandais et luxembourgeois du registre de l'ESMA (source "R", zone « registres-ue ») : identité seulement, sans ISIN :
+ * - Fonds européens du registre de l'ESMA, hors France (source "R", zone « registres-ue ») : identité seulement, sans ISIN :
  *   société de gestion, autorité de contrôle, pays de commercialisation, type (OPCVM, FIA…), LEI, politique et taille (BCE)
  * - Fonds américains (source "S", annuaire des États-Unis) : identité, composition N-PORT, rendements en euros et frais,
  *   déclarés à la SEC (d.sec, voir etats-unis.js). Un fonds européen qui est aussi une série américaine (E, U, N) reçoit
@@ -17,7 +17,12 @@ const LIENS = {
   geco: e => `https://geco.amf-france.org/produit-d-epargne/c${e.cmpId}`,
   document: d => `${GECO_API}/document/download/${d.idInterne}`,
   justetf: isin => `https://www.justetf.com/fr/etf-profile.html?isin=${isin}`,
-  edgar: serie => `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${serie}&type=485&count=10`,
+  // prospectus (485) d'une série ; tous les dépôts de la société déposante pour un fonds sans numéro de série (cikDeSerie, js/etats-unis.js)
+  edgar: serie => {
+    const cik = typeof cikDeSerie === "function" ? cikDeSerie(serie) : null;
+    return cik === null ? `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${serie}&type=485&count=10`
+      : `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${String(cik).padStart(10, "0")}&count=10`;
+  },
   banqueCentraleIrlande: "https://registers.centralbank.ie/"   // lien seulement : aucune donnée de ce registre n'est reprise
 };
 
@@ -299,18 +304,27 @@ function sourceBceGleifRegistre(esma) {
   return srcs.length ? source({ document: srcs.join(", ") + " (réutilisation autorisée en citant la source)", date: IDENTITE.maj }) : "";
 }
 
+// Alerte du cadre juridique d'un fonds qui n'est pas un OPCVM (FIA, ELTIF, EuVECA, EuSEF), ou null (même forme que celles de
+// detecterPiegesAuto). `geco` : le cadre vient de la base GECO de l'AMF (fonds étranger commercialisé en France), pas du registre de l'ESMA.
+function alerteCadre(cadre, geco = false) {
+  if (cadre === "AIF") return { niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs professionnels",
+    texte: geco ? "D'après la base GECO de l'AMF, ce fonds est un FIA étranger : sa commercialisation en France vise les investisseurs professionnels. Un particulier ne peut en général pas y souscrire."
+      : "D'après le registre européen de l'ESMA, ce fonds est un FIA : sa commercialisation dans d'autres pays de l'Union vise les investisseurs professionnels. Un particulier ne peut en général pas y souscrire." };
+  if (cadre === "ELTIF") return { niveau: "attention", terme: "fia", titre: "ELTIF : argent bloqué longtemps",
+    texte: "Fonds européen d'investissement à long terme (entreprises non cotées, infrastructures) : l'argent est en général bloqué plusieurs années." };
+  if (cadre === "EuVECA" || cadre === "EuSEF") return { niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs avertis",
+    texte: "Fonds européen de capital-risque ou d'entrepreneuriat social : réservé aux investisseurs professionnels ou qui investissent au moins 100 000 €." };
+  return null;
+}
+
 // Alertes tirées du registre pour un fonds de la zone registres-ue (même forme que celles de detecterPiegesAuto) :
 // le cadre juridique (FIA, ELTIF, EuVECA, EuSEF) puis la commercialisation en France. Sans les pays (informations pas chargées),
 // pas d'alerte de commercialisation : on ne sait pas.
 function alertesRegistre(e, esma) {
   if (!esma) return [];
   const a = [];
-  if (esma.cadre === "AIF") a.push({ niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs professionnels",
-    texte: "D'après le registre européen de l'ESMA, ce fonds est un FIA : sa commercialisation dans d'autres pays de l'Union vise les investisseurs professionnels. Un particulier ne peut en général pas y souscrire." });
-  else if (esma.cadre === "ELTIF") a.push({ niveau: "attention", terme: "fia", titre: "ELTIF : argent bloqué longtemps",
-    texte: "Fonds européen d'investissement à long terme (entreprises non cotées, infrastructures) : l'argent est en général bloqué plusieurs années." });
-  else if (esma.cadre === "EuVECA" || esma.cadre === "EuSEF") a.push({ niveau: "attention", terme: "fia", titre: "Réservé aux investisseurs avertis",
-    texte: "Fonds européen de capital-risque ou d'entrepreneuriat social : réservé aux investisseurs professionnels ou qui investissent au moins 100 000 €." });
+  const cadre = alerteCadre(esma.cadre);
+  if (cadre) a.push(cadre);
   if (Array.isArray(esma.pays)) {
     if (!esma.pays.includes("FR")) a.push({ niveau: "attention", terme: "commercialisation", titre: "Fonds non notifié pour la France",
       texte: "D'après le registre européen de l'ESMA, ce fonds n'est pas déclaré pour être proposé en France : ton intermédiaire ne peut en général pas te le vendre." });
@@ -508,7 +522,7 @@ const aDesFraisSec = f => !!f && [f.brut, f.net, f.gestion, f.entree, f.sortie].
 // aucune note sur une « valeur calculée de façon mensuelle ». Sans fonds américain (d.sec absent), rien, sauf pour une série SEC.
 function blocPerformancesSec(sec, e) {
   if (!sec) return e.source === "S" ? nonDispo("Performances non disponibles : nous n'avons pas de données de la SEC sur ce fonds.") : "";
-  const p = sec.part, h = sec.historique, s = sec.stats;
+  const p = sec.part && !partImplicite(sec.part) ? sec.part : null, h = sec.historique, s = sec.stats;   // part implicite : pas nommée
   if (!h) return nonDispo(`${p ? "Cette part n'a" : "Ce fonds n'a"} pas d'historique de rendements déclaré à la SEC.`);
   const stats = s ? listeInfos([
     [terme("performance_annualisee", "Performance annualisée") + " 1 an", pct(s.perf.a1)],
@@ -539,6 +553,7 @@ function libelleFraisPart(part) {
 function comparaisonSec(sec) {
   const parts = ((sec.detail && sec.detail.parts) || []).map(lirePartSec);
   if (!parts.length) return `<p>Aucune part n'est déclarée pour ce fonds dans les données de la SEC.</p>`;
+  if (parts.length === 1 && partImplicite(parts[0])) return `<p>Ce fonds n'a qu'une seule part${parts[0].ticker ? ` (ticker ${esc(parts[0].ticker)})` : ""}.</p>`;
   const affichee = sec.part ? sec.part.classe : null;
   const intro = parts.length > 1
     ? `Ce fonds existe en <strong>${parts.length} parts</strong>. Elles ont le même portefeuille, mais des frais et des tickers différents. Une autre part est parfois moins chère.`
@@ -561,8 +576,10 @@ function detecterPiegesAuto(e, d) {
   const dic = d && d.dic;
   const k = e.classification;
 
-  // Fonds du registre de l'ESMA (zone registres-ue) : cadre juridique (FIA, ELTIF…) et commercialisation en France d'après le registre
-  const registre = e.source === "R" ? alertesRegistre(e, esmaDe(e)) : [];
+  // Fonds du registre de l'ESMA (zone registres-ue) : cadre juridique (FIA, ELTIF…) et commercialisation en France d'après le registre ;
+  // FIA étranger commercialisé en France : son cadre d'après GECO (nature « FIA », « ELTIF », « EuVECA » ou « EuSEF »)
+  const cadreGeco = e.source === "N" && possedeCle(CADRE_DE_LIBELLE, e.nature) ? alerteCadre(CADRE_DE_LIBELLE[e.nature], true) : null;
+  const registre = e.source === "R" ? alertesRegistre(e, esmaDe(e)) : cadreGeco ? [cadreGeco] : [];
 
   // Où le fonds peut être vendu
   if (horsEee(e)) p.push({ niveau: "alerte", terme: "dic", titre: `Fonds de droit non européen (${PAYS[e.pays] || e.pays})`,
@@ -597,7 +614,7 @@ function detecterPiegesAuto(e, d) {
     texte: "Les sommes sont en général bloquées 5 ans (PEE) ou jusqu'à la retraite (PERCO/PERECO), sauf cas de déblocage anticipé prévus par la loi." });
   if (/titres de l.entreprise/i.test(k)) p.push({ niveau: "alerte", terme: "top10", titre: "Investi dans une seule entreprise : la vôtre",
     texte: "Si l'entreprise traverse des difficultés, vous risquez de perdre à la fois une partie de votre épargne et votre emploi. C'est une concentration extrême." });
-  if (!e.public && e.source !== "R") p.push({ niveau: "info", terme: "opcvm", titre: "Fonds réservé",
+  if (!e.public && e.source !== "R" && !cadreGeco) p.push({ niveau: "info", terme: "opcvm", titre: "Fonds réservé",
     texte: "Ce fonds est réservé à une catégorie d'investisseurs (institutionnels, salariés d'une entreprise, 20 porteurs au plus…)." });
 
   // Informations lues dans le DIC
@@ -878,7 +895,9 @@ function afficherFicheAuto(e, isin, d, chargement) {
   const sec = d && d.sec;                                    // données de la SEC (série américaine, ou fonds européen qui en est aussi une)
   const detailSec = sec && sec.detail;
   const serieSec = estSec ? cleEntree(e) : sec && sec.serie;
-  const estR = e.source === "R";                             // fonds irlandais ou luxembourgeois du registre de l'ESMA : pas d'ISIN
+  const cikSec = serieSec && typeof cikDeSerie === "function" ? cikDeSerie(serieSec) : null;   // fonds sans numéro de série (SPY, fonds fermés…)
+  const partSecVisible = sec && sec.part && !partImplicite(sec.part);   // sec n'existe que si js/etats-unis.js est chargé
+  const estR = e.source === "R";                             // fonds européen du registre de l'ESMA (hors France) : pas d'ISIN
   const zoneUS = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["etats-unis"] : null;
   const zoneUE = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["registres-ue"] : null;
   const srcAnnuaire = estSec ? { document: "SEC – EDGAR (liste des séries et parts, tickers)", date: zoneUS && zoneUS.maj }
@@ -906,7 +925,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       Les éléments non disponibles sont signalés : vérifie toujours ${estSec ? "les documents officiels du fonds (prospectus)" : "le DIC officiel"}.</p>
     <header class="fiche-entete">
       <h1>${esc(e.nom)}</h1>
-      <p>${estSec ? `Série SEC ${esc(serieSec)}${sec && sec.part ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker ? ` (${esc(sec.part.ticker)})` : ""}` : ""}`
+      <p>${estSec ? `${esc(typeof texteSec === "function" ? texteSec(serieSec) : `Série SEC ${serieSec}`)}${partSecVisible ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker ? ` (${esc(sec.part.ticker)})` : ""}` : ""}`
         : estR ? `Registre de l'ESMA, fiche n° ${esc(e.cmpId)}`
         : `${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}`}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
       ${types.length ? `<div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>` : ""}
@@ -923,10 +942,10 @@ function afficherFicheAuto(e, isin, d, chargement) {
     <h2><span class="num-section">1.</span> Identité du fonds</h2>
     <div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>
     ${listeInfos([
-      estSec ? [terme("serie_sec", "Numéro de série SEC"), esc(serieSec)]
+      estSec ? (cikSec === null ? [terme("serie_sec", "Numéro de série SEC"), esc(serieSec)] : [terme("serie_sec", "Numéro CIK (SEC)"), esc(String(cikSec))])
         : estR ? [terme("isin", "ISIN"), "aucun connu<br><small>Aucune part de ce fonds n'est cotée en bourse dans l'Union européenne d'après les registres publics : pas d'ISIN connu.</small>", true]
         : [terme("isin", "ISIN"), esc(isin || "non publié") + (esma.parNom ? `<br><small>Retrouvé par le nom du fonds dans le registre européen FIRDS : vérifie-le dans le DIC.</small>` : ""), esma.parNom],
-      !estSec && serieSec && [terme("serie_sec", "Série SEC (États-Unis)"), esc(serieSec)
+      !estSec && serieSec && [terme("serie_sec", cikSec === null ? "Série SEC (États-Unis)" : "CIK SEC (États-Unis)"), esc(cikSec === null ? serieSec : String(cikSec))
         + `<br><small>Ce fonds est aussi déclaré à la SEC : sa composition, ses rendements en euros et ses frais viennent de là.</small>`, true],
       e.tickers.length && [terme("ticker", "Ticker(s)"), esc(e.tickers.slice(0, 6).join(", ")) + (estSec && e.tickers.length > 6 ? ` et ${e.tickers.length - 6} autres` : "")],
       e.marches && ["Cotation", esc(e.marches)],

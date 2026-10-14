@@ -364,9 +364,9 @@ function afficherSquelette(entree, isin, principal) {
   const part = principal.part;
   const sec = principal.sec;   // fonds américain : rendements mensuels déclarés à la SEC, en euros
   // Une part de la SEC peut avoir pour nom son ticker ou son identifiant de classe : le ticker n'est répété que s'il apporte quelque chose
-  const partSec = sec && sec.part ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker && sec.part.ticker !== sec.part.nom ? ` (${esc(sec.part.ticker)})` : ""}` : "";
+  const partSec = sec && sec.part && !partImplicite(sec.part) ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker && sec.part.ticker !== sec.part.nom ? ` (${esc(sec.part.ticker)})` : ""}` : "";
   const identite = sec
-    ? (entree.source === "S" ? `Série SEC ${esc(cle)}` : `${esc(isin || "ISIN non publié")} · série SEC ${esc(sec.serie)}`) + partSec
+    ? (entree.source === "S" ? esc(texteSec(cle)) : `${esc(isin || "ISIN non publié")} · ${esc(cikDeSerie(sec.serie) === null ? `série SEC ${sec.serie}` : texteSec(sec.serie))}`) + partSec
     : `${esc(isin || "ISIN non publié")}${part && !principal.jumeau ? ` · part « ${esc(part.parNom)} »` : ""}`;
   const distribuante = part && /distrib/i.test(part.parAffctnRevnuLib || "");
   const choixParts = principal.parts && principal.parts.length > 1 && !principal.jumeau

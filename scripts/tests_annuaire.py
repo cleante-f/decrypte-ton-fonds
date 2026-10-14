@@ -17,6 +17,7 @@ from pathlib import Path
 import construire_annuaire as annuaire
 
 RACINE = Path(__file__).resolve().parent.parent
+DONNEES = RACINE / "tests" / "donnees"
 NODE = shutil.which("node") or next((p for p in ("/usr/local/bin/node", "/opt/homebrew/bin/node") if Path(p).exists()), None)
 
 FONDS = {
@@ -69,6 +70,58 @@ class IndexDuSite(unittest.TestCase):
     def test_le_fonds_francais_l_emporte(self):
         for lignes in ([self.G, self.N], [self.N, self.G]):
             self.assertEqual(self.ouvrir(lignes, "FR0010135103"), ["CARMIGNAC PATRIMOINE"] * 2)
+
+
+class FondsEtrangersDeGeco(unittest.TestCase):
+    """Étape 4 : tous les fonds étrangers vivants de GECO, OPCVM et FIA (extraits réels du 14/10/2026 dans tests/donnees)."""
+    def setUp(self):
+        self.opcvm, self.fia = json.loads((DONNEES / "geco_non_fr.json").read_text(encoding="utf-8"))["compartmentDtos"]
+
+    def test_opcvm_ouvert_a_tous(self):
+        self.assertEqual(annuaire.entree_etrangere(self.opcvm), {
+            "s": "N", "c": 60382, "n": "20UGS (UCITS) FUNDS - PINESTONE GLOBAL EQUITY", "g": "KROLL (LUXEMBOURG) MANAGEMENT COMPANY, S.A R.L",
+            "pays": "LU", "d": "2018-01-08", "i": [], "tk": [], "pub": True})
+
+    def test_fia_garde_mais_reserve(self):
+        e = annuaire.entree_etrangere(self.fia)
+        self.assertEqual((e["s"], e["c"], e["n"], e["g"], e["pays"], e["d"], e["pub"]),
+                         ("N", 76104, "10X FOUNDERS FUND GMBH & CO. KG", "10X FOUNDERS GMBH", "DE", "2022-10-20", False))
+        self.assertEqual(e["t"], "EuVECA", "label EuVECA de GECO")
+
+    def test_type_du_fia_d_apres_les_labels(self):
+        self.assertEqual(annuaire.entree_etrangere(dict(self.fia, cmpLblEuveca=0))["t"], "FIA")
+        self.assertEqual(annuaire.entree_etrangere(dict(self.fia, cmpLblEuveca=0, cmpLblEltif=1))["t"], "ELTIF")
+        self.assertEqual(annuaire.entree_etrangere(dict(self.fia, cmpLblEuveca=0, cmpLblEusef=1))["t"], "EuSEF")
+
+    def test_fonds_qui_n_est_plus_vivant_ecarte(self):
+        self.assertIsNone(annuaire.entree_etrangere(dict(self.opcvm, cmpStatutCode="ECL")))
+        self.assertIsNone(annuaire.entree_etrangere(dict(self.fia, cmpStatutCode="ECL")))
+
+
+class SymbolesEuropeens(unittest.TestCase):
+    """Symboles boursiers des ETF sur toutes les bourses européennes (réponse réelle d'OpenFIGI du 14/10/2026), sans ceux des
+    plateformes qui ajoutent un suffixe de devise ou de segment (« CSPXCZK », « CSSPXM »…) ni ceux d'Amérique ou d'Asie."""
+    def setUp(self):
+        self.figi = json.loads((DONNEES / "openfigi.json").read_text(encoding="utf-8"))
+
+    def test_bourses_europeennes_seulement(self):
+        cspx, cw8 = (annuaire.symboles_europeens(r.get("data", [])) for r in self.figi["reponse"])
+        self.assertEqual(cspx, ["CSP1", "CSPX", "CSSPX", "EX05", "SXR8"])   # Londres, Amsterdam, Suisse, Vienne, Allemagne
+        self.assertEqual(cw8, ["AM76", "AMEW", "AMEX", "CW8", "CW8E"])      # Paris, Milan, Allemagne, Vienne, Suisse
+
+    def test_isin_inconnu(self):
+        self.assertEqual(annuaire.symboles_europeens([]), [])
+
+    def test_tous_les_etf_et_seulement_eux(self):
+        fonds = {"EIE00B5BMR087": {"s": "E", "i": ["IE00B5BMR087"], "tk": ["SXR8"], "etf": True},
+                 "G1": {"s": "G", "i": ["FR0010315770", "FR0010315771"], "tk": [], "etf": True},
+                 "ULU0000000001": {"s": "U", "i": ["LU0000000001"], "tk": []},
+                 "N5": {"s": "N", "i": [], "tk": []}}
+        self.assertEqual(annuaire.isins_etf(fonds), ["FR0010315770", "FR0010315771", "IE00B5BMR087"])
+        annuaire.ajouter_symboles(fonds, {"IE00B5BMR087": ["CSPX", "SXR8"], "FR0010315770": ["CW8"], "FR0010315771": []})
+        self.assertEqual(fonds["EIE00B5BMR087"]["tk"], ["CSPX", "SXR8"])
+        self.assertEqual(fonds["G1"]["tk"], ["CW8"])
+        self.assertEqual(fonds["ULU0000000001"]["tk"], [])
 
 
 class DonneesPubliees(unittest.TestCase):

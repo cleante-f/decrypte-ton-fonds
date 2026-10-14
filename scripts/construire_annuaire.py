@@ -2,13 +2,14 @@
 Construit l'annuaire de tous les fonds trouvables gratuitement → data/annuaire.js (+ data/resume.js et data/firds.js)
 
 Sources (publiques, gratuites et réutilisables) :
-  1. GECO (AMF)       : tous les fonds de droit français + fonds étrangers commercialisés en France
+  1. GECO (AMF)       : tous les fonds de droit français + fonds étrangers commercialisés en France (OPCVM, et FIA réservés
+                        aux investisseurs professionnels)
   2. FIRDS (ESMA)     : registre européen des instruments cotés : ETF cotés sur les places Euronext (Paris, Amsterdam,
                         Bruxelles, Lisbonne, Milan, Dublin, Oslo), identité officielle, places de cotation, ISIN des
                         fonds étrangers retrouvés par leur nom, et tous les autres fonds cotés dans l'Union européenne
                         (non commercialisés en France). Réutilisation autorisée en citant la source (avis juridique de l'ESMA).
   3. Xetra            : liste des instruments négociables à Francfort (Deutsche Börse)
-  4. OpenFIGI         : symboles boursiers (CW8, IWDA…) des ETF sur les places Euronext (identifiants du domaine public)
+  4. OpenFIGI         : symboles boursiers (CW8, IWDA, CSPX…) des ETF sur les bourses européennes (identifiants du domaine public)
   5. ISO 10383        : noms des places de marché (codes MIC)
   6. GLEIF            : nom officiel et fonds parapluie des fonds cotés non commercialisés en France (licence CC0)
 La liste des ETF d'Euronext n'est plus utilisée : ses conditions interdisent de compiler des répertoires sans accord écrit
@@ -16,7 +17,7 @@ La liste des ETF d'Euronext n'est plus utilisée : ses conditions interdisent de
 
 Lancement (depuis le dossier analyse-fonds) :
     python3 scripts/construire_annuaire.py
-Compter 15 à 20 minutes (OpenFIGI limite les requêtes sans clé). Uniquement la bibliothèque standard de Python.
+Compter environ une heure (OpenFIGI limite les requêtes sans clé : 10 ISIN par requête, 25 requêtes par minute). Uniquement la bibliothèque standard de Python.
 À relancer de temps en temps (une fois par mois suffit) pour mettre la liste à jour.
 """
 import collections
@@ -53,8 +54,12 @@ PAYS_FONDS = {"IE", "LU", "FR", "DE", "NL", "AT", "BE", "SE", "FI", "IT", "ES", 
 PLACES_EURONEXT = {"XPAR": "Paris", "XAMS": "Amsterdam", "XBRU": "Brussels", "XLIS": "Lisbon", "ETFP": "ETF Plus", "XMLI": "Milan",
                    "XOSL": "Oslo Børs"}
 PRIORITE_PLACES = ["XPAR", "XAMS", "XBRU", "XMIL", "XETR", "XLIS", "XOSL", "XMSM", "XDUB"]
-# Codes de place OpenFIGI des marchés Euronext
-BOURSES_FIGI = {"FP", "NA", "BB", "PL", "IM", "ID", "NO"}
+# Codes de place OpenFIGI des bourses européennes (vus dans les réponses d'OpenFIGI le 14/10/2026) : Euronext (Paris FP, Amsterdam NA,
+# Bruxelles BB, Lisbonne PL, Milan IM, Dublin ID, Oslo NO), Londres LN, SIX Suisse SW et SE, Allemagne GR (toutes ses places),
+# Vienne AV, Madrid SM, Stockholm SS, Helsinki FH, Copenhague DC, Varsovie PW, Prague CP, Budapest HB.
+# Les plateformes multilatérales (B2, B3, EB, E1, ER, X…) sont écartées : leurs symboles portent des suffixes de devise ou de
+# segment (« CSPXCZK », « CSSPXM ») qu'aucun épargnant ne tape.
+BOURSES_FIGI = {"FP", "NA", "BB", "PL", "IM", "ID", "NO", "LN", "SW", "SE", "GR", "AV", "SM", "SS", "FH", "DC", "PW", "CP", "HB"}
 # Noms courts des grandes places (code MIC opérateur) ; les autres prennent le nom de la liste ISO 10383
 NOMS_PLACES = {"XPAR": "Euronext Paris", "XAMS": "Euronext Amsterdam", "XBRU": "Euronext Bruxelles", "XLIS": "Euronext Lisbonne",
                "XMSM": "Euronext Dublin", "XDUB": "Euronext Dublin", "XOSL": "Euronext Oslo", "XMIL": "Borsa Italiana (Euronext Milan)",
@@ -140,19 +145,36 @@ def places_iso():
     return res
 
 
+def symboles_europeens(data):
+    """Symboles d'une part sur les bourses européennes (BOURSES_FIGI), triés et sans doublon, d'après la liste `data` d'OpenFIGI."""
+    return sorted({d["ticker"] for d in data if d.get("exchCode") in BOURSES_FIGI and d.get("ticker")})
+
+
 def symboles_openfigi(isins):
-    """Symboles boursiers des ETF sur les places Euronext (sans clé : 10 ISIN par requête, 25 requêtes par minute)."""
+    """Symboles boursiers des ETF sur les bourses européennes (sans clé : 10 ISIN par requête, 25 requêtes par minute)."""
     res = {}
     liste = sorted(isins)
     for i in range(0, len(liste), 10):
         lot = liste[i:i + 10]
         reponse = json.loads(telecharger(OPENFIGI, json_body=[{"idType": "ID_ISIN", "idValue": x} for x in lot]))
         for isin, r in zip(lot, reponse):
-            res[isin] = sorted({d["ticker"] for d in r.get("data", []) if d.get("exchCode") in BOURSES_FIGI and d.get("ticker")})
+            res[isin] = symboles_europeens(r.get("data", []))
         if i // 10 % 25 == 24:
             print(f"  OpenFIGI : {i + 10}/{len(liste)}")
         time.sleep(2.6)
     return res
+
+
+def isins_etf(fonds):
+    """ISIN de toutes les parts d'ETF de l'annuaire (ETF étrangers et ETF français de GECO), triés."""
+    return sorted({i for f in fonds.values() if f.get("etf") for i in f["i"]})
+
+
+def ajouter_symboles(fonds, symboles):
+    """Ajoute à chaque ETF les symboles de ses parts ({ISIN: [symboles]}), sans retirer ceux qu'il a déjà (Xetra)."""
+    for f in fonds.values():
+        if f.get("etf"):
+            f["tk"] = sorted(set(f["tk"]).union(*(symboles.get(i, []) for i in f["i"])))
 
 
 # ---------- Fonds étrangers sans ISIN : correspondance prudente par le nom avec FIRDS ----------
@@ -302,6 +324,24 @@ def ajouter_fonds_cotes(fonds, cotations_ce, cotations_ci):
     return par_nom
 
 
+# Labels européens des FIA étrangers dans GECO (champs cmpLbl…), dans l'ordre où ils l'emportent ; sinon le FIA est un « FIA »
+LABELS_FIA = [("cmpLblEltif", "ELTIF"), ("cmpLblEuveca", "EuVECA"), ("cmpLblEusef", "EuSEF")]
+
+
+def entree_etrangere(c):
+    """Entrée de l'annuaire pour un fonds étranger commercialisé en France (GECO, NON_FR), ou None s'il n'est plus vivant.
+    Les OPCVM sont ouverts à tous ; les FIA (famille OFIA de GECO) sont gardés mais marqués réservés (pub False) : leur
+    commercialisation en France vise les investisseurs professionnels. Leur type (FIA, ELTIF, EuVECA, EuSEF) va dans « t »."""
+    if c.get("cmpStatutCode") != "VIV":
+        return None
+    entree = {"s": "N", "c": num(c["cmpId"]), "n": c["cmpNom"].strip(), "g": c.get("gestionnaire", ""),
+              "pays": c.get("prdDomcltn", ""), "d": c.get("cmpDateCreation") or "", "i": [], "tk": [], "pub": True}
+    if c.get("prdFaml") != "OPCVM":
+        entree["t"] = next((libelle for champ, libelle in LABELS_FIA if c.get(champ)), "FIA")
+        entree["pub"] = False
+    return entree
+
+
 def num(identifiant):
     """'c28771' → 28771 (plus compact dans le fichier)."""
     return int(identifiant[1:]) if identifiant else 0
@@ -311,7 +351,7 @@ def main():
     fonds = {}      # clé → entrée
     par_isin = {}   # ISIN → clé
 
-    print("1/6 GECO – fonds français…")
+    print("1/7 GECO – fonds français…")
     for c in geco("FR"):
         if c.get("prdSsNature") in NATURES_EXCLUES or c.get("cmpStatutCode") != "VIV":
             continue
@@ -330,11 +370,11 @@ def main():
         for i in isins:
             par_isin[i] = cle
 
-    print("2/6 FIRDS (ESMA) – ETF et autres fonds cotés dans l'Union européenne…")
+    print("2/7 FIRDS (ESMA) – ETF et autres fonds cotés dans l'Union européenne…")
     cotations_ce, cotations_ci = firds("CE"), firds("CI")
     iso = places_iso()
 
-    print("3/6 ETF des places Euronext (FIRDS) et de Xetra…")
+    print("3/7 ETF des places Euronext (FIRDS) et de Xetra…")
     etf = {}
     for d in cotations_ce:
         isin, place = d["isin"], PLACES_EURONEXT.get(d["mic"].upper())
@@ -343,9 +383,7 @@ def main():
         x = etf.setdefault(isin, {"noms": set(), "tk": set(), "m": set(), "dev": d.get("gnr_notional_curr_code", "")})
         x["noms"].add(d["gnr_full_name"])
         x["m"].add(place)
-    print(f"  {len(etf)} ETF cotés sur une place Euronext ; symboles boursiers (OpenFIGI)…")
-    for isin, tickers in symboles_openfigi(etf).items():
-        etf[isin]["tk"] |= set(tickers)
+    print(f"  {len(etf)} ETF cotés sur une place Euronext")
     for e in xetra():
         isin = e.get("ISIN", "")
         if isin[:2] not in PAYS_FONDS:
@@ -366,23 +404,24 @@ def main():
             "m": sorted(x["m"]), "dev": x["dev"], "etf": True, "pub": True,
         }
 
-    print("4/6 GECO – fonds étrangers commercialisés en France, et leurs ISIN retrouvés dans FIRDS…")
+    print("4/7 GECO – fonds étrangers commercialisés en France (OPCVM et FIA), et leurs ISIN retrouvés dans FIRDS…")
     for c in geco("NON_FR"):
-        if c.get("cmpStatutCode") != "VIV" or c.get("prdFaml") != "OPCVM":
-            continue
-        fonds["N" + str(num(c["cmpId"]))] = {
-            "s": "N", "c": num(c["cmpId"]), "n": c["cmpNom"].strip(), "g": c.get("gestionnaire", ""),
-            "pays": c.get("prdDomcltn", ""), "d": c.get("cmpDateCreation") or "", "i": [], "tk": [], "pub": True,
-        }
+        entree = entree_etrangere(c)
+        if entree:
+            fonds["N" + str(entree["c"])] = entree
     par_nom = isin_retrouves_par_nom(fonds, cotations_ci, par_isin)
     for cle, isins in par_nom.items():
         fonds[cle]["i"] = isins
     print(f"  ISIN retrouvés pour {len(par_nom)} fonds étrangers ({sum(len(v) for v in par_nom.values())} parts)")
 
-    print("5/6 Fonds cotés dans l'Union européenne mais non commercialisés en France (FIRDS + GLEIF)…")
+    print("5/7 Fonds cotés dans l'Union européenne mais non commercialisés en France (FIRDS + GLEIF)…")
     par_nom.update(ajouter_fonds_cotes(fonds, cotations_ce, cotations_ci))
 
-    print("6/6 Écriture des fichiers…")
+    a_chercher = isins_etf(fonds)
+    print(f"6/7 Symboles boursiers des ETF sur les bourses européennes (OpenFIGI, {len(a_chercher)} parts)…")
+    ajouter_symboles(fonds, symboles_openfigi(a_chercher))
+
+    print("7/7 Écriture des fichiers…")
     # Format compact : un tableau par fonds, pour garder un fichier léger
     # [source, idCompartiment, idProduit, nom, gestionnaire, classification, nature, isins, date, pays, tickers, marchés, devise, etf, public]
     lignes = []

@@ -20,7 +20,15 @@ from collections import Counter, defaultdict
 from construire_identite import ACTIF, OPCVM, cle_societe
 
 CADRES = {"UCITS": "OPCVM (UCITS)", "AIF": "FIA", "ELTIF": "ELTIF", "EuVECA": "EuVECA", "EuSEF": "EuSEF"}
-PAYS_ZONE = {"IE", "LU"}   # pays dont les fonds absents de l'annuaire forment la zone « registres-ue »
+# Les fonds du registre absents de l'annuaire forment la zone « registres-ue », quel que soit leur pays de domicile (Irlande,
+# Luxembourg, Allemagne, Suède, Autriche, Liechtenstein…), sauf la France : tous les fonds français sont déjà dans GECO.
+PAYS_HORS_ZONE = {"FR"}
+
+
+def dans_zone(doc):
+    """Vrai si la fiche peut entrer dans la zone « registres-ue » : pays de domicile connu, autre que la France."""
+    pays = doc.get("funds_domicile_cou_code")
+    return bool(pays) and pays not in PAYS_HORS_ZONE
 
 
 def propre(texte):
@@ -160,11 +168,11 @@ def entree_esma(doc, nom_id):
 
 
 def lignes_registres(docs, joli):
-    """Lignes de la zone « registres-ue » (format de l'annuaire) pour les fiches données domiciliées dans PAYS_ZONE, triées par nom :
+    """Lignes de la zone « registres-ue » (format de l'annuaire) pour les fiches données de la zone (dans_zone), triées par nom :
     ["R", id, id, nom, société de gestion, "", cadre en français, "", "", pays, "", "", "", ETF (1/0), public (1 pour un OPCVM)]."""
     lignes = []
     for d in docs:
-        if d.get("funds_domicile_cou_code") not in PAYS_ZONE:
+        if not dans_zone(d):
             continue
         nom, cadre = propre(d.get("funds_national_name")), d.get("funds_legal_framework_name") or ""
         numero = int(d["id"])

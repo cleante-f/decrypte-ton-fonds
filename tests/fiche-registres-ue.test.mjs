@@ -1,4 +1,4 @@
-// Registre européen de l'ESMA sur le site : fiche d'un fonds irlandais ou luxembourgeois (source R), lignes de l'ESMA sur les fiches
+// Registre européen de l'ESMA sur le site : fiche d'un fonds européen du registre (source R), lignes de l'ESMA sur les fiches
 // des fonds européens déjà présents, alertes du registre, ouverture dans les trois outils (Décrypte, Performances, Simulateur).
 // Les données de test sont de vraies lignes de data/annuaire-registres-ue.js, data/registres-ue-infos.js, data/identite.js et data/firds.js.
 import { test } from "node:test";
@@ -373,6 +373,28 @@ test("esmaDe : fonds européen d'après le LEI de FIRDS", () => {
   assert.equal(ctx.esmaDe(ctx.lireEntree(AMUNDI), undefined).autorite, "LU", "un des ISIN de l'entrée suffit");
 });
 
+// ---------- FIA étranger commercialisé en France (GECO, famille OFIA ; type d'après ses labels : scripts/construire_annuaire.py) ----------
+
+const FIA_GECO = ["N", 76104, 0, "10X FOUNDERS FUND GMBH & CO. KG", "10X FOUNDERS GMBH", "", "EuVECA", "", "2022-10-20", "DE", "", "", "", 0, 0];
+
+test("fiche N d'un FIA étranger vendu en France (GECO) : alerte de son type, pas l'information générique « Fonds réservé »", () => {
+  const ctx = page();
+  const fia = ctx.lireEntree(FIA_GECO.map((v, i) => (i === 6 ? "FIA" : v)));
+  let pieges = simple(ctx.detecterPiegesAuto(fia, null));
+  const pro = pieges.find(p => p.titre === "Réservé aux investisseurs professionnels");
+  assert.ok(pro && pro.niveau === "attention" && pro.terme === "fia");
+  assert.equal(pro.texte, "D'après la base GECO de l'AMF, ce fonds est un FIA étranger : sa commercialisation en France vise les investisseurs professionnels. Un particulier ne peut en général pas y souscrire.");
+  assert.ok(!pieges.some(p => p.titre === "Fonds réservé"));
+  const euveca = ctx.lireEntree(FIA_GECO);
+  pieges = simple(ctx.detecterPiegesAuto(euveca, null));
+  assert.ok(pieges.some(p => p.titre === "Réservé aux investisseurs avertis"));
+  assert.ok(!pieges.some(p => p.titre === "Fonds réservé" || p.titre === "Réservé aux investisseurs professionnels"));
+  const html = fiche(ctx, euveca, undefined);
+  assert.ok(html.includes("Réservé aux investisseurs avertis") && html.includes("Commercialisé en France depuis"));
+  // un OPCVM étranger (nature vide) n'a aucune de ces alertes
+  assert.ok(!simple(ctx.detecterPiegesAuto(ctx.lireEntree(JPMORGAN), null)).some(p => p.terme === "fia"));
+});
+
 // ---------- alertesRegistre ----------
 
 test("alertesRegistre", () => {
@@ -541,7 +563,7 @@ test("fichiers publics : zone et informations exclues des Functions, chargées �
   assert.deepEqual(simple(zones).map(z => z.nom), ["registres-ue", "etats-unis"], "ordre de recherche : Europe, registres-ue, etats-unis");
   const ue = zones[0];
   assert.equal(ue.fichier, "data/annuaire-registres-ue.js");
-  assert.equal(ue.origine, "Fonds irlandais ou luxembourgeois (registre ESMA)");
+  assert.equal(ue.origine, "Fonds européen (registre ESMA)");
   assert.ok(ue.motif.test("R90728") && !ue.motif.test("R") && !ue.motif.test("S000002839"));
 });
 
