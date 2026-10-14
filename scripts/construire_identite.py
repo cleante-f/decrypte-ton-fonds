@@ -482,6 +482,8 @@ def main():
 
     print("6/6 AMF – sociétés de gestion agréées…")
     mettre_a_jour_societes()
+    from construire_annuaire import ecrire_resume   # ici : construire_annuaire importe ce module
+    ecrire_resume()   # le nombre de fonds de la page d'accueil compte la zone « registres-ue »
 
 
 if __name__ == "__main__":

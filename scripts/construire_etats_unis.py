@@ -875,6 +875,9 @@ def main(argv=None, dossier: Path = DATA, aujourd_hui: date | None = None) -> in
         if detail:
             details[serie] = detail
     ecrire_sorties(dossier, lignes, details, isin_serie, aujourd_hui.isoformat(), dernier)
+    if (Path(dossier) / "annuaire.js").exists():   # nombre de fonds de la page d'accueil, zone américaine comprise
+        from construire_annuaire import ecrire_resume
+        ecrire_resume(dossier)
     taille = sum(p.stat().st_size for p in (Path(dossier) / DOSSIER_DETAILS).glob("*.js")) + sum(
         (Path(dossier) / f).stat().st_size for f in (FICHIER_ZONE, FICHIER_ISIN))
     print(f"Terminé : {len(lignes)} séries dans la zone, {len(details)} détails, {len(isin_serie)} ISIN rapprochés, {taille / 1e6:.1f} Mo écrits "

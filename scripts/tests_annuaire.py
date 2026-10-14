@@ -124,6 +124,24 @@ class SymbolesEuropeens(unittest.TestCase):
         self.assertEqual(fonds["ULU0000000001"]["tk"], [])
 
 
+class ResumeAccueil(unittest.TestCase):
+    """data/resume.js compte tous les fonds du site : annuaire européen et zones (SEC, registre ESMA), quel que soit le script lancé."""
+    def test_total_avec_les_zones(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "annuaire.js").write_text('const ANNUAIRE_DATE = "2026-10-14";\nconst ANNUAIRE = [["G",1,1,"A"],["E",0,0,"B"],["N",2,0,"C"],["U",0,0,"D"]];\n', encoding="utf-8")
+            (d / "annuaire-etats-unis.js").write_text('/* x */\nANNUAIRE_ZONES["etats-unis"] = {"maj":"2026-10-14","lignes":[["S",1],["S",2],["S",3]]};\n', encoding="utf-8")
+            (d / "annuaire-registres-ue.js").write_text('ANNUAIRE_ZONES["registres-ue"] = {"maj":"2026-10-14","lignes":[["R",5],["R",6]]};\n', encoding="utf-8")
+            annuaire.ecrire_resume(d)
+            r = json.loads(re.search(r"const RESUME_ANNUAIRE = (.*);", (d / "resume.js").read_text(encoding="utf-8")).group(1))
+            self.assertEqual((r["total"], r["francais"], r["etf"], r["etrangers"], r["europe"], r["etats_unis"], r["registres_ue"], r["date"]),
+                             (9, 1, 1, 1, 1, 3, 2, "2026-10-14"))
+            (d / "annuaire-registres-ue.js").unlink()   # zone absente : comptée zéro
+            annuaire.ecrire_resume(d)
+            self.assertIn('"total": 7', (d / "resume.js").read_text(encoding="utf-8"))
+
+
 class DonneesPubliees(unittest.TestCase):
     def test_isin_des_fonds_francais_sur_une_seule_fiche(self):
         texte = (RACINE / "data" / "annuaire.js").read_text(encoding="utf-8")

@@ -342,6 +342,32 @@ def entree_etrangere(c):
     return entree
 
 
+def _lignes_zone(fichier):
+    """Lignes d'un fichier de données du site (annuaire ou zone), ou [] s'il n'existe pas."""
+    if not fichier.exists():
+        return []
+    texte = fichier.read_text(encoding="utf-8")
+    m = re.search(r"const ANNUAIRE = (\[.*\]);\n", texte, re.S)
+    if m:
+        return json.loads(m.group(1))
+    return json.loads(re.search(r"ANNUAIRE_ZONES\[\"[^\"]+\"\] = (\{.*\});\n", texte, re.S).group(1))["lignes"]
+
+
+def ecrire_resume(dossier=DATA):
+    """Petit résumé pour la page d'accueil (qui ne charge ni l'annuaire ni les zones) : nombre de fonds de tout le site, annuaire
+    européen et zones (SEC, registre ESMA). Appelé à la fin de chaque script qui réécrit l'un de ces fichiers."""
+    dossier = Path(dossier)
+    lignes = _lignes_zone(dossier / "annuaire.js")
+    compte = {s: sum(1 for l in lignes if l[0] == s) for s in "GENU"}
+    etats_unis, registres = len(_lignes_zone(dossier / "annuaire-etats-unis.js")), len(_lignes_zone(dossier / "annuaire-registres-ue.js"))
+    date_annuaire = re.search(r'ANNUAIRE_DATE = "([^"]+)"', (dossier / "annuaire.js").read_text(encoding="utf-8")).group(1)
+    resume = {"total": len(lignes) + etats_unis + registres, "francais": compte["G"], "etf": compte["E"], "etrangers": compte["N"],
+              "europe": compte["U"], "etats_unis": etats_unis, "registres_ue": registres, "date": date_annuaire}
+    (dossier / "resume.js").write_text(
+        "/* Généré par scripts/construire_annuaire.py (ecrire_resume) : chiffres affichés sur la page d'accueil (sans charger l'annuaire). */\n"
+        f"const RESUME_ANNUAIRE = {json.dumps(resume)};\n", encoding="utf-8")
+
+
 def num(identifiant):
     """'c28771' → 28771 (plus compact dans le fichier)."""
     return int(identifiant[1:]) if identifiant else 0
@@ -438,12 +464,7 @@ def main():
         f"const ANNUAIRE_DATE = \"{date.today().isoformat()}\";\n"
         "const ANNUAIRE = " + json.dumps(lignes, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8")
     compte = {s: sum(1 for l in lignes if l[0] == s) for s in "GENU"}
-    # Petit résumé pour la page d'accueil (qui ne charge pas tout l'annuaire)
-    resume = {"total": len(lignes), "francais": compte["G"], "etf": compte["E"], "etrangers": compte["N"], "europe": compte["U"],
-              "date": date.today().isoformat()}
-    (DATA / "resume.js").write_text(
-        "/* Généré par scripts/construire_annuaire.py : chiffres affichés sur la page d'accueil (sans charger tout l'annuaire). */\n"
-        f"const RESUME_ANNUAIRE = {json.dumps(resume)};\n", encoding="utf-8")
+    ecrire_resume()
 
     # Identité officielle (ESMA) des fonds étrangers de l'annuaire : LEI, devise, places de cotation dans l'UE
     par_isin_firds = collections.defaultdict(list)
