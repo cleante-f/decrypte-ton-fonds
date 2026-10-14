@@ -14,7 +14,8 @@ const EXEMPLES_REELS = [
   ["LU1681043599", "Amundi MSCI World Swap (CW8)"], ["FR0000447039", "AXA PEA Régularité"]
 ].filter(([isin]) => annuaireParIsin(isin));
 document.getElementById("exemples").innerHTML =
-  `<span>${ANNUAIRE.length.toLocaleString("fr-FR")} fonds référencés. Exemples :</span> ` +
+  // tout le site (annuaire européen et zones) d'après data/resume.js ; à défaut, l'annuaire européen seul
+  `<span>${(typeof RESUME_ANNUAIRE !== "undefined" ? RESUME_ANNUAIRE.total : ANNUAIRE.length).toLocaleString("fr-FR")} fonds référencés. Exemples :</span> ` +
   EXEMPLES_REELS.map(([isin, nom]) => `<a href="#${isin}" class="chip">${esc(nom)}</a>`).join(" ");
 
 // ---------- Recherche et navigation ----------
