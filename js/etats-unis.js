@@ -25,6 +25,27 @@ const MORCEAUX_ETATS_UNIS = 64;    // nombre de fichiers de détails
 
 const _possede = (objet, cle) => Object.prototype.hasOwnProperty.call(objet, cle);
 
+// Fonds sans numéro de série à la SEC (ETF organisés en « unit investment trust » comme SPY, DIA ou MDY, fonds fermés) : le script
+// les range sous la pseudo-série « S » + (900 000 000 + CIK de la société qui dépose leurs rapports), sur 9 chiffres
+// (scripts/construire_etats_unis.py, DEBUT_CIK). Leur seule part porte ce même numéro. Ni l'un ni l'autre ne s'affiche.
+const DEBUT_CIK_SEC = 900000000;
+
+// CIK d'une pseudo-série (« S900884394 » → 884394), null pour une vraie série ou tout autre texte
+function cikDeSerie(serie) {
+  if (typeof serie !== "string" || !/^S\d{9}$/.test(serie)) return null;
+  const n = Number(serie.slice(1));
+  return n >= DEBUT_CIK_SEC ? n - DEBUT_CIK_SEC : null;
+}
+
+// Identifiant SEC à l'écran : « Série SEC S000002839 », ou « CIK 884394 (SEC) » pour un fonds sans numéro de série
+function texteSec(serie) {
+  const cik = cikDeSerie(serie);
+  return cik === null ? `Série SEC ${serie}` : `CIK ${cik} (SEC)`;
+}
+
+// Part « implicite » d'un fonds sans numéro de série (elle porte le numéro de la pseudo-série) : rien à en dire à l'écran
+function partImplicite(part) { return !!part && cikDeSerie(part.classe) !== null; }
+
 // Série SEC (« S000002839 ») d'un fonds de l'annuaire : sa propre clé pour un fonds américain ; pour un fonds européen,
 // la série qui a le même LEI que lui (ETATS_UNIS_ISIN), d'après l'ISIN demandé puis les ISIN de l'entrée. Sinon null.
 function serieSecDe(entree, isin) {

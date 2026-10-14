@@ -92,6 +92,37 @@ test("fiche S : en-tête « Série SEC <clé> · part « nom » (ticker) »", as
   assert.match(fiche(ctx, e, undefined, null, true), /<p>Série SEC S000002839 · VANGUARD INDEX FUNDS<\/p>/);
 });
 
+// ---------- Fonds sans numéro de série à la SEC (ETF « unit investment trust », fonds fermés) : pseudo-série du CIK ----------
+
+// Ligne et détail au format écrit par scripts/construire_etats_unis.py pour SPY (CIK 884394) : sa seule part porte le numéro de la pseudo-série
+const LIGNE_SPY = ["S", 900884394, 900884394, "State Street SPDR S&P 500 ETF Trust", "", "", "", "", "", "US", "SPY", "", "USD", 1, 1];
+const SPY = { ...VANGUARD, nom: "State Street SPDR S&P 500 ETF Trust", lei: "549300NZAMSJ8FXPQQ63", parts: [["S900884394", "", "SPY", "2019-10", mois81, null]] };
+
+test("identifiants SEC : vraie série, ou CIK d'un fonds sans numéro de série", () => {
+  const ctx = page();
+  assert.equal(ctx.cikDeSerie("S900884394"), 884394);
+  for (const autre of ["S000002839", "R90728", "", null, "S90088439"]) assert.equal(ctx.cikDeSerie(autre), null, String(autre));
+  assert.equal(ctx.texteSec("S000002839"), "Série SEC S000002839");
+  assert.equal(ctx.texteSec("S900884394"), "CIK 884394 (SEC)");
+  assert.equal(ctx.partImplicite(ctx.lirePartSec(SPY.parts[0])), true);
+  assert.equal(ctx.partImplicite(ctx.lirePartSec(VANGUARD.parts[2])), false);
+  assert.equal(ctx.partImplicite(null), false);
+});
+
+test("fiche d'un fonds sans numéro de série (SPY) : CIK au lieu de la série, EDGAR par le CIK, pas de part affichée", async () => {
+  const ctx = page();
+  const e = ctx.lireEntree(LIGNE_SPY);
+  assert.equal(ctx.cleEntree(e), "S900884394");
+  const html = fiche(ctx, e, undefined, await donneesFiche(ctx, e, undefined, SPY, "S900884394"));
+  assert.match(html, /<p>CIK 884394 \(SEC\)<\/p>/);
+  assert.match(html, /data-terme="serie_sec">Numéro CIK \(SEC\)<\/button><\/dt><dd>884394<\/dd>/);
+  assert.ok(html.includes("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK=0000884394&amp;count=10"));
+  assert.ok(!html.includes("Série SEC S900884394") && !html.includes("part « SPY »"), "ni pseudo-série ni part implicite à l'écran");
+  assert.ok(html.includes("Rendements mensuels déclarés à la SEC"));
+  assert.ok(html.includes("549300NZAMSJ8FXPQQ63"));
+  assert.ok(html.includes("Ce fonds n'a qu'une seule part (ticker SPY).") && !html.includes("SPY — SPY"), "section 6");
+});
+
 test("fiche S : performances, volatilité et perte maximale, avec graphique", async () => {
   const ctx = page();
   const e = ctx.lireEntree(LIGNE_S);
@@ -403,7 +434,7 @@ test("pays dominant : un vrai pays alerte toujours", async () => {
 test("glossaire : serie_sec, n_port, frais_nets", () => {
   const ctx = page();
   const g = vm.runInContext("GLOSSAIRE", ctx);
-  assert.equal(g.serie_sec, "Numéro donné par la SEC, le gendarme américain de la Bourse, à chaque fonds américain. Un fonds (une « série ») peut avoir plusieurs parts, avec leurs propres frais et tickers.");
+  assert.equal(g.serie_sec, "Numéro donné par la SEC, le gendarme américain de la Bourse, à chaque fonds américain. Un fonds (une « série ») peut avoir plusieurs parts, avec leurs propres frais et tickers. Les fonds qui n'ont pas de numéro de série (ETF organisés en « trust » comme SPY, fonds fermés) sont désignés par leur CIK, le numéro de la société qui dépose leurs rapports.");
   assert.equal(g.n_port, "Formulaire que chaque fonds américain dépose auprès de la SEC : la liste de toutes ses positions et ses rendements des trois derniers mois. La SEC le rend public quelques semaines plus tard.");
   assert.equal(g.frais_nets, "Frais annuels après les remises que la société de gestion s'est engagée à accorder, souvent pour une durée limitée. Les frais bruts sont ceux d'avant ces remises.");
 });

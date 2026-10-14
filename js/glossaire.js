@@ -67,7 +67,7 @@ const GLOSSAIRE = {
   correlation: "Mesure, de -1 à 1, à quel point deux placements évoluent ensemble. Proche de 1 : ils montent et baissent en même temps. Proche de 0 ou négatif : ils se compensent en partie.",
   inflation: "Hausse générale des prix. Avec 2 % d'inflation par an, 100 € d'aujourd'hui n'achètent plus que l'équivalent d'environ 82 € dans 10 ans.",
   performance_annualisee: "Gain (ou perte) moyen par an sur la période. Ex. +5 % annualisé sur 3 ans ≈ +15,8 % au total.",
-  serie_sec: "Numéro donné par la SEC, le gendarme américain de la Bourse, à chaque fonds américain. Un fonds (une « série ») peut avoir plusieurs parts, avec leurs propres frais et tickers.",
+  serie_sec: "Numéro donné par la SEC, le gendarme américain de la Bourse, à chaque fonds américain. Un fonds (une « série ») peut avoir plusieurs parts, avec leurs propres frais et tickers. Les fonds qui n'ont pas de numéro de série (ETF organisés en « trust » comme SPY, fonds fermés) sont désignés par leur CIK, le numéro de la société qui dépose leurs rapports.",
   n_port: "Formulaire que chaque fonds américain dépose auprès de la SEC : la liste de toutes ses positions et ses rendements des trois derniers mois. La SEC le rend public quelques semaines plus tard.",
   frais_nets: "Frais annuels après les remises que la société de gestion s'est engagée à accorder, souvent pour une durée limitée. Les frais bruts sont ceux d'avant ces remises.",
   autorite_controle: "Autorité publique qui a autorisé le fonds et le surveille dans son pays d'origine (ex. CSSF au Luxembourg, Banque centrale d'Irlande, AMF en France). Ce contrôle ne garantit ni le capital ni la performance.",

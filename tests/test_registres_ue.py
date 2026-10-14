@@ -48,7 +48,13 @@ class Base(unittest.TestCase):
 class Constantes(Base):
     def test_cadres(self):
         self.assertEqual(ru.CADRES, {"UCITS": "OPCVM (UCITS)", "AIF": "FIA", "ELTIF": "ELTIF", "EuVECA": "EuVECA", "EuSEF": "EuSEF"})
-        self.assertEqual(ru.PAYS_ZONE, {"IE", "LU"})
+
+    def test_zone_tous_les_pays_sauf_la_france(self):   # les fonds français sont tous dans GECO
+        for pays in ("IE", "LU", "DE", "SE", "AT", "LI", "MT", "NL"):
+            self.assertTrue(ru.dans_zone({"funds_domicile_cou_code": pays}), pays)
+        for pays in ("FR", "", None):
+            self.assertFalse(ru.dans_zone({"funds_domicile_cou_code": pays}), pays)
+        self.assertFalse(ru.dans_zone({}))
 
 
 class Actives(Base):
@@ -212,10 +218,15 @@ class Lignes(Base):
                                     "", "", "IE", "", "", "", 0, 1])
         self.assertEqual((l[2103246][4], l[2103246][6], l[2103246][9], l[2103246][14]), ("Quaestio Capital Sgr S.P.A.", "FIA", "LU", 0))
 
-    def test_lignes_registres_hors_zone(self):
+    def test_lignes_registres_fonds_francais_exclus(self):
+        d = self.doc("90728")
+        d["funds_domicile_cou_code"] = "FR"
+        self.assertEqual(ru.lignes_registres([d], ci.joli), [])
+
+    def test_lignes_registres_autres_pays(self):
         d = self.doc("90728")
         d["funds_domicile_cou_code"] = "DE"
-        self.assertEqual(ru.lignes_registres([d], ci.joli), [])
+        self.assertEqual(ru.lignes_registres([d], ci.joli)[0][9], "DE")
 
     def test_lignes_registres_etf(self):
         d = self.doc("2836341")

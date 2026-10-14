@@ -3,7 +3,11 @@ Fonds américains (SEC) → zone « États-Unis » de l'annuaire, composition de
 
 Sources (fichiers publics de la SEC, https://www.sec.gov) :
   1. Liste « Investment Company Series and Class Information » (CSV annuel) et company_tickers_mf.json :
-     séries, parts (classes), sociétés de gestion et tickers des fonds américains.
+     séries, parts (classes), sociétés de gestion et tickers des fonds américains. Toutes les séries de la liste entrent dans la
+     zone, avec ou sans ticker, sauf les comptes séparés des contrats d'assurance (TYPES_ASSURANCE), qui ne sont pas des fonds.
+     Les fonds qui déposent leurs rapports N-PORT sans numéro de série (ETF organisés en « unit investment trust » comme SPY,
+     DIA ou MDY, fonds fermés, fonds « à intervalles ») sont identifiés par le CIK du déposant (REGISTRANT.tsv) : leur ticker
+     vient de company_tickers.json.
   2. Jeux de données trimestriels « Form N-PORT » (DERA) : inventaire des positions, actif net, LEI et rendements mensuels
      de chaque part, à partir du 4e trimestre 2019, et tableau de prêt de titres (SECURITIES_LENDING.tsv : positions qui réinvestissent
      des garanties reçues en espèces, retirées de la composition). Archives de 400 à 500 Mo lues par plages d'octets (ZipDistant),
@@ -54,6 +58,7 @@ SEC = "https://www.sec.gov"
 NPORT = SEC + "/files/dera/data/form-n-port-data-sets/{t}_nport.zip"
 RR = SEC + "/files/dera/data/mutual-fund-prospectus-risk/return-summary-data-sets/{t}_rr1.zip"
 TICKERS = SEC + "/files/company_tickers_mf.json"
+TICKERS_SOCIETES = SEC + "/files/company_tickers.json"   # {"0": {"cik_str": 884394, "ticker": "SPY", "title": …}, …}
 LISTE = SEC + "/files/investment/data/other/investment-company-series-class-information/investment-company-series-class-{annee}.csv"
 BCE_USD = "https://data-api.ecb.europa.eu/service/data/EXR/M.USD.EUR.SP00.E?format=csvdata&detail=dataonly&startPeriod=2019-09"
 PREMIER_TRIMESTRE = "2019q4"
@@ -68,6 +73,72 @@ ETIQUETTES_FRAIS = {"ExpensesOverAssets": 0, "NetExpensesOverAssets": 1, "Manage
 PAUSE = 0.2   # secondes avant chaque requête : 5 par seconde au plus (limite de la SEC : 10)
 TAMPON = 8 << 20   # octets demandés à chaque requête par plage
 MOIS = {m: i for i, m in enumerate(["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"], 1)}
+# Fonds sans numéro de série (708 déposants N-PORT au 3e trimestre 2026 : SPY, DIA, MDY, fonds fermés…) : rangés sous la pseudo-série
+# « S » + (DEBUT_CIK + CIK du déposant) sur 9 chiffres, pour suivre le même chemin que les autres fonds (même clé « S » + 9 chiffres
+# dans le navigateur : js/etats-unis.js, DEBUT_CIK_SEC). Les vraies séries de la SEC en sont loin (S000105000 environ en 2026).
+DEBUT_CIK = 900_000_000
+# Types d'entité de la liste annuelle (colonne « Entity Org Type ») qui ne sont pas des fonds : comptes séparés de contrats d'assurance
+# (rentes variables, assurance-vie à capital variable), d'après les noms vus dans la liste 2026 (« Variable Annuity Account B »,
+# « Prestige Variable Life Account »)
+TYPES_ASSURANCE = {"32", "33"}
+MARQUES = re.compile(r"\s*\((?:R|SM|TM)\)", re.IGNORECASE)   # « State Street(R) SPDR(R) » → « State Street SPDR »
+
+
+def serie_de_cik(cik: str | int) -> str:
+    """Pseudo-série d'un fonds sans numéro de série : « 0000884394 » → « S900884394 »."""
+    return f"S{DEBUT_CIK + int(cik):09d}"
+
+
+def cik_de_serie(serie: str) -> int | None:
+    """CIK d'une pseudo-série (« S900884394 » → 884394), None pour une vraie série."""
+    m = re.fullmatch(r"S(\d{9})", serie or "")
+    return int(m.group(1)) - DEBUT_CIK if m and int(m.group(1)) >= DEBUT_CIK else None
+
+
+def _reel(identifiant: str | None) -> str:
+    """Identifiant de la SEC, ou « » s'il manque ou s'il est factice : « S000000000 » et « C000000000 » (vus dans le jeu 2026q3)."""
+    identifiant = (identifiant or "").strip()
+    return "" if re.fullmatch(r"[A-Z]0+", identifiant) else identifiant
+
+
+def completer_series(infos: Iterable[dict], declarants: Iterable[dict]) -> list[dict]:
+    """Lignes FUND_REPORTED_INFO où une ligne sans numéro de série (ou au numéro factice) reçoit la pseudo-série du CIK de son déposant
+    (REGISTRANT.tsv, par ACCESSION_NUMBER) et, si SERIES_NAME est vide ou vaut « N/A », le nom du déposant ; les marques « (R) »,
+    « (SM) », « (TM) » sont retirées de son nom. Sans déposant connu, SERIES_ID devient « » (ligne ignorée plus loin).
+    Les lignes qui ont un vrai numéro de série sont rendues telles quelles ; les autres sont des copies."""
+    par_depot = {d.get("ACCESSION_NUMBER"): d for d in declarants}
+    resultat = []
+    for i in infos:
+        if _reel(i.get("SERIES_ID")):
+            resultat.append(i)
+            continue
+        declarant = par_depot.get(i.get("ACCESSION_NUMBER")) or {}
+        cik = (declarant.get("CIK") or "").strip()
+        if not cik.isdigit():
+            resultat.append(dict(i, SERIES_ID=""))
+            continue
+        nom = i.get("SERIES_NAME") or ""
+        if nom.strip().upper() in ("", "N/A"):
+            nom = declarant.get("REGISTRANT_NAME") or ""
+        resultat.append(dict(i, SERIES_ID=serie_de_cik(cik), SERIES_NAME=" ".join(MARQUES.sub("", nom).split())))
+    return resultat
+
+
+def tickers_par_cik(societes: dict) -> dict[int, str]:
+    """CIK → premier ticker de company_tickers.json (fichier rangé par la SEC, le ticker principal d'abord)."""
+    tickers = {}
+    for fiche in societes.values():
+        cik, ticker = fiche.get("cik_str"), fiche.get("ticker")
+        if isinstance(cik, int) and ticker and cik not in tickers:
+            tickers[cik] = ticker
+    return tickers
+
+
+def fiches_cik(noms: dict[str, str], tickers: dict[int, str]) -> dict[str, dict]:
+    """Fiches au format de lire_liste pour les pseudo-séries de `noms` (série → nom N-PORT) qui ont un nom : une seule part, qui porte
+    le numéro de la pseudo-série (les rendements N-PORT de ces fonds n'ont pas de numéro de part) et le ticker du CIK, s'il y en a un."""
+    return {serie: {"nom": nom, "entite": "", "classes": [[serie, "", tickers.get(cik_de_serie(serie), "")]]}
+            for serie, nom in noms.items() if nom and cik_de_serie(serie) is not None}
 
 
 # ---------- Téléchargement ----------
@@ -337,7 +408,7 @@ def ajouter_rendements(cumul: dict, serie_de: dict, soumissions: Iterable[dict],
                        retours: Iterable[dict]) -> None:
     """Ajoute à `cumul` les rendements mensuels (en % et en dollars, tels que lus) d'un trimestre de jeux N-PORT :
     cumul[clé][« AAAA-MM »] = (rendement, date de dépôt « AAAA-MM-JJ »). `clé` = CLASS_ID de la part, ou SERIES_ID si la case est
-    vide (ligne ignorée si les deux manquent) ; `serie_de[clé]` = SERIES_ID. MONTHLY_TOTAL_RETURN1, 2 et 3 sont les mois
+    vide ou factice (« C000000000 ») ; ligne ignorée si les deux manquent ; `serie_de[clé]` = SERIES_ID. MONTHLY_TOTAL_RETURN1, 2 et 3 sont les mois
     de `mois_du_rapport(REPORT_DATE)`. Une case vide est ignorée. Pour un même mois, le dépôt au FILING_DATE le plus récent
     l'emporte, y compris sur les valeurs ajoutées par un appel précédent (à date égale : le dernier lu). `soumissions` (SUBMISSION),
     `infos` (FUND_REPORTED_INFO) et `retours` (MONTHLY_TOTAL_RETURN) sont lus une seule fois, dans cet ordre."""
@@ -346,14 +417,14 @@ def ajouter_rendements(cumul: dict, serie_de: dict, soumissions: Iterable[dict],
         rapport = date_sec(s.get("REPORT_DATE") or "")
         if rapport:
             rapports[s["ACCESSION_NUMBER"]] = (mois_du_rapport(rapport), date_sec(s.get("FILING_DATE") or ""))
-    series = {i["ACCESSION_NUMBER"]: i.get("SERIES_ID") or "" for i in infos}
+    series = {i["ACCESSION_NUMBER"]: _reel(i.get("SERIES_ID")) for i in infos}
     for r in retours:
         depot = r.get("ACCESSION_NUMBER")
         if depot not in rapports:
             continue
         mois, depose = rapports[depot]
         serie = series.get(depot, "")
-        cle = r.get("CLASS_ID") or serie
+        cle = _reel(r.get("CLASS_ID")) or serie
         if not cle:
             continue
         if serie:
@@ -464,13 +535,14 @@ def dernier_trimestre(modele: str, existe=None, aujourd_hui: date | None = None)
 
 
 # ---------- Annuaire ----------
-COLONNES_LISTE = ("Series ID", "Series Name", "Entity Name", "Class ID", "Class Name", "Class Ticker")
+COLONNES_LISTE = ("Series ID", "Series Name", "Entity Name", "Entity Org Type", "Class ID", "Class Name", "Class Ticker")
 
 
 def lire_liste(texte: str) -> dict[str, dict]:
     """Liste annuelle « Investment Company Series and Class Information » (CSV, BOM UTF-8 possible) :
     série → {nom, entite, classes: [[classe, nom de la part, ticker]…]} (parts dans l'ordre du fichier, sans doublon).
-    Les lignes sans série (sociétés sans fonds) sont ignorées. Colonnes manquantes → ValueError (la SEC a changé de format)."""
+    Les lignes sans série (sociétés sans fonds) et celles des contrats d'assurance (TYPES_ASSURANCE) sont ignorées.
+    Colonnes manquantes → ValueError (la SEC a changé de format)."""
     lecteur = csv.DictReader(io.StringIO(texte.lstrip("﻿"), newline=""))
     manquantes = [c for c in COLONNES_LISTE if c not in (lecteur.fieldnames or [])]
     if manquantes:
@@ -478,7 +550,7 @@ def lire_liste(texte: str) -> dict[str, dict]:
     series = {}
     for ligne in lecteur:
         serie = (ligne["Series ID"] or "").strip()
-        if not serie:
+        if not serie or (ligne["Entity Org Type"] or "").strip() in TYPES_ASSURANCE:
             continue
         s = series.setdefault(serie, {"nom": (ligne["Series Name"] or "").strip(), "entite": (ligne["Entity Name"] or "").strip(), "classes": []})
         classe = (ligne["Class ID"] or "").strip()
@@ -488,7 +560,7 @@ def lire_liste(texte: str) -> dict[str, dict]:
 
 
 def lignes_annuaire(tickers_mf: dict, liste: dict, noms_nport: dict[str, str], series_en_plus: Iterable[str] = frozenset()) -> list[list]:
-    """Lignes de la zone « etats-unis », au format de ANNUAIRE : séries de company_tickers_mf.json et de `series_en_plus`.
+    """Lignes de la zone « etats-unis », au format de ANNUAIRE : séries de company_tickers_mf.json, de la liste et de `series_en_plus`.
     Nom : celui de la liste, sinon celui de N-PORT (`noms_nport`), sinon la série est ignorée. Tickers : dans l'ordre de
     company_tickers_mf.json (pour une série absente de ce fichier : ceux de la liste), séparés par une espace. `etf` = 1 si le mot
     « ETF » figure dans le nom de la série ou d'une part. Lignes triées par nom (sans tenir compte de la casse)."""
@@ -500,7 +572,7 @@ def lignes_annuaire(tickers_mf: dict, liste: dict, noms_nport: dict[str, str], s
         if symbole and symbole not in symboles:
             symboles.append(symbole)
     lignes = []
-    for serie in list(tickers) + sorted(s for s in set(series_en_plus) if s not in tickers):
+    for serie in list(tickers) + sorted((set(liste) | set(series_en_plus)) - set(tickers)):
         if not re.fullmatch(r"S\d{9}", serie or ""):
             continue
         fiche = liste.get(serie, {})
@@ -688,6 +760,7 @@ def ecrire_sorties(dossier: Path, lignes: list, details: dict[str, dict], isin_s
 # ---------- Programme principal ----------
 COL_SOUMISSION = ("ACCESSION_NUMBER", "FILING_DATE", "REPORT_DATE")
 COL_INFO = ("ACCESSION_NUMBER", "SERIES_NAME", "SERIES_ID", "SERIES_LEI", "NET_ASSETS")
+COL_DECLARANT = ("ACCESSION_NUMBER", "CIK", "REGISTRANT_NAME")
 COL_NUM = ("adsh", "tag", "series", "otherdims", "value")
 
 
@@ -732,6 +805,7 @@ def main(argv=None, dossier: Path = DATA, aujourd_hui: date | None = None) -> in
 
     print("2/5 Séries, parts et tickers (liste de la SEC)…")
     tickers_mf = json.loads(telecharger(TICKERS))
+    tickers_cik = tickers_par_cik(json.loads(telecharger(TICKERS_SOCIETES)))
     liste = telecharger_liste(aujourd_hui.year)
     classes_mf = classes_des_tickers(tickers_mf)
     classes_de = lambda serie: (liste.get(serie) or {}).get("classes") or classes_mf.get(serie, [])   # absente de la liste : parts de company_tickers_mf.json
@@ -743,7 +817,8 @@ def main(argv=None, dossier: Path = DATA, aujourd_hui: date | None = None) -> in
         print(f"  {t}")
         archive = ouvrir_zip(NPORT.format(t=t))
         soumissions = _colonnes(lire_tsv(archive, "SUBMISSION.tsv"), COL_SOUMISSION)
-        infos = _colonnes(lire_tsv(archive, "FUND_REPORTED_INFO.tsv"), COL_INFO)
+        declarants = _colonnes(lire_tsv(archive, "REGISTRANT.tsv"), COL_DECLARANT) if "REGISTRANT.tsv" in archive.namelist() else []
+        infos = completer_series(_colonnes(lire_tsv(archive, "FUND_REPORTED_INFO.tsv"), COL_INFO), declarants)
         ajouter_rendements(cumul, serie_de, soumissions, infos, lire_tsv(archive, "MONTHLY_TOTAL_RETURN.tsv"))
         if t == a_lire[-1]:   # composition : dernier trimestre seulement
             retenus = depots_retenus(soumissions, infos)
@@ -785,7 +860,11 @@ def main(argv=None, dossier: Path = DATA, aujourd_hui: date | None = None) -> in
         isin_serie = {}
     noms_nport = {s: d["nom"] for s, d in anciens.items() if d.get("nom")}
     noms_nport.update({s: i["SERIES_NAME"] for s, i in infos_serie.items() if i.get("SERIES_NAME")})
-    lignes = lignes_annuaire(tickers_mf, liste, noms_nport, set(isin_serie.values()))
+    # Séries qui déposent des rapports N-PORT : celles du dernier trimestre lu ; sans trimestre lu (--forcer), celles de la zone déjà écrite.
+    # Un fonds qui ne dépose plus sort donc de la zone au trimestre suivant (sauf s'il est dans la liste de la SEC).
+    deposants = set(infos_serie) if a_lire else {f"S{l[1]:09d}" for l in (existant or {}).get("lignes", [])}
+    liste.update(fiches_cik({s: noms_nport[s] for s in deposants if s in noms_nport}, tickers_cik))   # fonds sans numéro de série (SPY…)
+    lignes = lignes_annuaire(tickers_mf, liste, noms_nport, set(isin_serie.values()) | deposants)
     dans_la_zone = {f"S{l[1]:09d}" for l in lignes}
     isin_serie = {isin: serie for isin, serie in isin_serie.items() if serie in dans_la_zone}
     details = {}

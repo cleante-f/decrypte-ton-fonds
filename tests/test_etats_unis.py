@@ -29,7 +29,9 @@ ASHMORE = "0002066578-26-003500"    # Ashmore Emerging Markets Total Return Fund
 ASHMORE_AVRIL = "0002066578-26-002478"   # amendement du rapport du 30/04/2026 du même fonds
 LEI_VANGUARD = "12WZ1W76P8QD4VJ6OB47"
 LEI_ASHMORE = "5493003R6Z966WCNR691"
-FICHIERS_NPORT = ["SUBMISSION.tsv", "FUND_REPORTED_INFO.tsv", "MONTHLY_TOTAL_RETURN.tsv", "FUND_REPORTED_HOLDING.tsv",
+SPY = "0001410368-26-089410"   # State Street SPDR S&P 500 ETF Trust (CIK 884394), rapport du 30/06/2026, sans numéro de série
+MDY = "0000940400-26-035209"   # State Street SPDR S&P MidCap 400 ETF Trust (CIK 936958), même trimestre, sans numéro de série
+FICHIERS_NPORT = ["SUBMISSION.tsv", "REGISTRANT.tsv", "FUND_REPORTED_INFO.tsv", "MONTHLY_TOTAL_RETURN.tsv", "FUND_REPORTED_HOLDING.tsv",
                   "IDENTIFIERS.tsv", "SECURITIES_LENDING.tsv"]
 
 
@@ -410,6 +412,59 @@ class Telechargement(unittest.TestCase):
             cu.ZipDistant("https://www.sec.gov/x")
 
 
+class SansNumeroDeSerie(unittest.TestCase):
+    """Fonds qui déposent leurs rapports N-PORT sans numéro de série (ETF « unit investment trust », fonds fermés) : vrais extraits
+    du jeu 2026q3 de la SEC pour SPY et MDY (tests/donnees/sec/sec_nport_cik) et de company_tickers.json."""
+    def tsv(self, nom):
+        return list(cu.lire_tsv(SEC / "sec_nport_cik", nom))
+
+    def infos(self):
+        return cu.completer_series(self.tsv("FUND_REPORTED_INFO.tsv"), self.tsv("REGISTRANT.tsv"))
+
+    def test_pseudo_serie_du_cik(self):
+        self.assertEqual(cu.serie_de_cik("0000884394"), "S900884394")
+        self.assertEqual(cu.serie_de_cik("0001735964"), "S901735964")
+        self.assertEqual(cu.cik_de_serie("S900884394"), 884394)
+        self.assertIsNone(cu.cik_de_serie("S000002839"))
+
+    def test_completer_series(self):
+        infos = {i["ACCESSION_NUMBER"]: i for i in self.infos()}
+        # SPY : SERIES_NAME vaut « N/A » : nom du déposant, sans les marques « (R) »
+        self.assertEqual((infos[SPY]["SERIES_ID"], infos[SPY]["SERIES_NAME"]), ("S900884394", "State Street SPDR S&P 500 ETF Trust"))
+        self.assertEqual((infos[MDY]["SERIES_ID"], infos[MDY]["SERIES_NAME"]), ("S900936958", "State Street SPDR S&P MidCap 400SM ETF Trust"))
+        self.assertEqual((infos[SPY]["SERIES_LEI"], infos[SPY]["NET_ASSETS"]), ("549300NZAMSJ8FXPQQ63", "781188872106.76"))   # le reste ne change pas
+
+    def test_completer_series_garde_les_vraies_series(self):
+        infos = list(cu.lire_tsv(SEC / "sec_nport", "FUND_REPORTED_INFO.tsv"))
+        self.assertEqual(cu.completer_series(infos, list(cu.lire_tsv(SEC / "sec_nport", "REGISTRANT.tsv"))), infos)
+
+    def test_completer_series_numero_factice(self):   # « S000000000 » : vu une fois dans le jeu 2026q3
+        info = dict(self.tsv("FUND_REPORTED_INFO.tsv")[0], SERIES_ID="S000000000")
+        self.assertEqual(cu.completer_series([info], self.tsv("REGISTRANT.tsv"))[0]["SERIES_ID"], "S900884394")
+
+    def test_completer_series_declarant_inconnu(self):   # sans ligne REGISTRANT, la ligne reste sans série (ignorée plus loin)
+        self.assertEqual([i["SERIES_ID"] for i in cu.completer_series(self.tsv("FUND_REPORTED_INFO.tsv"), [])], ["", ""])
+
+    def test_rendements_part_factice(self):   # MDY déclare la part « C000000000 » (98 lignes en 2026q3) : rangée sous sa série
+        cumul, serie_de = {}, {}
+        cu.ajouter_rendements(cumul, serie_de, self.tsv("SUBMISSION.tsv"), self.infos(), self.tsv("MONTHLY_TOTAL_RETURN.tsv"))
+        self.assertEqual(set(cumul), {"S900884394", "S900936958"})
+        self.assertEqual({m: v[0] for m, v in cumul["S900884394"].items()}, {"2026-04": 10.48, "2026-05": 5.25, "2026-06": -0.96})
+        self.assertEqual({m: v[0] for m, v in cumul["S900936958"].items()}, {"2026-04": 7.79, "2026-05": 2.42, "2026-06": 3.6})
+
+    def test_tickers_par_cik(self):
+        tickers = cu.tickers_par_cik(json.loads(lire_fichier("sec_company_tickers.json")))
+        self.assertEqual((tickers[884394], tickers[1041130], tickers[936958], tickers[1510599]), ("SPY", "DIA", "MDY", "PDI"))
+        self.assertNotIn(1735964, tickers)   # fonds à intervalles Cliffwater : pas coté
+
+    def test_fiches_cik(self):
+        noms = {"S900884394": "State Street SPDR S&P 500 ETF Trust", "S000002839": "Vanguard 500 Index Fund",
+                "S901735964": "Cliffwater Corporate Lending Fund", "S901510599": ""}
+        self.assertEqual(cu.fiches_cik(noms, {884394: "SPY"}), {
+            "S900884394": {"nom": "State Street SPDR S&P 500 ETF Trust", "entite": "", "classes": [["S900884394", "", "SPY"]]},
+            "S901735964": {"nom": "Cliffwater Corporate Lending Fund", "entite": "", "classes": [["S901735964", "", ""]]}})   # sans nom : ignorée
+
+
 class Rendements(unittest.TestCase):
     def tsv(self, nom):
         return cu.lire_tsv(SEC / "sec_nport", nom)
@@ -623,6 +678,16 @@ class Annuaire(unittest.TestCase):
     def test_lire_liste_colonnes_changees(self):   # la SEC renomme une colonne : erreur franche plutôt qu'une liste vide
         with self.assertRaises(ValueError):
             cu.lire_liste("Series,Name\r\nS000000001,Alpha\r\n")
+        with self.assertRaises(ValueError):   # sans le type d'entité, on ne saurait plus écarter les contrats d'assurance
+            cu.lire_liste("Series ID,Series Name,Entity Name,Class ID,Class Name,Class Ticker\r\nS000000001,Alpha,UN FONDS,,,\r\n")
+
+    def test_lire_liste_contrats_d_assurance_ecartes(self):   # types 32 et 33 : comptes séparés de contrats d'assurance (noms réels de 2026)
+        texte = ("Reporting File Number,CIK Number,Entity Name,Entity Org Type,Series ID,Series Name,Class ID,Class Name,Class Ticker\r\n"
+                 "811-1,1,VARIABLE ANNUITY ACCOUNT B,32,S000010140,Variable Annuity Account B,,,\r\n"
+                 "811-2,2,PRESTIGE VARIABLE LIFE ACCOUNT,33,S000000680,PRESTIGE VARIABLE LIFE ACCOUNT,,,\r\n"
+                 "811-3,3,TIAA SEPARATE ACCOUNT VA 1,31,S000005098,Stock Index Account,,,\r\n"
+                 "811-4,4,AMERICAN FUNDS INSURANCE SERIES,30,S000008790,SMALLCAP World Fund,,,\r\n")
+        self.assertEqual(set(cu.lire_liste(texte)), {"S000005098", "S000008790"})
 
     def test_lignes_annuaire(self):
         l = {x[1]: x for x in cu.lignes_annuaire(self.mf, self.liste, {})}
@@ -660,7 +725,7 @@ class Annuaire(unittest.TestCase):
         self.assertNotIn(42, l)                    # série sans nom connu : ignorée
         self.assertEqual(len(l), 4)
         sans = {x[1] for x in cu.lignes_annuaire(self.mf, liste, {})}
-        self.assertNotIn(9999, sans)               # une série de la liste n'entre dans la zone que par company_tickers_mf ou series_en_plus
+        self.assertIn(9999, sans)                  # toute série de la liste entre dans la zone, même sans symbole boursier
 
     def test_lignes_annuaire_etf_dans_un_nom_de_classe_seulement(self):
         liste = {"S000000001": {"nom": "Alpha Fund", "entite": "", "classes": [["C000000001", "Class A", "A"], ["C000000002", "etf shares", "B"]]},
@@ -1074,6 +1139,8 @@ class Principal(unittest.TestCase):
         self.telechargements.append(url)
         if url == cu.TICKERS:
             return lire_fichier("sec_tickers_mf.json").encode()
+        if url == cu.TICKERS_SOCIETES:
+            return lire_fichier("sec_company_tickers.json").encode()
         annee = re.search(r"series-class-(\d{4})\.csv$", url)
         if annee:
             if int(annee.group(1)) > self.liste_publiee:
@@ -1090,6 +1157,7 @@ class Principal(unittest.TestCase):
                          MONTHLY_TOTAL_RETURN3="3.0")
         return zip_en_memoire({
             "SUBMISSION.tsv": texte_tsv(lignes("SUBMISSION.tsv", ACCESSION_NUMBER=NOUVEAU_DEPOT, REPORT_DATE="30-SEP-2026", FILING_DATE="20-OCT-2026")),
+            "REGISTRANT.tsv": texte_tsv(lignes("REGISTRANT.tsv", ACCESSION_NUMBER=NOUVEAU_DEPOT)),
             "FUND_REPORTED_INFO.tsv": texte_tsv(lignes("FUND_REPORTED_INFO.tsv", ACCESSION_NUMBER=NOUVEAU_DEPOT, NET_ASSETS="1000000000.00")),
             "MONTHLY_TOTAL_RETURN.tsv": texte_tsv(retours),
             "FUND_REPORTED_HOLDING.tsv": texte_tsv(lignes("FUND_REPORTED_HOLDING.tsv", ACCESSION_NUMBER=NOUVEAU_DEPOT)),
@@ -1235,6 +1303,70 @@ class Principal(unittest.TestCase):
             self.assertEqual(self.lancer("--complet"), 0)
         self.assertEqual((resumer.call_count, isins.call_count), (1, 1))
         self.assertLessEqual(len(isins.call_args[0][1]), 20)   # seules les 10 premières lignes de chaque fonds
+
+    def archive_avec_spy_et_mdy(self):
+        """Extraits réels du 3e trimestre 2026, plus les dépôts de SPY et MDY (sans numéro de série). SPY reçoit les positions de
+        Vanguard (même indice) pour que sa composition passe par le même chemin que celle des autres fonds."""
+        fichiers = {}
+        for nom in FICHIERS_NPORT:
+            lignes = list(cu.lire_tsv(SEC / "sec_nport", nom))
+            if (SEC / "sec_nport_cik" / nom).exists():
+                lignes += list(cu.lire_tsv(SEC / "sec_nport_cik", nom))
+            if nom == "FUND_REPORTED_HOLDING.tsv":
+                lignes += [dict(l, ACCESSION_NUMBER=SPY) for l in lignes if l["ACCESSION_NUMBER"] == VANGUARD]
+            fichiers[nom] = texte_tsv(lignes)
+        return zip_en_memoire(fichiers)
+
+    def test_main_fonds_sans_numero_de_serie(self):   # SPY et MDY : pseudo-séries du CIK, nom, symbole, composition, rendements en euros
+        self.archives[(True, "2026q3")] = self.archive_avec_spy_et_mdy()
+        self.assertEqual(self.lancer(), 0)
+        lignes = {l[1]: l for l in cu.lire_zone_existante(self.dossier)["lignes"]}
+        self.assertEqual(lignes[900884394], ["S", 900884394, 900884394, "State Street SPDR S&P 500 ETF Trust", "", "", "", "", "", "US", "SPY",
+                                             "", "USD", 1, 1])
+        self.assertEqual(lignes[900936958][3:4] + lignes[900936958][10:11], ["State Street SPDR S&P MidCap 400SM ETF Trust", "MDY"])
+        taux = cu.taux_mensuels(lire_fichier("bce_usd_mensuel.csv"))
+        details = cu.lire_details_existants(self.dossier)
+        spy = details["S900884394"]
+        self.assertEqual((spy["date"], spy["lei"], spy["lignes"]), ("2026-06-30", "549300NZAMSJ8FXPQQ63", 507))
+        self.assertEqual(spy["parts"], [["S900884394", "", "SPY", "2026-04",
+                                         [cu.en_euros(r, m, taux) for r, m in ((10.48, "2026-04"), (5.25, "2026-05"), (-0.96, "2026-06"))], None]])
+        mdy = details["S900936958"]
+        self.assertEqual(mdy["parts"][0][3:5], ["2026-04", [cu.en_euros(r, m, taux) for r, m in ((7.79, "2026-04"), (2.42, "2026-05"), (3.6, "2026-06"))]])
+        self.assertEqual(mdy["lignes"], 0)   # pas de positions dans l'extrait
+        self.assertNotIn("C000000000", json.dumps(details))
+
+    def test_main_fonds_sans_numero_de_serie_gardes_sans_nouveau_trimestre(self):   # --forcer : les pseudo-séries déjà écrites restent
+        self.archives[(True, "2026q3")] = self.archive_avec_spy_et_mdy()
+        self.assertEqual(self.lancer(), 0)
+        self.assertEqual(self.lancer("--forcer"), 0)
+        lignes = {l[1]: l for l in cu.lire_zone_existante(self.dossier)["lignes"]}
+        self.assertEqual((lignes[900884394][3], lignes[900884394][10]), ("State Street SPDR S&P 500 ETF Trust", "SPY"))
+        self.assertEqual(cu.lire_details_existants(self.dossier)["S900884394"]["parts"][0][3], "2026-04")
+
+    def test_main_fonds_sans_numero_de_serie_retire_s_il_ne_depose_plus(self):   # trimestre suivant sans dépôt de SPY : il sort de la zone
+        self.archives[(True, "2026q3")] = self.archive_avec_spy_et_mdy()
+        self.assertEqual(self.lancer(), 0)
+        self.publie["nport"] = "2026q4"
+        self.liste_publiee = 2026
+        self.archives[(True, "2026q4")] = self.archive_4e_trimestre()
+        self.assertEqual(self.lancer(aujourd_hui=date(2027, 1, 12)), 0)
+        self.assertNotIn(900884394, [l[1] for l in cu.lire_zone_existante(self.dossier)["lignes"]])
+
+    def test_main_serie_deposee_hors_liste_gardee_sans_nouveau_trimestre(self):   # série connue seulement par N-PORT : --forcer la garde
+        mf = json.loads(lire_fichier("sec_tickers_mf.json"))
+        mf["data"] = [l for l in mf["data"] if l[1] != "S000030390"]
+        liste = "".join(l for l in lire_fichier("sec_series.csv").splitlines(keepends=True) if "S000030390" not in l)
+        (self.dossier / "firds.js").write_text(FIRDS_TEST.replace('"IE0000000001":["5493003R6Z966WCNR691","USD",[],2],', ""), encoding="utf-8")
+
+        def telechargement(url, plage=None):
+            contenu = self.faux_telechargement(url, plage)
+            return json.dumps(mf).encode() if url == cu.TICKERS else liste.encode() if "series-class" in url else contenu
+
+        with mock.patch.object(cu, "telecharger", side_effect=telechargement):
+            self.assertEqual(self.lancer(), 0)
+            self.assertIn(30390, [l[1] for l in cu.lire_zone_existante(self.dossier)["lignes"]])   # déposée au dernier trimestre
+            self.assertEqual(self.lancer("--forcer"), 0)
+        self.assertIn(30390, [l[1] for l in cu.lire_zone_existante(self.dossier)["lignes"]])
 
     def test_main_isin_d_une_serie_hors_zone(self):   # LEI d'un ancien détail sans nom connu : la série n'est pas dans la zone, ses ISIN non plus
         lei = "ABCDEFGHIJ0123456789"

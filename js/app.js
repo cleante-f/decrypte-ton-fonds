@@ -67,7 +67,7 @@ async function afficherDepuisAdresse() {
   document.title = `${entree.nom} · Décrypte ton fonds`;
   const enGeco = entree.source === "G";
   const avecSec = entree.source === "S" || (!enGeco && !!serieSecDe(entree, isin));   // fonds américain, ou fonds européen qui est aussi une série américaine
-  const avecRegistre = entree.source === "R";   // fonds irlandais ou luxembourgeois du registre de l'ESMA : ses informations se chargent à l'ouverture
+  const avecRegistre = entree.source === "R";   // fonds européen du registre de l'ESMA (hors France) : ses informations se chargent à l'ouverture
   zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco || avecSec || avecRegistre);
   zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });
 

@@ -1,5 +1,5 @@
 /*
- * Annuaire par zone : les fonds américains (SEC) et les fonds irlandais et luxembourgeois du registre de l'ESMA ne sont pas dans
+ * Annuaire par zone : les fonds américains (SEC) et les fonds européens du registre de l'ESMA (hors France) ne sont pas dans
  * data/annuaire.js (chargé avec chaque page).
  * Chacune de ces zones a son propre fichier, data/annuaire-<zone>.js, que le navigateur ne télécharge que quand il en a besoin :
  * à la première recherche par nom, ou à l'ouverture d'un fonds de la zone. Chaque fichier ajoute sa zone à ANNUAIRE_ZONES,
@@ -15,7 +15,7 @@ const ANNUAIRE_ZONES = {};   // rempli par data/annuaire-<zone>.js : { <zone>: {
 // nom : clé dans ANNUAIRE_ZONES ; fichier : adresse du fichier de données ; motif : reconnaît la clé d'un fonds de la zone
 // (celle de cleEntree, dans l'adresse de la page) ; origine : texte affiché dans les listes de résultats
 const ZONES = [
-  { nom: "registres-ue", fichier: "data/annuaire-registres-ue.js", motif: /^R\d+$/, origine: "Fonds irlandais ou luxembourgeois (registre ESMA)" },
+  { nom: "registres-ue", fichier: "data/annuaire-registres-ue.js", motif: /^R\d+$/, origine: "Fonds européen (registre ESMA)" },
   { nom: "etats-unis", fichier: "data/annuaire-etats-unis.js", motif: /^S\d{9}$/, origine: "Fonds américain (SEC)" }
 ];
 

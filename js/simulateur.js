@@ -327,7 +327,7 @@ const JOURS_SEC_ANCIEN = 183;
 // « nom » (ticker) d'une part déclarée à la SEC (HTML échappé). Le nom d'une part peut être son ticker ou son identifiant de classe :
 // le ticker n'est répété que s'il apporte quelque chose. "" sans part.
 function libellePartSec(part) {
-  if (!part || !part.nom) return "";
+  if (!part || !part.nom || partImplicite(part)) return "";
   return `« ${esc(part.nom)} »${part.ticker && part.ticker !== part.nom ? ` (${esc(part.ticker)})` : ""}`;
 }
 
@@ -349,7 +349,7 @@ function carteFonds(A, message) {
   return `<article class="carte carte-fonds-simu">
     <div class="fonds-simu-titre">
       <div><p class="surtitre">Fonds simulé</p><h2>${esc(e.nom)}</h2>
-        <p class="aide">${esc(e.source === "S" ? `Série SEC ${cle}` : isin || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}</p></div>
+        <p class="aide">${esc(e.source === "S" ? texteSec(cle) : isin || "ISIN non publié")}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}</p></div>
       <div class="actions-fiche"><a class="btn-onglet" href="decrypte.html#${esc(cle)}">Décrypter ce fonds →</a><a class="btn-onglet" href="performances.html#${esc(cle)}">Performances →</a></div>
     </div>
     ${badges.length ? `<div class="etiquettes">${badges.map(b => `<span class="etiquette">${esc(b)}</span>`).join("")}</div>` : ""}

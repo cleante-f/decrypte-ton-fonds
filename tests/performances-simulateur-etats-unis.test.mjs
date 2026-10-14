@@ -153,6 +153,29 @@ test("performances, afficherSquelette : en-tête, note, source et valeur de la b
   }
 });
 
+// SPY (CIK 884394) n'a pas de numéro de série à la SEC : sa pseudo-série S900884394 et sa part implicite ne s'affichent pas
+const SPY = { ...VANGUARD, nom: "State Street SPDR S&P 500 ETF Trust", parts: [["S900884394", "", "SPY", "2019-10", mois81, null]] };
+
+test("performances et simulateur, fonds sans numéro de série (SPY) : « CIK 884394 (SEC) », sans part", async () => {
+  const ctx = page(SCRIPTS_PERF);
+  avecDetail(ctx, "S900884394", SPY);
+  const E = vm.runInContext("ETAT_PERF", ctx);
+  const e = ctx.lireEntree(ligne(900884394, "State Street SPDR S&P 500 ETF Trust"));
+  const principal = await ctx.serieFonds(e, undefined);
+  E.principal = { ...principal, cle: "principal", nomCourt: "SPY" };
+  E.comparaisons = [];
+  ctx.afficherSquelette(e, undefined, E.principal);
+  const html = sans(ctx.element("resultat").innerHTML);
+  assert.ok(html.includes("CIK 884394 (SEC)"), html);
+  assert.ok(!html.includes("Série SEC S900884394") && !html.includes("part « SPY »"));
+
+  const { ctx: simu, A } = await analyse(SPY, 900884394, "State Street SPDR S&P 500 ETF Trust");
+  assert.equal(A.sourceHistorique, "sec");
+  const carte = sans(simu.carteFonds(A));
+  assert.ok(carte.includes("CIK 884394 (SEC)"), carte);
+  assert.ok(!carte.includes("S900884394 ·") && !carte.includes("Série SEC S900884394") && !carte.includes("part « SPY »"), carte);
+});
+
 test("performances, bulle du graphique : « Valeur en euros (base 100) » pour une série SEC, valeur liquidative sinon", async () => {
   const ctx = page(SCRIPTS_PERF);
   avecDetail(ctx, "S000002839", VANGUARD);

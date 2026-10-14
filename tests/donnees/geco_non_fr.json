@@ -1,0 +1,35 @@
+{
+ "source": "AMF GECO, getCompartmentsBycriteria?productType=NON_FR, relevé le 14/10/2026 (champs utiles seulement)",
+ "compartmentDtos": [
+  {
+   "prdDomcltn": "LU",
+   "prdFaml": "OPCVM",
+   "prdNature": "OPCVMETR",
+   "cmpStatutCode": "VIV",
+   "prdId": "p60381",
+   "cmpId": "c60382",
+   "cmpNom": "20UGS (UCITS) FUNDS - PINESTONE GLOBAL EQUITY",
+   "cmpDateCreation": "2018-01-08",
+   "cmpLblEuveca": 0,
+   "cmpLblEltif": 0,
+   "cmpLblEusef": 0,
+   "gestionnaire": "KROLL (LUXEMBOURG) MANAGEMENT COMPANY, S.A R.L",
+   "sharesIsins": []
+  },
+  {
+   "prdDomcltn": "DE",
+   "prdFaml": "OFIA",
+   "prdNature": "OTHERAIF",
+   "cmpStatutCode": "VIV",
+   "prdId": "p76104",
+   "cmpId": "c76104",
+   "cmpNom": "10X FOUNDERS FUND GMBH & CO. KG",
+   "cmpDateCreation": "2022-10-20",
+   "cmpLblEuveca": 1,
+   "cmpLblEltif": 0,
+   "cmpLblEusef": 0,
+   "gestionnaire": "10X FOUNDERS GMBH",
+   "sharesIsins": []
+  }
+ ]
+}
