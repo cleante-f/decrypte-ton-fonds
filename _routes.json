@@ -2,7 +2,7 @@
   "version": 1,
   "include": ["/*"],
   "exclude": [
-    "/css/style.css",
+    "/css/style.css", "/favicon.svg",
     "/data/annuaire.js", "/data/annuaire-etats-unis.js", "/data/annuaire-registres-ue.js", "/data/etats-unis-isin.js", "/data/firds.js", "/data/identite.js", "/data/marches.js",
     "/data/references.js", "/data/registres-ue-infos.js", "/data/resume.js",
     "/js/affichage.js", "/js/app.js", "/js/composition.js", "/js/compte.js", "/js/config-compte.js", "/js/config.js",
