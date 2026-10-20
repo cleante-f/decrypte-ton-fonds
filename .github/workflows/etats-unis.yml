@@ -37,7 +37,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/annuaire-etats-unis.js data/etats-unis data/etats-unis-isin.js
+          git add data/annuaire-etats-unis.js data/etats-unis data/etats-unis-isin.js data/resume.js
           if git diff --cached --quiet; then
             echo "Rien de nouveau."
           else
