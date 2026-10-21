@@ -213,8 +213,7 @@ async function completerAlternatives(entree, donnees, rendre, numero) {
       const x = lireEntree(l);
       if (cleEntree(x) !== cleMoi) us.push(x);
     }
-    const avecFrais = [];
-    for (const x of us) {
+    const avecFrais = await Promise.all(us.map(async x => {
       let frais = null;
       try {
         const detail = await chargerDetailSec(cleEntree(x));
@@ -222,8 +221,8 @@ async function completerAlternatives(entree, donnees, rendre, numero) {
         const f = part ? fraisSec(part) : null;
         frais = f && Number.isFinite(f.retenu) ? f.retenu : null;
       } catch (err) { /* frais inconnus */ }
-      avecFrais.push({ cle: cleEntree(x), nom: x.nom, frais, pea: false, etf: x.etf });
-    }
+      return { cle: cleEntree(x), nom: x.nom, frais, pea: false, etf: x.etf };
+    }));
     avecFrais.sort((a, b) => (a.frais === null) - (b.frais === null) || a.frais - b.frais);
     const autres = avecFrais.slice(0, 3);
     for (const l of typeof ANNUAIRE !== "undefined" ? ANNUAIRE : []) {

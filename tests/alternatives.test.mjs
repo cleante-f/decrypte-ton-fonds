@@ -189,3 +189,14 @@ test("blocAlternatives : fonds sans frais connus, pas de comparaison chiffrée",
   assert.ok(h.includes("href=\"#FR0000000001\""));
   assert.ok(!h.includes("Sur 10 000 € placés 10 ans"));
 });
+
+test("blocAlternatives : chargement ou composition en cours, fonds actif sans indice dans le nom", () => {
+  const c = page(ALT_W);
+  const e = { ...cw8, nom: "FONDS ACTIF MONDE", etf: false };
+  const enCours = section6(fiche(c, e, { dic: dicCw8, composition: { fini: false } }));
+  assert.ok(!enCours.includes("pas d'alternative indicielle comparable"));
+  assert.ok(enCours.includes("Recherche d'alternatives moins chères"));
+  const chargement = section6(c.afficherFicheAuto(e, e.isins[0], null, true));
+  assert.ok(!chargement.includes("pas d'alternative indicielle comparable"));
+  assert.ok(chargement.includes("Recherche d'alternatives moins chères"));
+});

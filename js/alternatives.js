@@ -114,8 +114,11 @@ function compositionPourAlternatives(d) {
 }
 
 // HTML de la section « alternative moins chère » (fonction de présentation : tout ce qui vient des données est échappé)
-function blocAlternatives(e, d) {
+function blocAlternatives(e, d, chargement) {
   if (typeof ALTERNATIVES === "undefined" || !ALTERNATIVES || !ALTERNATIVES.indices) return nonDispo("Comparaison des frais indisponible pour le moment.");
+  // Fonds actif dont l'indice dépend de la composition : tant qu'elle n'est pas connue, on ne conclut pas
+  const enCours = !!chargement || !d || (d.composition && !d.composition.fini);
+  if (enCours && !indiceDuNom(e.nom || "")) return `<p class="chargement">Recherche d'alternatives moins chères…</p>`;
   const frais = fraisDuFondsAnalyse(d);
   const r = choisirAlternatives(e, frais, compositionPourAlternatives(d), d && d.alternativesAutres);
   if (!r.indice) return `<p>Ce fonds n'a pas d'alternative indicielle comparable dans nos données : il ne suit pas un indice que nous savons repérer, ou il n'est pas investi surtout en actions.</p>`;
