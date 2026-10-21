@@ -295,9 +295,9 @@ Le premier calcul, ou un recalcul complet, se lance à la main : onglet **Action
 Les données représentent 20 à 25 Mo réécrits à chaque trimestre.
 
 Un lancement « complet » peut durer longtemps (le workflow s'arrête au bout de 90 minutes) et partage le groupe de concurrence `donnees-simulateur` avec les tâches
-quotidiennes (`contexte.yml` à 5 h 23 UTC, `cours.yml` à 5 h 41 et 13 h 41 UTC) et avec les tâches mensuelles de l'identité (le 20, 6 h 17 UTC) et des fonds américains (le 12, 5 h 37 UTC).
+quotidiennes (`contexte.yml` à 5 h 23 UTC, `cours.yml` à 5 h 41 et 13 h 41 UTC) et avec les tâches mensuelles de l'identité (le 20, 6 h 17 UTC), des fonds américains (le 12, 5 h 37 UTC) et des alternatives (le 25, 6 h 47 UTC).
 GitHub n'y garde qu'une seule tâche en attente : une tâche quotidienne qui attendrait derrière un lancement complet pourrait être remplacée et sautée.
-Lance-le donc en dehors de ces heures : après 15 h 45, heure de Paris (le dernier relevé des cours part à 13 h 41 UTC, soit 15 h 41 en été), et ni le 12 ni le 20 du mois.
+Lance-le donc en dehors de ces heures : après 15 h 45, heure de Paris (le dernier relevé des cours part à 13 h 41 UTC, soit 15 h 41 en été), et ni le 12, ni le 20, ni le 25 du mois.
 
 Le tableau de prêt de titres de N-PORT (`SECURITIES_LENDING.tsv`) sert à retirer des répartitions et du top 10 les positions qui réinvestissent des garanties reçues en espèces
 (par exemple un fonds monétaire « Invesco Private Prime Fund » dans un fonds d'actions) : ce n'est ni une exposition ni un produit dérivé, mais un placement de l'argent du prêt,
@@ -359,7 +359,9 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 
 La section 6 de la fiche (« Alternative moins chère ») propose, pour un fonds qui suit un indice, des fonds de droit
 français suivant le même indice avec des frais plus bas, et chiffre l'écart (frais courants, effet sur 10 ans). Pour un
-fonds à gestion active, elle ne propose rien d'équivalent : elle le dit simplement.
+fonds à gestion active, quand sa composition permet de choisir un indice (actions à 80 % ou plus et une zone dominante, ou MSCI World),
+elle affiche « Alternative indicielle (pas le même fonds) » : jusqu'à 3 fonds indiciels, avec la précision qu'ils suivent un marché
+et non la stratégie du gérant. Sinon (fonds mixte, obligataire, zone peu claire), elle dit qu'il n'existe pas d'alternative indicielle comparable.
 
 - **Source** : le DIC (document d'informations clés) de chaque candidat, lu dans le prospectus publié par la base GECO de l'AMF.
   Aucun frais n'est inventé : sans DIC lisible, le fonds n'est pas proposé.
@@ -368,6 +370,8 @@ fonds à gestion active, elle ne propose rien d'équivalent : elle le dit simple
   Sont exclus les fonds de HSBC Asset Management (données interdites sans accord écrit) et les FCPE.
 - **Exception Node** : ce script est en Node et non en Python, car il réutilise `extraireDic` de `js/geco.js` et pdf.js
   (`js/vendor/pdfjs/`), qui lisent déjà les DIC dans le navigateur ; les réécrire en Python (bibliothèque standard seule) serait fragile.
+- **Fonds non achetable en France** (par exemple un ETF américain) : la liste montre aussi des ETF étrangers du même indice
+  (frais « non publiés dans nos sources ») et des fonds américains avec leurs frais SEC, 3 au total.
 - **Limites** : peu de fonds indiciels français (16 fonds sur 12 indices au dernier calcul) ; pour le MSCI World, seule une
   variante « Climate Paris Aligned » existe ; 9 fonds restent illisibles (DIC absent ou de présentation inhabituelle) ; les ETF
   étrangers sont souvent moins chers mais leurs frais ne sont pas connus avant le registre européen ESAP (2028), donc non proposés.
