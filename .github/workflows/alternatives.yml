@@ -1,0 +1,40 @@
+# Mise à jour mensuelle des frais des fonds indiciels de droit français (scripts/construire_alternatives.mjs → data/alternatives.js),
+# pour la section « Alternative moins chère » de la fiche. Source : AMF, DIC publiés dans la base GECO (lus avec pdf.js, hébergé avec le site).
+# Si GECO est en maintenance (HTTP 418) ou si trop peu de frais sont lus, l'ancien fichier est gardé (avertissement dans le journal).
+name: Frais des fonds indiciels (alternatives)
+
+on:
+  schedule:
+    - cron: "47 6 25 * *"   # le 25 de chaque mois, vers 8 h 47, heure de Paris
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: donnees-simulateur
+  cancel-in-progress: false
+
+jobs:
+  alternatives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Lire les DIC des fonds indiciels dans GECO
+        run: node scripts/construire_alternatives.mjs
+      - name: Enregistrer le fichier
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/alternatives.js
+          if git diff --cached --quiet; then
+            echo "Rien de nouveau."
+          else
+            git commit -m "Frais des fonds indiciels (alternatives) du $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi

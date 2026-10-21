@@ -328,7 +328,9 @@ function extraireDic(brut) {
     /(?:dur[ée]e|horizon) de placement recommand[ée]e?\s*\((?:au )?minimum\s*(?:de )?(\d+\s*ans?)\)/i);
   r.entree = /(pas de|aucun|ne facturons pas de) (frais|co[uû]ts?) d'entr[ée]e/i.test(t) ? 0 : pctApres("Co[uû]ts d'entr[ée]e");
   r.sortie = /(pas de|aucun|ne facturons pas de) (frais|co[uû]ts?) de sortie/i.test(t) ? 0 : pctApres("Co[uû]ts de sortie");
-  r.gestion = pctApres("Frais de gestion et autres (?:frais|co[uû]ts) administratifs(?: et d'exploitation)?", "Autres co[uû]ts r[ée]currents", "Frais de gestion");
+  // « Coûts récurrents prélevés chaque année » : dans certains DIC (BNP Paribas), le pourcentage des frais de gestion précède leur libellé
+  r.gestion = pctApres("Frais de gestion et autres (?:frais|co[uû]ts) administratifs(?: et d'exploitation)?", "Autres co[uû]ts r[ée]currents",
+    "Co[uû]ts r[ée]currents pr[ée]lev[ée]s chaque ann[ée]e", "Frais de gestion");
   r.transaction = pctApres("Co[uû]ts de transaction");
 
   // Commission de surperformance : le DIC donne souvent un taux de partage (« 20 % de la surperformance »),
