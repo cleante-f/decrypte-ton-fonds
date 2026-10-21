@@ -45,7 +45,8 @@ export function extraireDic(texte) { return extraireDicSite(texte); }
 export function candidats(annuaire) {
   const res = [];
   for (const l of annuaire) {
-    if (l[0] !== "G" || l[14] !== 1 || !l[7]) continue;
+    // FCPE : épargne salariale, réservée aux salariés des entreprises adhérentes
+    if (l[0] !== "G" || l[14] !== 1 || !l[7] || /FCPE/i.test(l[6])) continue;
     const indice = indiceDuNom(l[3]);
     if (!indice || EXCLUS.test(l[3]) || /HSBC/i.test(l[4])) continue;
     const isin = l[7].split(" ")[0];
@@ -63,18 +64,18 @@ export function fraisCourants(dic) {
 // Document à lire : DIC le plus récent (celui dont le nom porte l'ISIN de la part d'abord), sinon le prospectus le plus récent
 export function choisirDocument(documents, isin) {
   const recents = [...documents].sort((a, b) => (b.dateEffet || "").localeCompare(a.dateEffet || ""));
-  const dics = recents.filter(d => /DIC|KID/i.test(d.docTypeLib + " " + d.docName));
+  // « DIC », « DICI », « KID », « KIID » comme mots (pas « indice », « periodic »…) ; « _ » et les chiffres séparent les mots
+  const dics = recents.filter(d => /(?:^|[^a-z])(?:DICI?|KIID?)(?![a-z])/i.test(d.docTypeLib + " " + d.docName));
   return dics.find(d => (d.docName || "").includes(isin)) || dics[0] || recents.find(d => /prospectus/i.test(d.docTypeLib)) || null;
 }
 
 // Texte du DIC d'une part, à partir du texte des pages d'un PDF (un DIC seul, ou un prospectus qui en regroupe plusieurs).
 // Un DIC commence par sa phrase réglementaire d'introduction en haut de page (le titre « Document d'informations clés » ne suffit
-// pas : certains le répètent en haut de chaque page). Plusieurs DIC : celui qui cite l'ISIN ; un seul : celui-là.
+// pas : certains le répètent en haut de chaque page). On garde celui qui cite l'ISIN de la part, sinon rien (pas les frais d'une autre part).
 const DEBUT_DIC = /(?:Le pr[ée]sent|Ce) document (?:vous )?(?:contient|fournit) des informations essentielles|This document provides you with key information/i;
 export function sectionDic(pages, isin) {
   const debuts = pages.map((p, i) => DEBUT_DIC.test(p.trim().slice(0, 600)) ? i : -1).filter(i => i >= 0);
   const sections = debuts.map((d, k) => pages.slice(d, Math.min(debuts[k + 1] ?? pages.length, d + PAGES_DIC)).map(p => p + "\n").join(""));
-  if (sections.length === 1) return sections[0];
   return sections.find(s => s.includes(isin)) || null;
 }
 
@@ -113,7 +114,7 @@ const attendre = ms => new Promise(ok => setTimeout(ok, ms));
 
 async function gecoFetch(chemin) {
   for (let essai = 0; ; essai++) {
-    const r = await fetch(GECO_API + chemin, { headers: { "User-Agent": UA } });
+    const r = await fetch(GECO_API + chemin, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(60000) });
     if (r.ok) return r;
     // 418 : le code que GECO renvoie pendant ses opérations de maintenance (ce n'est pas un blocage)
     if (r.status === 418) throw Object.assign(new Error("la base GECO de l'AMF est en maintenance (HTTP 418)"), { maintenance: true });

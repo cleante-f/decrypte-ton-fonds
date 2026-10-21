@@ -312,9 +312,10 @@ function extraireDic(brut) {
   const t = brut.normalize("NFC").replace(/[  ]/g, " ").replace(/[’`]/g, "'").replace(/\s+/g, " ");
   const chercher = (...res) => { for (const re of res) { const m = t.match(re); if (m) return m[1]; } return undefined; };
   const pctApres = (...libelles) => {
-    // premier pourcentage dans les 250 caractères qui suivent le libellé
+    // premier pourcentage dans les 250 caractères qui suivent le libellé, sans passer la ligne « Coûts de transaction » : dans certains
+    // DIC (BNP Paribas), le pourcentage des frais de gestion précède leur libellé, que suit directement celui des coûts de transaction
     for (const libelle of libelles) {
-      const m = t.match(new RegExp(libelle + "[^%]{0,250}?(\\d{1,2}(?:[.,]\\d{1,3})?)\\s?%", "i"));
+      const m = t.match(new RegExp(libelle + "(?:(?!Co[uû]ts de transaction)[^%]){0,250}?(\\d{1,2}(?:[.,]\\d{1,3})?)\\s?%", "i"));
       if (m) return nombreFr(m[1]);
     }
     return null;

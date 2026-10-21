@@ -12,13 +12,14 @@ import { candidats, fraisCourants, construire, ecrire, choisirDocument, sectionD
 const lire = f => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 const DIC_SP500 = lire("tests/donnees/dic_amundi_pea_sp500.txt");
 
-// Vraies lignes de data/annuaire.js (sauf HSBC et la ligne sans ISIN, inventées sur leur modèle)
+// Vraies lignes de data/annuaire.js (sauf celles marquées « inventé », sur leur modèle)
 const SP500 = ["G", 49843, 49843, "AMUNDI PEA S&P 500 UCITS ETF", "AMUNDI ASSET MANAGEMENT", "Actions internationales", "FCP", "FR0011871128 FR0011871136", "2014-04-17", "FR", "L8IP LYY1 PSP5 PSPH", "", "", 1, 1];
 const LEVIER = ["G", 1, 1, "AMUNDI CAC 40 DAILY (2X) LEVERAGED UCITS ETF", "AMUNDI ASSET MANAGEMENT", "", "FCP", "FR0010592014", "", "FR", "", "", "", 1, 1];
-const NON_PUBLIC = ["G", 2, 2, "ERES SELECTION S&P 500", "ERES GESTION", "", "FCPE", "990000111111", "", "FR", "", "", "", 0, 0];
+const NON_PUBLIC = ["G", 2, 2, "FONDS S&P 500 RESERVE", "SOCIETE", "", "FCP", "FR0000000002", "", "FR", "", "", "", 0, 0];   // inventé
+const FCPE = ["G", 58293, 58293, "ERES SELECTION S&P 500", "ERES GESTION", "Actions internationales", "FCPE", "990000118919 FR00140148N1 FR0014014UD7", "2017-04-07", "FR", "", "", "", 0, 1];
 const ETRANGER = ["E", 0, 0, "Amundi MSCI World Swap UCITS ETF EUR Acc", "", "", "", "LU1681043599", "", "LU", "AMEW", "Paris", "EUR", 1, 1];
-const HSBC = ["G", 3, 3, "HSBC MSCI WORLD", "HSBC ASSET MANAGEMENT (FRANCE)", "", "FCP", "FR0000000003", "", "FR", "", "", "", 0, 1];
-const SANS_ISIN = ["G", 4, 4, "FONDS MSCI WORLD SANS ISIN", "SOCIETE", "", "FCP", "", "", "FR", "", "", "", 0, 1];
+const HSBC = ["G", 3, 3, "HSBC MSCI WORLD", "HSBC ASSET MANAGEMENT (FRANCE)", "", "FCP", "FR0000000003", "", "FR", "", "", "", 0, 1];   // inventé
+const SANS_ISIN = ["G", 4, 4, "FONDS MSCI WORLD SANS ISIN", "SOCIETE", "", "FCP", "", "", "FR", "", "", "", 0, 1];   // inventé
 const ACTIF = ["G", 1, 1, "Carmignac Patrimoine", "Carmignac Gestion", "Fonds mixtes", "FCP", "FR0010135103", "1989-11-07", "FR", "", "", "EUR", 0, 1];
 
 test("fraisCourants : vrai DIC Amundi PEA S&P 500 (0,12 %)", () => {
@@ -35,10 +36,18 @@ test("fraisCourants : vrai DIC Amundi PEA S&P 500 (0,12 %)", () => {
 test("fraisCourants : vrai DIC BNP Paribas Easy S&P 500 (0,14 %, pourcentage avant le libellé)", () => {
   const dic = extraireDic(lire("tests/donnees/dic_bnp_easy_sp500.txt"));
   assert.equal(fraisCourants(dic), 0.14);
+  // Même mise en page avec des coûts de transaction (0,05 %, inventés) : ils ne doivent pas être pris pour les frais de gestion
+  const avecTransaction = lire("tests/donnees/dic_bnp_easy_sp500.txt")
+    .replace(/Coûts de transaction\s+Il n'existe actuellement pas de coûts de transaction pour ce Produit\./, "Coûts de transaction 0,05% de la valeur de votre investissement par an.");
+  assert.notEqual(avecTransaction, lire("tests/donnees/dic_bnp_easy_sp500.txt"));
+  const dicT = extraireDic(avecTransaction);
+  assert.equal(dicT.gestion, 0.14);
+  assert.equal(dicT.transaction, 0.05);
+  assert.equal(fraisCourants(dicT), 0.19);
 });
 
-test("candidats : fonds GECO publics avec ISIN, indice connu, sans levier ni HSBC", () => {
-  const c = candidats([SP500, LEVIER, NON_PUBLIC, ETRANGER, HSBC, SANS_ISIN, ACTIF]);
+test("candidats : fonds GECO publics avec ISIN, indice connu, sans levier, ni HSBC, ni épargne salariale (FCPE)", () => {
+  const c = candidats([SP500, LEVIER, NON_PUBLIC, ETRANGER, HSBC, SANS_ISIN, ACTIF, FCPE]);
   assert.equal(c.length, 1);
   assert.deepEqual({ ...c[0] }, { cle: "FR0011871128", isin: "FR0011871128", nom: "AMUNDI PEA S&P 500 UCITS ETF", indice: "S&P 500", cmpId: 49843, prdId: 49843, pea: 1, etf: 1 });
 });
@@ -51,7 +60,8 @@ test("sectionDic : DIC de la part demandée dans un prospectus qui en regroupe p
   assert.equal(fraisCourants(extraireDic(sectionDic(prospectus, "FR0011871128"))), 0.12);
   assert.equal(fraisCourants(extraireDic(sectionDic(prospectus, "FR0011871136"))), 0.15);
   assert.equal(sectionDic(prospectus, "FR0000000000"), null);          // plusieurs DIC, aucun pour cette part
-  assert.equal(fraisCourants(extraireDic(sectionDic(pages, "FR0000000000"))), 0.12);   // un seul DIC : c'est le bon
+  assert.equal(sectionDic(pages, "FR0000000000"), null);   // un seul DIC, mais d'une autre part : écarté
+  assert.equal(fraisCourants(extraireDic(sectionDic(pages, "FR0011871128"))), 0.12);
   assert.equal(sectionDic(["Rapport annuel", "Bilan"], "FR0011871128"), null);
   // Titre répété en haut de chaque page (DIC de BNP Paribas) : toujours un seul DIC de 3 pages
   const titres = pages.map((p, i) => i ? "DOCUMENT D’INFORMATIONS CLÉS " + p : p);
@@ -72,7 +82,14 @@ test("choisirDocument : DIC le plus récent (celui de la part d'abord), sinon pr
     { idInterne: 3, docName: "KIDDOC-2024-03-15_Action_M_EUR.pdf", docTypeLib: "DICI", dateEffet: "2025-04-30" }
   ];
   assert.equal(choisirDocument(docs.concat(dics), "FR001400CPP1").idInterne, 2);
-  assert.equal(choisirDocument(docs.concat(dics), "FR0000000000").idInterne, 1);
+  assert.equal(choisirDocument(docs.concat(dics), "FR0000000000").idInterne, 1);   // sectionDic vérifie ensuite l'ISIN
+  // « DIC » et « KID » comme mots : pas « indice », « periodic » ni « KIDDOC » seul
+  const pieges = [
+    { idInterne: 7, docName: "Rapport periodic indice.pdf", docTypeLib: "Rapport annuel et semestriel", dateEffet: "2026-09-01" },
+    { idInterne: 8, docName: "KIDDOC-2024-03-15_Action_M_EUR.pdf", docTypeLib: "Autre", dateEffet: "2026-09-01" }
+  ];
+  assert.equal(choisirDocument(docs.concat(pieges), "FR0011871128").idInterne, 435040);
+  assert.equal(choisirDocument([{ idInterne: 9, docName: "SHARE_KIID_FR001400CPO4.pdf", docTypeLib: "Autre", dateEffet: "2026-01-01" }], "X").idInterne, 9);
   assert.equal(choisirDocument(docs.slice(0, 2), "FR0011871128"), null);
 });
 
