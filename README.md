@@ -355,6 +355,24 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 | Webstat (Banque de France) | Aucun | Valeurs accessibles seulement avec un compte développeur et une clé (vérifié le 06/10/2026) | Écartée : la même statistique est diffusée sans clé par la BCE |
 | Eurostat | Aucun | — | Écartée : l'inflation est déjà lue à la BCE (même indice) |
 
+## Alternatives moins chères
+
+La section 6 de la fiche (« Alternative moins chère ») propose, pour un fonds qui suit un indice, des fonds de droit
+français suivant le même indice avec des frais plus bas, et chiffre l'écart (frais courants, effet sur 10 ans). Pour un
+fonds à gestion active, elle ne propose rien d'équivalent : elle le dit simplement.
+
+- **Source** : le DIC (document d'informations clés) de chaque candidat, lu dans le prospectus publié par la base GECO de l'AMF.
+  Aucun frais n'est inventé : sans DIC lisible, le fonds n'est pas proposé.
+- **Tâche mensuelle** : `.github/workflows/alternatives.yml` (le 25 de chaque mois) lance `node scripts/construire_alternatives.mjs`,
+  qui réécrit `data/alternatives.js`. Si moins de la moitié des candidats est lisible, l'ancien fichier est conservé.
+  Sont exclus les fonds de HSBC Asset Management (données interdites sans accord écrit) et les FCPE.
+- **Exception Node** : ce script est en Node et non en Python, car il réutilise `extraireDic` de `js/geco.js` et pdf.js
+  (`js/vendor/pdfjs/`), qui lisent déjà les DIC dans le navigateur ; les réécrire en Python (bibliothèque standard seule) serait fragile.
+- **Limites** : peu de fonds indiciels français (16 fonds sur 12 indices au dernier calcul) ; pour le MSCI World, seule une
+  variante « Climate Paris Aligned » existe ; 9 fonds restent illisibles (DIC absent ou de présentation inhabituelle) ; les ETF
+  étrangers sont souvent moins chers mais leurs frais ne sont pas connus avant le registre européen ESAP (2028), donc non proposés.
+- **Sécurité** : pdf.js 3.11 est lancé avec `isEvalSupported: false` (faille CVE-2024-4367, exécution de code via une police de PDF), testé par `tests/pdf-securite.test.mjs`.
+
 ## Données personnelles (RGPD)
 
 **Mode gratuit** (GitHub Pages, adresse principale de Cloudflare) : pas de compte, pas de cookie, pas de mesure d'audience.
@@ -416,7 +434,11 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `data/annuaire-registres-ue.js` / `data/registres-ue-infos.js` | Zone « registres-ue » : fonds européens du registre de l'ESMA, hors France (clé `R<numéro>`) ; leurs informations (LEI, pays de commercialisation, politique, tranche d'encours, parapluie), chargées à l'ouverture d'une fiche (générés par `scripts/construire_identite.py`) |
 | `scripts/registres_ue.py` | Registre de l'ESMA : lecture, rapprochement avec l'annuaire, autorités, zone « registres-ue » (fonctions pures, bibliothèque standard Python) |
 | `data/societes.js` | Sociétés de gestion agréées par l'AMF : n° d'agrément, début d'autorisation, site (générée par `scripts/construire_identite.py`) |
-| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
+| `js/alternatives.js` | Alternatives moins chères : choix des fonds du même indice, calcul de l'écart de frais, bloc de la section 6 |
+| `scripts/construire_alternatives.mjs` | Tâche mensuelle (Node) : lit le DIC de chaque candidat dans le prospectus GECO avec pdf.js ; génère `data/alternatives.js` |
+| `data/alternatives.js` | Fonds de référence par indice, avec leurs frais lus dans le DIC (générée par le script) |
+| `.github/workflows/alternatives.yml` | Tâche mensuelle des alternatives (le 25 de chaque mois, 06 h 47 UTC) |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains), `alternatives.test.mjs` et `construire-alternatives.test.mjs` (alternatives moins chères : choix, bloc, script de construction), `pdf-securite.test.mjs` (pdf.js lancé avec `isEvalSupported: false`). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 

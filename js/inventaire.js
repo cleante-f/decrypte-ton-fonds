@@ -165,7 +165,7 @@ function lignesDePage(items) {
 async function pagesDuPdf(url, surProgression, assez) {
   const lib = await chargerPdfJs();
   const donnees = await (await gecoFetch(url)).arrayBuffer();
-  const pdf = await lib.getDocument({ data: donnees }).promise;
+  const pdf = await lib.getDocument({ data: donnees, isEvalSupported: false }).promise;
   const pages = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     pages.push(lignesDePage((await (await pdf.getPage(p)).getTextContent()).items));

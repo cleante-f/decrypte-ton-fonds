@@ -296,7 +296,7 @@ function chargerPdfJs() {
 async function texteDuPdf(url) {
   const lib = await chargerPdfJs();
   const donnees = await (await gecoFetch(url)).arrayBuffer();
-  const pdf = await lib.getDocument({ data: donnees }).promise;
+  const pdf = await lib.getDocument({ data: donnees, isEvalSupported: false }).promise;
   let texte = "";
   for (let p = 1; p <= Math.min(pdf.numPages, 4); p++) {
     const contenu = await (await pdf.getPage(p)).getTextContent();
