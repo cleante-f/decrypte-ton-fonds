@@ -71,7 +71,6 @@ function choisirAlternatives(e, fraisFonds, composition, autres) {
   }
   francais.sort((a, b) => (a[2] === null) - (b[2] === null) || a[2] - b[2]);
   for (const f of francais) ajouter(...f);
-  const nbFrancais = candidats.length;
   // Fonds non achetable en France : les candidats étrangers viennent après la liste française
   if (!achetableEnFrance(e)) for (const a of Array.isArray(autres) ? autres : []) {
     ajouter(a.cle, a.nom, Number.isFinite(a.frais) ? a.frais : null, a.pea, a.etf);
@@ -94,16 +93,22 @@ function choisirAlternatives(e, fraisFonds, composition, autres) {
 
 // ---------- Affichage : section 6 de la fiche ----------
 
-// Frais annuels du fonds analysé (en %), ou null s'ils sont inconnus : DIC (gestion + transaction) pour un fonds avec DIC,
-// sinon frais lus dans le prospectus déposé à la SEC (net, à défaut brut).
-function fraisDuFondsAnalyse(d) {
+// Frais annuels du fonds analysé (en %), ou null s'ils sont inconnus. Ordre : DIC (gestion + transaction), puis frais lus
+// dans le prospectus SEC (net, à défaut brut), puis ligne de data/alternatives.js dont l'ISIN est celui de la part affichée
+// (un ETF indiciel français n'a pas toujours de DIC séparé dans GECO).
+function fraisDuFondsAnalyse(d, e, isin) {
   const dic = d && d.dic;
-  if (dic) {
-    if (!Number.isFinite(dic.gestion)) return null;
-    return dic.gestion + (Number.isFinite(dic.transaction) ? dic.transaction : 0);
-  }
+  if (dic && Number.isFinite(dic.gestion)) return dic.gestion + (Number.isFinite(dic.transaction) ? dic.transaction : 0);
   const f = d && d.sec && d.sec.frais;
-  return f && Number.isFinite(f.retenu) ? f.retenu : null;
+  if (f && Number.isFinite(f.retenu)) return f.retenu;
+  const isins = new Set([isin, ...(e && e.isins || [])].filter(Boolean));
+  const indices = typeof ALTERNATIVES !== "undefined" && ALTERNATIVES && ALTERNATIVES.indices ? ALTERNATIVES.indices : {};
+  for (const liste of Object.values(indices)) {
+    for (const row of Array.isArray(liste) ? liste : []) {
+      if (isins.has(row[1]) && Number.isFinite(row[3])) return row[3];
+    }
+  }
+  return null;
 }
 
 // Composition utilisable pour choisir un indice : {zones, classes} ou null
@@ -114,12 +119,12 @@ function compositionPourAlternatives(d) {
 }
 
 // HTML de la section « alternative moins chère » (fonction de présentation : tout ce qui vient des données est échappé)
-function blocAlternatives(e, d, chargement) {
+function blocAlternatives(e, d, chargement, isin) {
   if (typeof ALTERNATIVES === "undefined" || !ALTERNATIVES || !ALTERNATIVES.indices) return nonDispo("Comparaison des frais indisponible pour le moment.");
   // Fonds actif dont l'indice dépend de la composition : tant qu'elle n'est pas connue, on ne conclut pas
   const enCours = !!chargement || !d || (d.composition && !d.composition.fini);
   if (enCours && !indiceDuNom(e.nom || "")) return `<p class="chargement">Recherche d'alternatives moins chères…</p>`;
-  const frais = fraisDuFondsAnalyse(d);
+  const frais = fraisDuFondsAnalyse(d, e, isin);
   const r = choisirAlternatives(e, frais, compositionPourAlternatives(d), d && d.alternativesAutres);
   if (!r.indice) return `<p>Ce fonds n'a pas d'alternative indicielle comparable dans nos données : il ne suit pas un indice que nous savons repérer, ou il n'est pas investi surtout en actions.</p>`;
   let html = `<h3>${r.actif ? "Alternative indicielle (pas le même fonds)" : "Fonds moins chers qui suivent le même indice"}</h3>
@@ -127,7 +132,7 @@ function blocAlternatives(e, d, chargement) {
   if (r.actif) html += `<p class="aide">Alternative indicielle : elle suit un marché, pas la stratégie du gérant.</p>`;
   if (r.dejaMoinsCher) html += `<p>C'est déjà l'un des fonds les moins chers sur cet indice : nous n'avons pas trouvé d'alternative qui coûte moins.</p>`;
   else if (!r.lignes.length) html += `<p>Nous n'avons trouvé aucune alternative moins chère dans nos données.</p>`;
-  else {
+  if (r.lignes.length) {
     html += `<ul class="similaires">${r.lignes.map(l => `<li><a href="#${esc(l.cle)}">${esc(l.nom)}</a>
       <small>${l.etf ? "ETF" : "fonds"}${l.pea ? " · éligible au PEA (d'après le nom)" : ""} · ${l.frais !== null ? `frais ${pct(l.frais, 2)} / an` : "frais non publiés dans nos sources"}${l.economie !== null
         ? ` · Sur 10 000 € placés ${ALT_ANNEES} ans, environ ${euros(l.economie)} de plus à l'arrivée (rendement brut supposé ${ALT_RENDEMENT_BRUT} % par an)` : ""}</small></li>`).join("")}</ul>`;

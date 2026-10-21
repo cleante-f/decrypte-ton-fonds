@@ -200,3 +200,32 @@ test("blocAlternatives : chargement ou composition en cours, fonds actif sans in
   assert.ok(!chargement.includes("pas d'alternative indicielle comparable"));
   assert.ok(chargement.includes("Recherche d'alternatives moins chères"));
 });
+
+test("blocAlternatives : ETF français sans DIC, frais lus dans ALTERNATIVES, déjà l'un des moins chers", () => {
+  const W = { maj: "2026-10-20", indices: { "MSCI World": [
+    ["FR0011871128", "FR0011871128", "ETF FR MSCI WORLD", 0.12, 1, 1, "2025-03-01"],
+    ["FR0000000002", "FR0000000002", "BNP MSCI WORLD ETF", 0.14, 0, 1, "2025-03-01"],
+    ["FR0000000003", "FR0000000003", "GESTION MSCI WORLD", 0.25, 0, 0, "2025-03-01"]] } };
+  const c = page(W);
+  const e = { ...cw8, nom: "ETF FR MSCI WORLD", isins: ["FR0011871128"], pays: "FR" };
+  const h = section6(c.afficherFicheAuto(e, "FR0011871128", { erreurs: [], composition: { fini: true, c: null } }, false));
+  assert.ok(h.includes("C'est déjà l'un des fonds les moins chers sur cet indice"));
+  assert.ok(!h.includes("frais de ce fonds non lus"));
+  assert.ok(!h.includes("Sur 10 000 € placés"));
+  // DIC présent mais gestion nulle : repli sur la ligne ALTERNATIVES
+  const h2 = section6(c.afficherFicheAuto(e, "FR0011871128", { erreurs: [], composition: { fini: true, c: null }, dic: { ...dicCw8, gestion: null } }, false));
+  assert.ok(h2.includes("C'est déjà l'un des fonds les moins chers sur cet indice"));
+  assert.ok(!h2.includes("frais de ce fonds non lus"));
+});
+
+test("choisirAlternatives : fonds non achetable déjà moins cher, les candidats sans frais restent listés", () => {
+  const c = page(ALT_W);
+  const e = { source: "S", cmpId: 1, nom: "ETF MSCI WORLD US", isins: [] };
+  const r = c.choisirAlternatives(e, 0.01, null, [{ cle: "X1", nom: "ETF ETRANGER", frais: null, pea: false, etf: true }]);
+  assert.equal(r.dejaMoinsCher, true);
+  assert.ok(r.lignes.some(l => l.cle === "X1"));
+  assert.ok(!r.lignes.some(l => l.economie !== null));
+  const h = c.blocAlternatives(e, { erreurs: [], composition: { fini: true, c: null }, alternativesAutres: [{ cle: "X1", nom: "ETF ETRANGER", frais: null, pea: false, etf: true }], sec: { frais: { retenu: 0.01 } } }, false, "US0000000001");
+  assert.ok(h.includes("déjà l'un des fonds les moins chers"));
+  assert.ok(h.includes("ETF ETRANGER"));
+});

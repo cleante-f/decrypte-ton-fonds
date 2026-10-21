@@ -1088,7 +1088,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
   }
 
   // ----- 6. Comparaison : autres parts du même fonds -----
-  let comparaison = typeof blocAlternatives === "function" ? blocAlternatives(e, d, chargement)   // js/alternatives.js
+  let comparaison = typeof blocAlternatives === "function" ? blocAlternatives(e, d, chargement, isin)   // js/alternatives.js
     : nonDispo("Comparaison des frais indisponible pour le moment.");
   if (sec) comparaison = comparaisonSec(sec) + comparaison;
   else if (d && d.parts && d.parts.length > 1) {

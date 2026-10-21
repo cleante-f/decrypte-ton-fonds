@@ -207,6 +207,8 @@ async function completerAlternatives(entree, donnees, rendre, numero) {
     const cleMoi = cleEntree(entree);
     const us = [];
     const zone = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["etats-unis"] : null;
+    // Limite connue : on retient les 8 premiers candidats dans l'ordre du fichier, avant de connaître leurs frais ;
+    // un fonds américain moins cher placé plus loin dans l'annuaire n'est donc pas proposé.
     for (const l of zone ? zone.lignes : []) {
       if (us.length >= 8) break;
       if (indiceDuNom(l[3] || "") !== indice) continue;

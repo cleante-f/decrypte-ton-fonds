@@ -374,7 +374,7 @@ et non la stratégie du gérant. Sinon (fonds mixte, obligataire, zone peu clair
   (frais « non publiés dans nos sources ») et des fonds américains avec leurs frais SEC, 3 au total.
 - **Limites** : peu de fonds indiciels français (16 fonds sur 12 indices au dernier calcul) ; pour le MSCI World, seule une
   variante « Climate Paris Aligned » existe ; 9 fonds restent illisibles (DIC absent ou de présentation inhabituelle) ; les ETF
-  étrangers sont souvent moins chers mais leurs frais ne sont pas connus avant le registre européen ESAP (2028), donc non proposés.
+  étrangers sont souvent moins chers mais leurs frais ne sont pas connus avant le registre européen ESAP (2028) : ils ne sont donc pas proposés pour un fonds achetable en France (seulement, sans frais chiffrés, pour un fonds qui ne l'est pas).
 - **Sécurité** : pdf.js 3.11 est lancé avec `isEvalSupported: false` (faille CVE-2024-4367, exécution de code via une police de PDF), testé par `tests/pdf-securite.test.mjs`.
 
 ## Données personnelles (RGPD)
