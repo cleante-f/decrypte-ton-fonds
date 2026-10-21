@@ -79,10 +79,14 @@ test("autres : ignorés si achetable, ajoutés après la liste française sinon 
   assert.ok(!simple(c.choisirAlternatives(e1, 1.8, comp1, autres)).lignes.some(l => l.cle === "S9"));
   const eS = { source: "S", cmpId: 5, nom: "VANGUARD INDEX", isins: [], etf: false, pays: "US" };
   const r = simple(c.choisirAlternatives(eS, 1.8, comp1, [{ cle: "S9", nom: "VANGUARD 500", frais: null, pea: 0, etf: 1 }]));
-  assert.equal(r.lignes.length, 4);   // 3 français, puis l'étranger
-  assert.equal(r.lignes[3].cle, "S9");
-  assert.equal(r.lignes[3].frais, null);
-  assert.equal(r.lignes[3].economie, null);
+  assert.equal(r.lignes.length, 3);   // 3 au plus au total : le français d'abord
+  assert.ok(!r.lignes.some(l => l.cle === "S9"));
+  // liste française courte (Euro Stoxx 50 : 2 fonds) : l'étranger complète, frais et économie null
+  const eur = simple(c.choisirAlternatives(eS, 1.8, comp([z("Zone euro", 80)], [z("Actions", 95)]), autres));
+  assert.equal(eur.lignes.length, 3);
+  assert.equal(eur.lignes[2].cle, "S9");
+  assert.equal(eur.lignes[2].frais, null);
+  assert.equal(eur.lignes[2].economie, null);
 });
 
 test("économie sur 10 ans, frais inconnus, déjà moins cher, doublons, données absentes", () => {
@@ -115,4 +119,14 @@ test("achetableEnFrance", () => {
   assert.equal(c.achetableEnFrance({ source: "N", isins: [] }), true);
   assert.equal(c.achetableEnFrance({ source: "S", isins: [] }), false);
   assert.equal(c.achetableEnFrance({ source: "E", isins: ["XX1"], pays: "KY" }), false);
+  // R : OPCVM avec la France parmi les pays ; sans la France, non
+  const r = (pays, nature = "OPCVM (UCITS)") => ({ source: "R", cmpId: 1, nature, isins: [], pays: "IE" });
+  const avec = page(); avec.REGISTRES_UE_INFOS = { 1: ["", "IE", "DE FR", "", 0, ""] };
+  assert.equal(avec.achetableEnFrance(r()), true);
+  const sans = page(); sans.REGISTRES_UE_INFOS = { 1: ["", "IE", "DE ES", "", 0, ""] };
+  assert.equal(sans.achetableEnFrance(r()), false);
+  // E notifié en France (FIRDS + IDENTITE.notifFR)
+  const n = page();
+  vm.runInContext(`FIRDS = { fonds: { LU1: ["LEI1", "EUR", [], 0] } }; IDENTITE = { notifFR: ["LEI1"] };`, n);
+  assert.equal(n.achetableEnFrance({ source: "E", isins: ["LU1"], pays: "LU" }), true);
 });

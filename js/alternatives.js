@@ -10,6 +10,7 @@
 
 const ALT_SEUIL_ACTIONS = 80;   // part minimale d'actions (%) pour associer un indice actions
 const ALT_SEUIL_ZONE = 70;      // part minimale d'une zone (%) pour la rattacher à un indice
+const ALT_SEUIL_MONDE = 40;     // part minimale d'Amérique du Nord (%) pour retenir MSCI World quand aucune zone ne domine
 const ALT_MAX_LIGNES = 3;
 const ALT_RENDEMENT_BRUT = 5;   // rendement brut annuel supposé (%) pour chiffrer l'économie, comme dans le simulateur
 const ALT_CAPITAL = 10000;
@@ -26,7 +27,7 @@ function indicePourExposition(zones, classes) {
   if (euro + horsEuro >= ALT_SEUIL_ZONE) return "Stoxx Europe 600";
   if (poids(zones, "Pays émergents") >= ALT_SEUIL_ZONE) return "MSCI Emerging Markets";
   if (poids(zones, "Asie-Pacifique développée") >= ALT_SEUIL_ZONE) return "Topix";
-  if (nord >= 40) return "MSCI World";
+  if (nord >= ALT_SEUIL_MONDE) return "MSCI World";
   return null;
 }
 
@@ -86,7 +87,7 @@ function choisirAlternatives(e, fraisFonds, composition, autres) {
   const garde = l => l.economie === null || l.economie > 0;
   // Déjà moins cher : on connaît les frais du fonds et des alternatives, et aucune ne fait économiser
   resultat.dejaMoinsCher = connu && avecEconomie.some(l => l.economie !== null) && !avecEconomie.some(l => l.economie !== null && l.economie > 0);
-  // 3 fonds français au plus, puis les candidats étrangers (peu nombreux) à la suite
-  resultat.lignes = [...avecEconomie.slice(0, nbFrancais).filter(garde).slice(0, ALT_MAX_LIGNES), ...avecEconomie.slice(nbFrancais).filter(garde)];
+  // 3 lignes au plus au total : la liste française d'abord, puis les candidats étrangers
+  resultat.lignes = avecEconomie.filter(garde).slice(0, ALT_MAX_LIGNES);
   return resultat;
 }
