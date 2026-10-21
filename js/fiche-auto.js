@@ -1088,7 +1088,8 @@ function afficherFicheAuto(e, isin, d, chargement) {
   }
 
   // ----- 6. Comparaison : autres parts du même fonds -----
-  let comparaison = nonDispo("La comparaison automatique avec des fonds similaires n'est pas encore disponible pour les fiches automatiques.");
+  let comparaison = typeof blocAlternatives === "function" ? blocAlternatives(e, d)   // js/alternatives.js
+    : nonDispo("Comparaison des frais indisponible pour le moment.");
   if (sec) comparaison = comparaisonSec(sec) + comparaison;
   else if (d && d.parts && d.parts.length > 1) {
     comparaison = `<p>Ce fonds existe en <strong>${d.parts.length} parts</strong>. Elles ont le même portefeuille, mais des frais, des devises ou des montants minimums différents. Une autre part est parfois moins chère ou accessible dans ton contrat.</p>

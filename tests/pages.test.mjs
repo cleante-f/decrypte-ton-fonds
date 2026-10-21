@@ -155,3 +155,13 @@ test("_routes.json : annuaire et correspondance des fonds américains, js/zones.
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   for (const chemin of ["/data/annuaire-etats-unis.js", "/data/etats-unis-isin.js", "/js/zones.js", "/js/etats-unis.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
 });
+
+// ---- Alternative moins chère : données et script de la section 6 ----
+test("décrypte : data/alternatives.js après data/resume.js, js/alternatives.js juste après js/style.js ; fichiers exclus des Functions", () => {
+  const scripts = [...lirePage("decrypte").matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+  const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${src} absent`); return i; };
+  assert.ok(place("data/alternatives.js") > place("data/resume.js"));
+  assert.equal(place("js/alternatives.js"), place("js/style.js") + 1);
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  for (const chemin of ["/data/alternatives.js", "/js/alternatives.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
+});

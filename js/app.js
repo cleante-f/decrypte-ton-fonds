@@ -130,6 +130,7 @@ async function afficherDepuisAdresse() {
     if (numero !== affichageEnCours) return;
     donnees.composition = { fini: true, c: donnees.sec && donnees.sec.compo };
     rendre();
+    await completerAlternatives(entree, donnees, rendre, numero);
     return;
   }
 
@@ -172,6 +173,7 @@ async function afficherDepuisAdresse() {
     if (donnees.sec && donnees.sec.compo) {
       donnees.composition = { fini: true, c: donnees.sec.compo };
       rendre();
+      await completerAlternatives(entree, donnees, rendre, numero);
       return;
     }
     donnees.composition = { fini: false, progression: "Recherche d'un fonds français qui suit le même indice…" };
@@ -180,12 +182,63 @@ async function afficherDepuisAdresse() {
 
   // ETF étrangers et fonds sans données : on passe par un fonds français qui suit le même indice
   const jumeau = trouverJumeau(entree.nom);
-  if (!jumeau) { donnees.composition = { fini: true, c: null }; rendre(); return; }
+  if (!jumeau) { donnees.composition = { fini: true, c: null }; rendre(); await completerAlternatives(entree, donnees, rendre, numero); return; }
   donnees.composition.jumeau = jumeau;
   let dj = null;
   try { dj = await chargerHistoriqueEtDocuments(jumeau.fonds); } catch (err) { /* ignoré */ }
-  if (!dj) { donnees.composition = { fini: true, c: null, jumeau }; rendre(); return; }
+  if (!dj) { donnees.composition = { fini: true, c: null, jumeau }; rendre(); await completerAlternatives(entree, donnees, rendre, numero); return; }
   await analyserComposition(donnees, jumeau.fonds.nom, jumeau.fonds.isins[0], dj.historique, dj.documents, null, progression, rendre, jumeau);
+  await completerAlternatives(entree, donnees, rendre, numero);
+}
+
+// Fonds non achetable en France (États-Unis, hors EEE, non notifié) : candidats pour l'alternative moins chère, qui ne figurent pas
+// dans data/alternatives.js : fonds américains de la zone « etats-unis » (frais lus à la SEC) et ETF européens notifiés de l'annuaire
+// (frais inconnus). Résultat dans donnees.alternativesAutres (3 au plus), puis rendre().
+async function completerAlternatives(entree, donnees, rendre, numero) {
+  try {
+    if (typeof achetableEnFrance !== "function" || achetableEnFrance(entree)) return;
+    let indice = indiceDuNom(entree.nom || "");
+    if (!indice) {
+      const c = compositionPourAlternatives(donnees);
+      indice = c ? indicePourExposition(c.zones, c.classes) : null;
+    }
+    if (!indice) return;
+    const moi = new Set(entree.isins || []);
+    const cleMoi = cleEntree(entree);
+    const us = [];
+    const zone = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["etats-unis"] : null;
+    for (const l of zone ? zone.lignes : []) {
+      if (us.length >= 8) break;
+      if (indiceDuNom(l[3] || "") !== indice) continue;
+      const x = lireEntree(l);
+      if (cleEntree(x) !== cleMoi) us.push(x);
+    }
+    const avecFrais = [];
+    for (const x of us) {
+      let frais = null;
+      try {
+        const detail = await chargerDetailSec(cleEntree(x));
+        const part = detail ? partSec(detail, x) : null;
+        const f = part ? fraisSec(part) : null;
+        frais = f && Number.isFinite(f.retenu) ? f.retenu : null;
+      } catch (err) { /* frais inconnus */ }
+      avecFrais.push({ cle: cleEntree(x), nom: x.nom, frais, pea: false, etf: x.etf });
+    }
+    avecFrais.sort((a, b) => (a.frais === null) - (b.frais === null) || a.frais - b.frais);
+    const autres = avecFrais.slice(0, 3);
+    for (const l of typeof ANNUAIRE !== "undefined" ? ANNUAIRE : []) {
+      if (autres.length >= 3) break;
+      if (l[0] !== "E" || indiceDuNom(l[3] || "") !== indice) continue;
+      const x = lireEntree(l);
+      if (!x.isins.length || x.isins.some(i => moi.has(i)) || !achetableEnFrance(x)) continue;
+      autres.push({ cle: x.isins[0], nom: x.nom, frais: null, pea: false, etf: x.etf });
+    }
+    if (numero !== affichageEnCours) return;
+    donnees.alternativesAutres = autres;
+    rendre();
+  } catch (err) {
+    console.error("Alternatives moins chères indisponibles :", err);   // la fiche reste affichée sans elles
+  }
 }
 
 // Lance les deux moteurs : d'abord les rendements (rapide), puis l'inventaire (lecture du rapport, plus long)

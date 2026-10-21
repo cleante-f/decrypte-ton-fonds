@@ -130,3 +130,62 @@ test("achetableEnFrance", () => {
   vm.runInContext(`FIRDS = { fonds: { LU1: ["LEI1", "EUR", [], 0] } }; IDENTITE = { notifFR: ["LEI1"] };`, n);
   assert.equal(n.achetableEnFrance({ source: "E", isins: ["LU1"], pays: "LU" }), true);
 });
+
+// ---------- Section 6 de la fiche : blocAlternatives ----------
+
+const ALT_W = { maj: "2026-10-20", indices: {
+  "MSCI World": [
+    ["FR0000000001", "FR0000000001", "AMUNDI PEA MSCI WORLD", 0.12, 1, 1, "2025-03-01"],
+    ["FR0000000002", "FR0000000002", "BNP MSCI WORLD ETF", 0.20, 0, 1, "2025-03-01"],
+    ["FR0000000003", "FR0000000003", "GESTION MSCI WORLD", 0.25, 0, 0, "2025-03-01"]
+  ],
+  "S&P 500": [["FR0000000009", "FR0000000009", "SANS FRAIS S&P 500", null, 0, 1, "2025-03-01"]]
+} };
+const cw8 = { source: "N", cmpId: 7, nom: "AMUNDI MSCI WORLD UCITS ETF", isins: ["LU1111111111"], etf: true, pays: "LU", classification: "", nature: "", gestionnaire: "X", marches: "", devise: "EUR", tickers: [] };
+const dicCw8 = { gestion: 0.38, transaction: 0, entree: 0, sortie: 0, performance: false, document: { docName: "DIC", dateEffet: "2025-01-01" } };
+const fiche = (c, e, d) => c.afficherFicheAuto(e, e.isins[0], { erreurs: [], composition: { fini: true, c: null }, ...d }, false);
+const section6 = h => h.slice(h.indexOf("6.</span> Comparaison"));
+
+test("blocAlternatives : fonds indiciel, 3 liens, PEA, économie, note et source", () => {
+  const c = page(ALT_W);
+  const h = section6(fiche(c, cw8, { dic: dicCw8 }));
+  assert.equal((h.match(/href="#FR000000000[123]"/g) || []).length, 3);
+  assert.ok(h.includes("éligible au PEA (d'après le nom)"));
+  assert.ok(h.includes("Sur 10 000 € placés 10 ans"));
+  assert.ok(h.includes("Des frais plus bas ne garantissent pas une meilleure performance ; vérifie le DIC avant toute décision."));
+  assert.ok(h.includes("AMF – DIC (base GECO), relevé du"));
+  assert.ok(!h.includes("Alternative indicielle (pas le même fonds)"));
+});
+
+test("blocAlternatives : fonds actif", () => {
+  const c = page(ALT_W);
+  const e = { ...cw8, nom: "FONDS ACTIF MONDE", etf: false };
+  const compo = { zones: [z("Amérique du Nord", 55)], classes: [z("Actions", 95)] };
+  const h = section6(fiche(c, e, { dic: dicCw8, composition: { fini: true, c: compo } }));
+  assert.ok(h.includes("Alternative indicielle (pas le même fonds)"));
+  assert.ok(h.includes("Alternative indicielle : elle suit un marché, pas la stratégie du gérant."));
+});
+
+test("blocAlternatives : pas d'indice, déjà moins cher, frais inconnus", () => {
+  const c = page(ALT_W);
+  const e = { ...cw8, nom: "FONDS OBLIGATAIRE", etf: false };
+  assert.ok(section6(fiche(c, e, { dic: dicCw8 })).includes("pas d'alternative indicielle comparable"));
+  const bas = section6(fiche(c, cw8, { dic: { ...dicCw8, gestion: 0.01 } }));
+  assert.ok(bas.includes("C'est déjà l'un des fonds les moins chers sur cet indice"));
+  const sp = { ...cw8, nom: "ETF S&P 500", isins: ["LU2222222222"] };
+  assert.ok(section6(fiche(c, sp, { dic: dicCw8 })).includes("frais non publiés dans nos sources"));
+});
+
+test("section 6 sans ALTERNATIVES : message d'indisponibilité, pas d'exception", () => {
+  const c = page(ALT_W, true);
+  const h = section6(fiche(c, cw8, { dic: dicCw8 }));
+  assert.ok(h.includes("Comparaison des frais indisponible pour le moment"));
+  assert.ok(!h.includes("n'est pas encore disponible"));
+});
+
+test("blocAlternatives : fonds sans frais connus, pas de comparaison chiffrée", () => {
+  const c = page(ALT_W);
+  const h = section6(fiche(c, cw8, {}));
+  assert.ok(h.includes("href=\"#FR0000000001\""));
+  assert.ok(!h.includes("Sur 10 000 € placés 10 ans"));
+});

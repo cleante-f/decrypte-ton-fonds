@@ -91,3 +91,45 @@ function choisirAlternatives(e, fraisFonds, composition, autres) {
   resultat.lignes = avecEconomie.filter(garde).slice(0, ALT_MAX_LIGNES);
   return resultat;
 }
+
+// ---------- Affichage : section 6 de la fiche ----------
+
+// Frais annuels du fonds analysé (en %), ou null s'ils sont inconnus : DIC (gestion + transaction) pour un fonds avec DIC,
+// sinon frais lus dans le prospectus déposé à la SEC (net, à défaut brut).
+function fraisDuFondsAnalyse(d) {
+  const dic = d && d.dic;
+  if (dic) {
+    if (!Number.isFinite(dic.gestion)) return null;
+    return dic.gestion + (Number.isFinite(dic.transaction) ? dic.transaction : 0);
+  }
+  const f = d && d.sec && d.sec.frais;
+  return f && Number.isFinite(f.retenu) ? f.retenu : null;
+}
+
+// Composition utilisable pour choisir un indice : {zones, classes} ou null
+function compositionPourAlternatives(d) {
+  const c = d && d.composition && d.composition.c;
+  const compo = c && c.zones && c.classes ? c : d && d.sec && d.sec.compo;
+  return compo && Array.isArray(compo.zones) && Array.isArray(compo.classes) ? compo : null;
+}
+
+// HTML de la section « alternative moins chère » (fonction de présentation : tout ce qui vient des données est échappé)
+function blocAlternatives(e, d) {
+  if (typeof ALTERNATIVES === "undefined" || !ALTERNATIVES || !ALTERNATIVES.indices) return nonDispo("Comparaison des frais indisponible pour le moment.");
+  const frais = fraisDuFondsAnalyse(d);
+  const r = choisirAlternatives(e, frais, compositionPourAlternatives(d), d && d.alternativesAutres);
+  if (!r.indice) return `<p>Ce fonds n'a pas d'alternative indicielle comparable dans nos données : il ne suit pas un indice que nous savons repérer, ou il n'est pas investi surtout en actions.</p>`;
+  let html = `<h3>${r.actif ? "Alternative indicielle (pas le même fonds)" : "Fonds moins chers qui suivent le même indice"}</h3>
+    <p>Indice : <strong>${esc(r.indice)}</strong>${frais !== null ? ` · frais annuels de ce fonds : <strong>${pct(frais, 2)}</strong>` : " · frais de ce fonds non lus : l'économie ne peut pas être chiffrée"}.</p>`;
+  if (r.actif) html += `<p class="aide">Alternative indicielle : elle suit un marché, pas la stratégie du gérant.</p>`;
+  if (r.dejaMoinsCher) html += `<p>C'est déjà l'un des fonds les moins chers sur cet indice : nous n'avons pas trouvé d'alternative qui coûte moins.</p>`;
+  else if (!r.lignes.length) html += `<p>Nous n'avons trouvé aucune alternative moins chère dans nos données.</p>`;
+  else {
+    html += `<ul class="similaires">${r.lignes.map(l => `<li><a href="#${esc(l.cle)}">${esc(l.nom)}</a>
+      <small>${l.etf ? "ETF" : "fonds"}${l.pea ? " · éligible au PEA (d'après le nom)" : ""} · ${l.frais !== null ? `frais ${pct(l.frais, 2)} / an` : "frais non publiés dans nos sources"}${l.economie !== null
+        ? ` · Sur 10 000 € placés ${ALT_ANNEES} ans, environ ${euros(l.economie)} de plus à l'arrivée (rendement brut supposé ${ALT_RENDEMENT_BRUT} % par an)` : ""}</small></li>`).join("")}</ul>`;
+  }
+  html += `<p class="aide">Des frais plus bas ne garantissent pas une meilleure performance ; vérifie le DIC avant toute décision.</p>
+    <p class="source">Source : AMF – DIC (base GECO), relevé du ${dateFr(ALTERNATIVES.maj)}</p>`;
+  return html;
+}
