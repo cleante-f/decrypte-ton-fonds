@@ -54,7 +54,7 @@ export function sectionDic(pages, isin) {
 
 const attendre = ms => new Promise(ok => setTimeout(ok, ms));
 
-async function gecoFetch(chemin) {
+export async function gecoFetch(chemin) {
   for (let essai = 0; ; essai++) {
     const r = await fetch(GECO_API + chemin, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(60000) });
     if (r.ok) return r;
