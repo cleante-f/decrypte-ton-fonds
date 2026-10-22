@@ -7,7 +7,7 @@
     "/data/references.js", "/data/registres-ue-infos.js", "/data/resume.js",
     "/js/affichage.js", "/js/alternatives.js", "/js/app.js", "/js/composition.js", "/js/compte.js", "/js/config-compte.js", "/js/config.js",
     "/js/cours.js", "/js/createur.js", "/js/fiche-auto.js", "/js/geco.js", "/js/glossaire.js", "/js/infobulles.js",
-    "/js/inventaire.js", "/js/marches.js", "/js/mode-site.js", "/js/nav.js", "/js/outils.js", "/js/performances.js", "/js/style.js", "/js/zones.js", "/js/etats-unis.js",
+    "/js/inventaire.js", "/js/marches.js", "/js/mode-site.js", "/js/nav.js", "/js/outils.js", "/js/performances.js", "/js/radiographie.js", "/js/style.js", "/js/zones.js", "/js/etats-unis.js",
     "/js/vendor/pdfjs/pdf.min.js", "/js/vendor/pdfjs/pdf.worker.min.js",
     "/fonts/IBMPlexSans-Regular-Latin1.woff2", "/fonts/IBMPlexSans-Medium-Latin1.woff2", "/fonts/IBMPlexSans-SemiBold-Latin1.woff2"
   ]

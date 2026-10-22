@@ -165,3 +165,18 @@ test("décrypte : data/alternatives.js après data/resume.js, js/alternatives.js
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   for (const chemin of ["/data/alternatives.js", "/js/alternatives.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
 });
+
+// ---- Radiographie « Mon contrat » : scripts du simulateur ----
+test("simulateur : data/alternatives.js, js/alternatives.js (après style.js, avant fiche-auto.js), js/radiographie.js juste après ; _routes.json", () => {
+  const scripts = [...lirePage("simulateur").matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+  const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${src} absent`); return i; };
+  assert.ok(place("data/alternatives.js") < place("js/alternatives.js"));
+  assert.ok(place("js/alternatives.js") > place("js/style.js"));
+  assert.ok(place("js/alternatives.js") < place("js/fiche-auto.js"));
+  assert.equal(place("js/radiographie.js"), place("js/alternatives.js") + 1);
+  assert.ok(place("js/radiographie.js") < place("js/simulateur.js"));
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  for (const chemin of ["/data/alternatives.js", "/js/alternatives.js", "/js/radiographie.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
+  assert.ok(routes.exclude.length <= 100);
+  assert.ok(!routes.exclude.some(c => c.includes("*")));
+});

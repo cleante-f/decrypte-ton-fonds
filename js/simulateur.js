@@ -3,7 +3,8 @@
  *
  * Déroulé : l'utilisateur choisit un fonds (#ISIN dans l'adresse, partagé avec les autres onglets), répond à 4 questions,
  * puis voit plusieurs scénarios (jamais une seule « prévision »), l'éventail des trajectoires possibles,
- * l'effet des frais et de l'inflation, des crises rejouées, un objectif, une comparaison et un portefeuille.
+ * l'effet des frais et de l'inflation, des crises rejouées, un objectif, une comparaison, un portefeuille et la radiographie
+ * d'un contrat (onglet « Mon contrat » : calculs dans radiographie.js).
  * Les calculs sont dans projection.js ; le contexte (macro, géopolitique, risques) dans contexte-fonds.js.
  */
 
@@ -24,8 +25,11 @@ const MODES = [
   { cle: "crises", nom: "Crises", titre: "Et si le marché connaissait une crise ?", texte: "Rejouer 2008, le Covid, 2022… ou une baisse de 20 % ou 40 %." },
   { cle: "comparer", nom: "Comparer", titre: "Comparer plusieurs ETF", texte: "Mêmes versements, plusieurs fonds : voir les différences." },
   { cle: "diversifier", nom: "Réduire le risque", titre: "Réduire mes risques", texte: "Un fonds complémentaire qui répartit mieux le risque, et ce que ça change." },
-  { cle: "portefeuille", nom: "Portefeuille", titre: "Construire mon portefeuille", texte: "Plusieurs fonds, avec des poids : diversification, corrélations." }
+  { cle: "portefeuille", nom: "Portefeuille", titre: "Construire mon portefeuille", texte: "Plusieurs fonds, avec des poids : diversification, corrélations." },
+  { cle: "contrat", nom: "Mon contrat", titre: "Radiographie de mon contrat", texte: "Tes fonds et leurs montants : exposition cumulée, doublons, frais en euros." }
 ];
+const CONTRAT_MAX_FONDS = 15;
+const CONTRAT_PARALLELE = 3;   // analyses chargées en même temps, au plus
 const EXEMPLES_SIMU = [["FR0011871128", "Amundi PEA S&P 500"], ["LU1681043599", "Amundi MSCI World (CW8)"], ["FR0012739431", "BNP Easy Euro Stoxx 50"], ["FR0010135103", "Carmignac Patrimoine"]];
 const EXEMPLE_PORTEFEUILLE = [["FR0011871128", 50], ["FR0012739431", 30], ["FR0010429068", 20]];
 
@@ -34,7 +38,8 @@ const S = {
   fonds: null, chargement: null, calc: null, marche: null, cleMarche: null,
   vue: { reel: false, exemples: true, tensions: true },
   objectif: { montant: 100000, enEurosDuJour: false }, crise: "fin2008",
-  comparaisons: [], portefeuille: { lignes: [], calc: null, enCours: false }
+  comparaisons: [], portefeuille: { lignes: [], calc: null, enCours: false },
+  contrat: { lignes: [], calc: null, enCours: false }
 };
 let numeroChargement = 0;
 
@@ -52,7 +57,8 @@ function etatCourant() {
   delete plan.debut;
   return { plan, mode: S.mode,
     comparaisons: S.comparaisons.map(c => cleEntree(c.entree, c.isin)),
-    portefeuille: S.portefeuille.lignes.map(l => ({ fonds: cleEntree(l.entree, l.isin), poids: l.poids })) };
+    portefeuille: S.portefeuille.lignes.map(l => ({ fonds: cleEntree(l.entree, l.isin), poids: l.poids })),
+    contrat: S.contrat.lignes.map(l => ({ fonds: cleEntree(l.entree, l.isin), montant: l.montant })) };
 }
 function programmerEnregistrement() {
   if (!S.simulation || S.restauration) return;
@@ -381,7 +387,7 @@ async function afficherDepuisAdresse() {
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
   document.title = `${entree.nom} · Simulateur`;
   S.fonds = null; S.calc = null; S.chargement = { entree, isin }; S.planOuvert = false;
-  S.comparaisons = []; S.portefeuille = { lignes: [], calc: null };
+  S.comparaisons = []; S.portefeuille = { lignes: [], calc: null }; S.contrat = { lignes: [], calc: null, enCours: false };
   if (!S.restauration) S.simulation = null;   // un nouveau fonds n'hérite pas de la simulation précédente
   zoneFonds.innerHTML = carteFonds(null, "Préparation de la simulation…");
   zoneAssistant.hidden = false;
@@ -631,7 +637,7 @@ function rendreResultats() {
 function rendrePanneau() {
   const zone = document.getElementById("panneau-simu");
   if (!zone) return;
-  const rendus = { projection: panneauProjection, diversifier: panneauDiversifier, objectif: panneauObjectif, crises: panneauCrises, comparer: panneauComparer, portefeuille: panneauPortefeuille, contexte: panneauContexte };
+  const rendus = { projection: panneauProjection, diversifier: panneauDiversifier, objectif: panneauObjectif, crises: panneauCrises, comparer: panneauComparer, portefeuille: panneauPortefeuille, contexte: panneauContexte, contrat: panneauContrat };
   zone.innerHTML = rendus[S.mode]();
   apresRendu();
 }
@@ -677,6 +683,9 @@ zoneResultats.addEventListener("click", e => {
   if (retirerLigne) { S.portefeuille.lignes.splice(Number(retirerLigne.dataset.retirerLigne), 1); S.portefeuille.calc = null; rendrePanneau(); programmerEnregistrement(); return; }
   const ajout = e.target.closest("[data-ajouter-fonds]");
   if (ajout) { ajouterFonds(ajout.dataset.cible, ajout.dataset.ajouterFonds); return; }
+  if (e.target.closest("#analyser-contrat")) { analyserContrat(); return; }
+  const retirerContrat = e.target.closest("[data-retirer-contrat]");
+  if (retirerContrat) { S.contrat.lignes.splice(Number(retirerContrat.dataset.retirerContrat), 1); S.contrat.calc = null; rendrePanneau(); programmerEnregistrement(); return; }
 });
 
 // ---------- Résumé en tête ----------
@@ -1264,6 +1273,21 @@ zoneResultats.addEventListener("input", e => {
     const total = S.portefeuille.lignes.reduce((s, l) => s + l.poids, 0);
     const el = document.getElementById("total-poids");
     if (el) { el.textContent = `Total : ${total} %`; el.classList.toggle("baisse", Math.abs(total - 100) > 0.5); }
+    return;
+  }
+  const montant = e.target.closest("[data-montant]");
+  if (montant) {
+    const ligne = S.contrat.lignes[Number(montant.dataset.montant)];
+    if (!ligne) return;
+    ligne.montant = montantContrat(montant.value);
+    programmerEnregistrement();
+    const el = document.getElementById("total-contrat");
+    if (el) el.textContent = texteTotalContrat();
+    if (S.contrat.calc) {   // résultats affichés calculés sur les anciens montants
+      S.contrat.perime = true;
+      const perime = document.getElementById("contrat-perime");
+      if (perime) perime.hidden = false;
+    }
   }
 });
 
@@ -1287,6 +1311,14 @@ async function ajouterFonds(cible, cle) {
     try { item.A = await chargerAnalyse(entree, isin, { composition: false }); } catch (err) { item.erreur = err.message; }
     item.enCours = false;
     if (S.mode === "comparer") rendrePanneau();
+    programmerEnregistrement();
+  } else if (cible === "contrat") {
+    // Pas de chargement ici : les analyses se chargent avec le bouton « Analyser mon contrat ». Un même fonds peut être saisi deux fois
+    // (il sera signalé comme doublon).
+    if (S.contrat.lignes.length >= CONTRAT_MAX_FONDS) return;
+    S.contrat.lignes.push({ entree, isin, montant: 0 });
+    S.contrat.calc = null;
+    if (S.mode === "contrat") rendrePanneau();
     programmerEnregistrement();
   } else {
     if (S.portefeuille.lignes.length >= 6) return;
@@ -1485,6 +1517,152 @@ function majPortefeuilleGraphique() {
   dessinerEventail(document.getElementById("graphique-portefeuille"), { T: C.T, debut: C.debut, ev: C.ev, verse: C.res.verse, pas: C.res.pas, reel: false, inflation: C.P.inflation, moisPasses: 0, tensions: null, exemples: null, infoSurvol: t => infoSurvol(C, t) });
 }
 
+// ---------- Panneau « Mon contrat » (radiographie : calculs dans radiographie.js) ----------
+
+const CONTRAT_NON_CLASSE = "Autres : non classé";   // part du contrat dont l'exposition n'est pas connue (barres : rangée à la fin, sans alerte)
+
+// Montant saisi : euros entiers, 0 si vide ou négatif
+function montantContrat(v) {
+  const x = Math.round(parseFloat(String(v ?? "").replace(/\s/g, "").replace(",", ".")));
+  return Number.isFinite(x) && x > 0 ? x : 0;
+}
+function texteTotalContrat() {
+  return `Total : ${euros(S.contrat.lignes.reduce((s, l) => s + l.montant, 0))}`;
+}
+
+// Charge les analyses manquantes (fonds avec un montant), 3 à la fois au plus, puis calcule la radiographie
+async function analyserContrat() {
+  const C = S.contrat;
+  if (C.enCours) return;
+  C.perime = false;
+  if (!C.lignes.some(l => l.montant > 0)) { C.calc = { erreur: "montant" }; rendrePanneau(); return; }
+  const file = C.lignes.filter(l => l.montant > 0 && !l.A);   // un fonds en échec est retenté
+  Object.assign(C, { enCours: true, calc: null, fait: 0, aFaire: file.length });
+  const rendre = () => { if (C === S.contrat && S.mode === "contrat") rendrePanneau(); };   // un autre fonds principal a pu être ouvert
+  rendre();
+  const travailleur = async () => {
+    while (file.length) {
+      const l = file.shift();
+      l.enCours = true; l.erreur = null;
+      try { l.A = await chargerAnalyse(l.entree, l.isin, { composition: false }); } catch (err) { l.erreur = err.message; }
+      l.enCours = false;
+      C.fait++;
+      rendre();
+    }
+  };
+  try { await Promise.all(Array.from({ length: Math.min(CONTRAT_PARALLELE, file.length) }, travailleur)); } finally { C.enCours = false; }
+  C.calc = calculContrat(C.lignes);
+  rendre();
+}
+
+// Radiographie des lignes : seuls les fonds analysés avec un montant > 0 entrent dans les calculs ; les fonds non chargés
+// sont comptés à part (« non analysé »)
+function calculContrat(lignes) {
+  const valides = lignes.filter(l => l.montant > 0);
+  if (!valides.length) return { erreur: "montant" };
+  const analyses = valides.filter(l => l.A), nonAnalyses = valides.filter(l => !l.A);
+  const somme = ls => ls.reduce((s, l) => s + l.montant, 0);
+  const base = { analyses, nonAnalyses, total: somme(valides), totalAnalyse: somme(analyses), montantNonAnalyse: somme(nonAnalyses) };
+  if (!analyses.length) return { ...base, erreur: "aucun" };
+  const cumul = cumulContrat(analyses.map(l => ({ montant: l.montant, expo: l.A.expo })));
+  for (const cle of ["zones", "classes", "devises"]) {
+    cumul[cle] = cumul[cle].map(x => ({ nom: x.nom, poids: Math.round(x.poids * 10) / 10 }));
+    const reste = 100 - cumul[cle].reduce((s, x) => s + x.poids, 0);
+    if (reste >= 0.5) cumul[cle].push({ nom: CONTRAT_NON_CLASSE, poids: Math.round(reste * 10) / 10 });   // fonds sans exposition connue
+  }
+  return { ...base, cumul,
+    doublons: doublonsContrat(analyses.map(l => ({ entree: l.entree, montant: l.montant, expo: l.A.expo }))),
+    frais: fraisContrat(analyses.map(l => ({ entree: l.entree, isin: l.isin, montant: l.montant, A: l.A }))) };
+}
+
+// Alertes de concentration du contrat, avec les seuils des « Réglages des alertes » (pays pour une zone, devises hors euro)
+function alertesContrat(cumul, seuils) {
+  const alertes = [];
+  const niveau = (v, s) => v > s.rouge ? "rouge" : v > s.orange ? "orange" : null;
+  for (const z of cumul.zones.filter(x => x.nom !== CONTRAT_NON_CLASSE)) {
+    const n = niveau(z.poids, seuils.pays);
+    if (n) alertes.push({ niveau: n, titre: `${z.nom} : ${Math.round(z.poids)} % du contrat`,
+      explication: "Une grande partie du contrat dépend des marchés de cette zone : s'ils baissent, ces fonds baissent ensemble." });
+  }
+  const horsEuro = cumul.devises.filter(x => x.nom !== "EUR" && x.nom !== CONTRAT_NON_CLASSE).reduce((s, x) => s + x.poids, 0);
+  const n = niveau(horsEuro, seuils.devise);
+  if (n) alertes.push({ niveau: n, titre: `Devises hors euro : ${Math.round(horsEuro)} % du contrat`,
+    explication: "Ces placements varient aussi avec le cours des devises face à l'euro (sauf si un fonds couvre le change)." });
+  return alertes;
+}
+
+function resultatContrat(R) {
+  if (!R) return "";
+  if (R.erreur === "montant") return `<p class="non-dispo">Indique au moins un montant (en euros) pour analyser ton contrat.</p>`;
+  const court = n => n.length > 48 ? n.slice(0, 46) + "…" : n;
+  const nonAnalyse = R.nonAnalyses.length ? `<p class="note">Non analysé : ${euros(R.montantNonAnalyse)} (${R.nonAnalyses.map(l => esc(court(l.entree.nom))).join(", ")}) : les données de ${R.nonAnalyses.length > 1 ? "ces fonds" : "ce fonds"} n'ont pas pu être chargées.${R.analyses.length ? ` Les calculs portent sur les ${euros(R.totalAnalyse)} restants.` : ""}</p>` : "";
+  if (R.erreur === "aucun") return `${nonAnalyse}<p class="non-dispo">Aucun fonds n'a pu être analysé : réessaie dans un moment.</p>`;
+  const seuils = chargerSeuils();
+  const alertes = alertesContrat(R.cumul, seuils);
+  const nom = i => esc(court(R.analyses[i].entree.nom));
+  const { memes, proches } = R.doublons;
+  const F = R.frais;
+  const sources = new Set();
+  for (const l of R.analyses) {
+    if (l.entree.source === "G" || l.entree.source === "N" || l.A.jumeau) sources.add("AMF (GECO)");
+    if (l.A.sec) sources.add("SEC (EDGAR)");
+    if (["E", "U", "R"].includes(l.entree.source)) sources.add("ESMA (registres des fonds)");
+  }
+  return `${nonAnalyse}
+    <h3>Exposition cumulée</h3>
+    <p class="aide">Moyenne des expositions de chaque fonds, pondérée par son montant (${euros(R.totalAnalyse)} analysés).</p>
+    ${alertes.length ? `<ul class="liste-alertes">${alertes.map(a => `<li class="alerte alerte-${a.niveau}">${pastille(a.niveau)}<div><strong>${esc(a.titre)}</strong><p>${esc(a.explication)}</p></div></li>`).join("")}</ul>` : ""}
+    <div class="deux-colonnes">
+      <div><h4>Par zone</h4>${barres(R.cumul.zones, seuils.pays.rouge)}</div>
+      <div><h4>Par classe d'actifs</h4>${barres(R.cumul.classes)}</div>
+      <div><h4>Par devise</h4>${barres(R.cumul.devises)}</div>
+    </div>
+    <p class="aide">Seuils modifiables dans « Réglages des alertes » (page Décrypte).</p>
+
+    <h3>Doublons</h3>
+    ${memes.length || proches.length ? `<p>Ces fonds font en grande partie la même chose.</p>
+      ${memes.length ? `<h4>Même indice ou même fonds</h4><ul>${memes.map(d => `<li><strong>${d.fonds.map(nom).join(" · ")}</strong> : ${d.raison === "fonds" ? "parts d'un même fonds" : "même indice"}, ${euros(d.montant)} au total</li>`).join("")}</ul>` : ""}
+      ${proches.length ? `<h4>Expositions très proches</h4><ul>${proches.map(d => `<li><strong>${d.fonds.map(nom).join(" · ")}</strong> : expositions communes à ${pct(d.recouvrement, 0)}, ${euros(d.montant)} au total</li>`).join("")}</ul>` : ""}`
+    : `<p class="aide">Aucun doublon repéré : pas de fonds sur le même indice, pas de fonds saisi deux fois, pas d'expositions (zone et classe d'actifs) communes à 80 % ou plus.</p>`}
+    <p class="aide">Comparaison des expositions par zone et classe d'actifs, pas des titres détenus ligne à ligne.</p>
+
+    <h3>Frais en euros</h3>
+    <ul class="lignes-portefeuille">${R.analyses.map((l, i) => { const f = F.parFonds[i], alt = f.alternative; return `<li>
+      <span class="ligne-nom">${esc(court(l.entree.nom))}<small>${euros(l.montant)}${f.frais === null ? " · frais inconnus" : ` · ${pct(f.frais, 2)} par an`}</small>
+        ${alt ? `<small>Une alternative à ${pct(alt.frais, 2)} existe : −${euros(alt.economieAnnuelle)} par an (<a href="decrypte.html#${esc(encodeURIComponent(alt.cle))}">${esc(alt.nom)}</a>)</small>` : ""}</span>
+      <span class="ligne-poids">${f.coutAnnuel === null ? "frais inconnus" : `<strong>${euros(f.coutAnnuel)} par an</strong>`}</span></li>`; }).join("")}</ul>
+    ${F.totalAnnuel === null ? `<p><strong>Frais inconnus pour tous les fonds</strong> : vérifie-les dans le DIC ou le prospectus de chaque fonds.</p>`
+      : `<p>Total : ${F.auMoins ? "au moins " : ""}<strong>${euros(F.totalAnnuel)} par an</strong>${F.inconnus ? ` (${F.inconnus} fonds aux frais inconnus, hors total)` : ""}.</p>
+        ${F.cout10ans ? `<p class="aide">Sur 10 ans, ces frais réduiraient la valeur des fonds aux frais connus d'environ ${euros(F.cout10ans)} (rendement brut supposé : 5 % par an).</p>` : ""}`}
+    <p class="aide">Frais courants lus dans le DIC (AMF) ou le prospectus (SEC) ; frais de gestion du contrat non compris.</p>
+    <p class="source">Sources : ${[...sources].join(", ") || "profils types"} selon les fonds ; calculs : ce site.</p>
+    <p class="avertissement-simu">Analyse pédagogique : ce n'est pas un conseil en investissement.</p>`;
+}
+
+function panneauContrat() {
+  const C = S.contrat, lignes = C.lignes;
+  const total = lignes.reduce((s, l) => s + l.montant, 0);
+  const court = n => n.length > 40 ? n.slice(0, 38) + "…" : n;
+  const etat = l => l.enCours ? " · chargement…" : l.erreur ? ` · non analysé (${esc(l.erreur)})` : total > 0 && l.montant > 0 ? ` · ${pct(l.montant / total * 100, 0)} du contrat` : "";
+  return `<section class="carte">
+    <h2>Radiographie de mon contrat</h2>
+    <p class="aide">Tes fonds et leurs montants : exposition cumulée, doublons, frais en euros. Saisis les fonds de ton assurance-vie ou de ton PEA (${CONTRAT_MAX_FONDS} au plus) et le montant placé sur chacun.</p>
+    ${lignes.length ? `<ul class="lignes-portefeuille">${lignes.map((l, i) => `<li>
+      <span class="ligne-nom">${esc(court(l.entree.nom))}<small>${esc(l.isin || "")}${etat(l)}</small></span>
+      <label class="ligne-poids"><input type="number" min="0" step="1" inputmode="numeric" value="${l.montant}" data-montant="${i}" aria-label="Montant placé sur ${esc(l.entree.nom)}, en euros"> €</label>
+      <button type="button" class="retirer" data-retirer-contrat="${i}" aria-label="Retirer ${esc(l.entree.nom)}">×</button></li>`).join("")}</ul>
+      <p id="total-contrat">${texteTotalContrat()}</p>` : ""}
+    <div class="boutons">
+      ${lignes.length < CONTRAT_MAX_FONDS ? champAjoutFonds("contrat", "Ajouter un fonds de ton contrat (nom, ISIN, ticker)")
+        : `<p class="aide">${CONTRAT_MAX_FONDS} fonds au plus : retire une ligne pour en ajouter une autre.</p>`}
+      <button type="button" class="btn" id="analyser-contrat"${!lignes.length || C.enCours ? " disabled" : ""}>Analyser mon contrat</button>
+    </div>
+    ${C.enCours && C.aFaire ? `<p class="chargement" role="status">Analyse en cours : fonds ${Math.min(C.fait + 1, C.aFaire)} sur ${C.aFaire}…</p>` : ""}
+    <p class="note" id="contrat-perime"${C.perime && C.calc ? "" : " hidden"}>Montants modifiés : clique sur « Analyser mon contrat » pour mettre à jour les résultats.</p>
+    ${resultatContrat(C.calc)}
+  </section>`;
+}
+
 // ---------- Panneau « Contexte & risques » ----------
 
 function panneauContexte() {
@@ -1601,6 +1779,11 @@ async function restaurerExtras(A) {
       await ajouterFonds("portefeuille", ligne.fonds);
       const l = S.portefeuille.lignes.at(-1);
       if (l) l.poids = Number(ligne.poids) || 0;
+    }
+    for (const ligne of (etat.contrat || []).slice(0, CONTRAT_MAX_FONDS)) {
+      const avant = S.contrat.lignes.length;
+      await ajouterFonds("contrat", ligne.fonds);
+      if (S.contrat.lignes.length > avant) S.contrat.lignes.at(-1).montant = montantContrat(ligne.montant);
     }
     rendrePanneau();
   } finally { S.restauration = null; }

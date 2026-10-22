@@ -129,3 +129,162 @@ test("fraisContrat : alternative moins chère", () => {
   assert.equal(alt.frais, 0.05);
   assert.ok(Math.abs(alt.economieAnnuelle - 10000 * 0.55 / 100) < 1e-9);
 });
+
+// ---------- Onglet « Mon contrat » du simulateur (page simulée, sans réseau) ----------
+
+// Objet qui accepte tout (propriété, appel, affectation) : les éléments de la page que les tests n'examinent pas
+function faux() {
+  return new Proxy(function () {}, {
+    get: (t, k) => (k === Symbol.toPrimitive ? () => "" : k === "then" ? undefined : k === "length" ? 0 : k === Symbol.iterator ? function* () {} : faux()),
+    set: () => true,
+    apply: () => faux()
+  });
+}
+const SCRIPTS_SIMU = ["js/mode-site.js", "js/glossaire.js", "js/config.js", "js/outils.js", "js/geco.js", "js/zones.js", "js/etats-unis.js",
+  "js/inventaire.js", "js/style.js", "js/alternatives.js", "js/radiographie.js", "js/composition.js", "js/affichage.js", "js/marches.js",
+  "js/fiche-auto.js", "js/projection.js", "js/contexte-fonds.js", "js/graphiques-simu.js", "js/nav.js", "js/simulateur.js"];
+
+function pageSimu() {
+  const elements = new Map();
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, new Proxy({ innerHTML: "", textContent: "", value: "", hidden: false }, {
+      get: (t, k) => (k in t ? t[k] : faux()), set: (t, k, v) => { t[k] = v; return true; } }));
+    return elements.get(id);
+  };
+  const document = new Proxy({}, {
+    get: (t, k) => (k === "getElementById" ? element : k === "createElement" ? () => ({}) : k === "querySelectorAll" ? () => [] : faux())
+  });
+  const ctx = vm.createContext({ console, setTimeout, clearTimeout, document, ANNUAIRE: [], ALTERNATIVES: ALT_T,
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    location: { hostname: "cleante-f.github.io", hash: "", search: "" }, history: { replaceState() {} }, URLSearchParams,
+    fetch: async () => { throw new Error("réseau coupé"); }, alert() {} });
+  ctx.window = ctx;
+  ctx.addEventListener = () => {};
+  ctx.element = element;
+  vm.runInContext(`const ANNUAIRE_DATE = "2026-10-01"; const ETATS_UNIS_ISIN = {};`, ctx);
+  for (const f of SCRIPTS_SIMU) vm.runInContext(lire(f), ctx, { filename: f });
+  // Fonds de test : la clé est l'ISIN ; analyses factices (aucun réseau). « FRECHEC » ne se charge pas.
+  vm.runInContext(`
+    const FONDS_TEST = {
+      FR0011111111: { source: "G", cmpId: 1, nom: "AMUNDI PEA S&P 500", isins: ["FR0011111111"], etf: true, pays: "FR" },
+      FR0033333333: { source: "G", cmpId: 3, nom: "FONDS OBLIGATIONS EURO", isins: ["FR0033333333"], pays: "FR" },
+      FRECHEC: { source: "G", cmpId: 7, nom: "FONDS EN PANNE", isins: ["FRECHEC"], pays: "FR" }
+    };
+    var chargements = 0, enParallele = 0, maxParallele = 0;
+    entreeParCle = async cle => FONDS_TEST[cle] || { source: "G", cmpId: 100 + cle.length, nom: "FONDS " + cle, isins: [cle], pays: "FR" };
+    chargerAnalyse = async (entree, isin) => {
+      chargements++; enParallele++; maxParallele = Math.max(maxParallele, enParallele);
+      await new Promise(ok => setTimeout(ok, 5));
+      enParallele--;
+      if (isin === "FRECHEC") throw new Error("données indisponibles");
+      const oblig = isin === "FR0033333333";
+      return { entree, isin, nom: entree.nom, expo: [{ cle: oblig ? "oblig10" : "usa", poids: 100 }], ter: oblig ? 1.2 : 0.6, terSource: "dic" };
+    };`, ctx);
+  return ctx;
+}
+const sans = html => html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+
+test("simulateur : MODES contient l'onglet « Mon contrat » avec ses textes", () => {
+  const ctx = pageSimu();
+  const m = vm.runInContext("MODES", ctx).find(x => x.cle === "contrat");
+  assert.ok(m, "mode contrat");
+  assert.equal(m.nom, "Mon contrat");
+  assert.equal(m.titre, "Radiographie de mon contrat");
+  assert.equal(m.texte, "Tes fonds et leurs montants : exposition cumulée, doublons, frais en euros.");
+  assert.deepEqual(simple(vm.runInContext("S.contrat", ctx)), { lignes: [], calc: null, enCours: false });
+});
+
+test("simulateur, contrat : 15 fonds au plus, le 16e est refusé", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  for (let i = 0; i < 16; i++) await ctx.ajouterFonds("contrat", "FR00000000" + String(i).padStart(2, "0"));
+  assert.equal(S.contrat.lignes.length, 15);
+  assert.equal(S.contrat.lignes[0].montant, 0);
+  const html = sans(ctx.panneauContrat());
+  assert.ok(html.includes("15 fonds au plus"), html);
+  assert.ok(!ctx.panneauContrat().includes('data-recherche-fonds="contrat"'), "plus de champ d'ajout à 15 fonds");
+});
+
+test("simulateur, contrat : 2 fonds analysés et un fonds en échec -> exposition, doublons, frais, non analysé", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  for (const [cle, montant] of [["FR0011111111", 60000], ["FR0033333333", 40000], ["FRECHEC", 5000], ["FR0011111111", 0]]) {
+    await ctx.ajouterFonds("contrat", cle);
+    S.contrat.lignes.at(-1).montant = montant;
+  }
+  const attente = ctx.analyserContrat();
+  assert.ok(sans(ctx.panneauContrat()).includes("fonds 1 sur 3…"), "progression");
+  await attente;
+  assert.equal(vm.runInContext("chargements", ctx), 3, "la ligne à 0 € n'est pas chargée");
+  assert.ok(vm.runInContext("maxParallele", ctx) <= 3);
+  const calc = S.contrat.calc;
+  assert.equal(calc.totalAnalyse, 100000);
+  assert.equal(calc.montantNonAnalyse, 5000);
+  const html = sans(ctx.panneauContrat());
+  assert.ok(html.includes("Radiographie de mon contrat"));
+  assert.ok(html.includes("Exposition cumulée"));
+  assert.ok(html.includes("Amérique du Nord") && html.includes("60,0 %") && html.includes("Zone euro") && html.includes("40,0 %"), html);
+  assert.ok(html.includes("Amérique du Nord : 60 % du contrat"), "alerte au-delà du seuil d'un pays (50 %)");
+  assert.ok(html.includes("Doublons"));
+  assert.ok(html.includes("Aucun doublon repéré"));
+  assert.ok(html.includes("360 € par an"), "60 000 € à 0,6 %");
+  assert.ok(html.includes("480 € par an"), "40 000 € à 1,2 %");
+  assert.ok(html.includes("840 € par an"), "total");
+  assert.ok(html.includes("Une alternative à 0,05 % existe : −330 € par an"), html);
+  assert.ok(html.includes("FONDS EN PANNE") && html.includes("non analysé"));
+  assert.ok(html.includes("Non analysé : 5 000 €"), html);
+  assert.ok(html.includes("Analyse pédagogique : ce n'est pas un conseil en investissement."));
+  assert.ok(!/NaN|undefined/.test(html));
+});
+
+test("simulateur, contrat : même fonds deux fois -> doublon ; fonds sans exposition -> « non classé »", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  for (const [cle, montant] of [["FR0011111111", 1000], ["FR0011111111", 1000], ["FRVIDE00", 2000]]) {
+    await ctx.ajouterFonds("contrat", cle);
+    S.contrat.lignes.at(-1).montant = montant;
+  }
+  vm.runInContext(`const ancien = chargerAnalyse; chargerAnalyse = async (e, i) => i === "FRVIDE00" ? { entree: e, isin: i, nom: e.nom, expo: [], ter: 1, terSource: "hypothese" } : ancien(e, i);`, ctx);
+  await ctx.analyserContrat();
+  const html = sans(ctx.panneauContrat());
+  assert.ok(html.includes("Ces fonds font en grande partie la même chose."));
+  assert.ok(html.includes("Même indice ou même fonds"));
+  assert.ok(html.includes("non classé") && html.includes("50,0 %"), html);
+  assert.ok(html.includes("frais inconnus"));
+  assert.ok(html.includes("au moins"));
+});
+
+test("simulateur, contrat : total 0 € -> « Indique au moins un montant », aucun chargement", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  await ctx.ajouterFonds("contrat", "FR0011111111");
+  await ctx.analyserContrat();
+  assert.equal(vm.runInContext("chargements", ctx), 0);
+  const html = sans(ctx.panneauContrat());
+  assert.ok(html.includes("Indique au moins un montant"), html);
+  assert.ok(!/NaN/.test(html));
+});
+
+test("simulateur, contrat : enregistrement et relecture d'un contrat de 2 lignes", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  for (const [cle, montant] of [["FR0011111111", 12000], ["FR0033333333", 3000]]) {
+    await ctx.ajouterFonds("contrat", cle);
+    S.contrat.lignes.at(-1).montant = montant;
+  }
+  const etat = simple(ctx.etatCourant());
+  assert.deepEqual(etat.contrat, [{ fonds: "FR0011111111", montant: 12000 }, { fonds: "FR0033333333", montant: 3000 }]);
+  const ctx2 = pageSimu();
+  const S2 = vm.runInContext("S", ctx2);
+  S2.mode = "contrat";
+  S2.restauration = etat;
+  await ctx2.restaurerExtras(null);
+  assert.deepEqual(simple(S2.contrat.lignes.map(l => [cleEntreeDe(ctx2, l), l.montant])), [["FR0011111111", 12000], ["FR0033333333", 3000]]);
+  assert.equal(S2.restauration, null);
+});
+const cleEntreeDe = (ctx, l) => ctx.cleEntree(l.entree, l.isin);
