@@ -30,7 +30,7 @@ test("les trois tables existent, avec la RLS activée", () => {
 test("navigateur : tous les droits retirés d'abord, aucun droit ni policy sur l'état des fonds", () => {
   assert.match(sql, /revoke all on public\.fonds_suivis, public\.preferences_alertes, public\.etat_fonds_suivis from anon, authenticated;/);
   assert.equal(policies.filter(p => p.table === "etat_fonds_suivis").length, 0);
-  assert.doesNotMatch(sql, /grant [^;]* on (table )?public\.etat_fonds_suivis/);
+  for (const g of sql.match(/grant [^;]*;/g)) if (g.includes("etat_fonds_suivis")) assert.match(g, / to service_role;$/, g);
   assert.equal(policies.filter(p => p.role !== "authenticated").length, 0);   // jamais anon ni public
 });
 
@@ -69,11 +69,18 @@ test("31e fonds refusé par un déclencheur avant ajout (limite_fonds_suivis)", 
   const debut = sql.indexOf("create function public.limiter_fonds_suivis()");
   assert.ok(debut >= 0);
   const fonction = sql.slice(debut, sql.indexOf("end $$;", debut));
-  assert.match(fonction, /security definer set search_path = ''/);
-  assert.match(fonction, /for update/);                                  // verrou : pas de dépassement par deux ajouts simultanés
+  // invoker : le compte passe par la RLS, un ajout au nom d'un autre ne révèle pas sa liste (refus 403, pas 400)
+  assert.match(fonction, /language plpgsql security invoker set search_path = ''/);
+  assert.doesNotMatch(fonction, /security definer|for update/);
+  assert.match(fonction, /perform pg_advisory_xact_lock\(hashtext\(new\.user_id::text\)\);/);   // ajouts simultanés
   assert.match(fonction, />= 30 then raise exception 'limite_fonds_suivis'/);
   assert.match(sql, /create trigger \w+ before insert on public\.fonds_suivis for each row execute function public\.limiter_fonds_suivis\(\);/);
   assert.match(sql, /revoke execute on function public\.limiter_fonds_suivis\(\) from public, anon, authenticated;/);
+});
+
+test("clé de fonds en majuscules ; droits explicites pour la clé service", () => {
+  assert.match(corpsTable("fonds_suivis"), /and cle_fonds = upper\(cle_fonds\)\)/);
+  assert.match(sql, /grant select, insert, update, delete on public\.fonds_suivis, public\.preferences_alertes, public\.etat_fonds_suivis to service_role;/);
 });
 
 test("ajout côté navigateur : ajoute_le reste fixé par la base", () => {

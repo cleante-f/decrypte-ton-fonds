@@ -5,7 +5,9 @@
 
 create table public.fonds_suivis (
   user_id uuid not null default auth.uid() references public.profils(id) on delete cascade,
-  cle_fonds text not null check (char_length(cle_fonds) between 1 and 40 and cle_fonds ~ '^[A-Za-z0-9._-]+$'),
+  -- Clé d'adresse du site (cleEntree) : ISIN ou lettre de source + numéro, toujours en majuscules
+  cle_fonds text not null check (char_length(cle_fonds) between 1 and 40 and cle_fonds ~ '^[A-Za-z0-9._-]+$'
+                                 and cle_fonds = upper(cle_fonds)),
   ajoute_le timestamptz not null default now(),
   primary key (user_id, cle_fonds)
 );
@@ -37,6 +39,8 @@ alter table public.fonds_suivis enable row level security;
 alter table public.preferences_alertes enable row level security;
 alter table public.etat_fonds_suivis enable row level security;
 revoke all on public.fonds_suivis, public.preferences_alertes, public.etat_fonds_suivis from anon, authenticated;
+-- Tâche quotidienne (clé service) : droits explicites, sans dépendre des droits par défaut du projet
+grant select, insert, update, delete on public.fonds_suivis, public.preferences_alertes, public.etat_fonds_suivis to service_role;
 grant select, delete on public.fonds_suivis to authenticated;
 grant insert (user_id, cle_fonds) on public.fonds_suivis to authenticated;
 -- user_id dans les droits de modification : nécessaire aux ajouts « fusionner les doublons » (upsert) ; les policies
@@ -58,13 +62,16 @@ create policy "préférences : modification" on public.preferences_alertes for u
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 create policy "préférences : suppression" on public.preferences_alertes for delete to authenticated using (user_id = (select auth.uid()));
 
--- 30 fonds suivis au plus par personne. Verrou sur le profil : deux ajouts simultanés ne dépassent pas la limite.
--- security definer : le verrou (select … for update) demande un droit de modification sur profils que le navigateur n'a pas.
-create function public.limiter_fonds_suivis() returns trigger language plpgsql security definer set search_path = '' as $$
+-- 30 fonds suivis au plus par personne.
+-- security invoker : le compte ne porte que sur les lignes que la RLS laisse voir à l'appelant. Ajouter au nom d'un autre
+-- ne révèle donc rien (ni sa liste ni s'il a atteint la limite) : la policy « with check » refuse ensuite l'ajout (403).
+-- Verrou consultatif par utilisateur, libéré en fin de transaction : deux ajouts simultanés ne dépassent pas la limite,
+-- sans verrouiller la ligne du profil.
+create function public.limiter_fonds_suivis() returns trigger language plpgsql security invoker set search_path = '' as $$
 begin
   -- Fonds déjà suivi : on laisse la clé primaire régler le doublon (ajout « ignore les doublons » possible à 30 fonds)
   if exists (select 1 from public.fonds_suivis where user_id = new.user_id and cle_fonds = new.cle_fonds) then return new; end if;
-  perform 1 from public.profils where id = new.user_id for update;
+  perform pg_advisory_xact_lock(hashtext(new.user_id::text));
   if (select count(*) from public.fonds_suivis where user_id = new.user_id) >= 30 then
     raise exception 'limite_fonds_suivis' using errcode = 'P0001';
   end if;
