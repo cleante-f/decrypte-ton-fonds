@@ -1,0 +1,45 @@
+# Résumés des DIC et pages fixes des fonds, chaque lundi :
+# scripts/construire_resumes.mjs lit au plus 2 500 DIC (GECO) → data/resumes.js,
+# puis scripts/construire_pages.mjs écrit fonds/*.html, classements/*.html, sitemap.xml et sitemap-N.xml.
+name: Résumés des DIC et pages des fonds
+
+on:
+  schedule:
+    - cron: "13 4 * * 1"   # chaque lundi, vers 6 h 13, heure de Paris
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: donnees-simulateur
+  cancel-in-progress: false
+
+jobs:
+  resumes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Lire les DIC (GECO, AMF)
+        run: node scripts/construire_resumes.mjs
+      - name: Construire les pages des fonds
+        run: node scripts/construire_pages.mjs
+      - name: Enregistrer les fichiers
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Les dossiers fonds/ et classements/ peuvent ne pas exister encore : git add ignore les chemins absents grâce à la boucle.
+          for chemin in data/resumes.js fonds classements sitemap*.xml; do
+            if compgen -G "$chemin" > /dev/null; then git add -A -- $chemin; fi
+          done
+          if git diff --cached --quiet; then
+            echo "Rien de nouveau."
+          else
+            git commit -m "Résumés des DIC et pages des fonds du $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi

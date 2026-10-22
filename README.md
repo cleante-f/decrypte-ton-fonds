@@ -389,6 +389,36 @@ et non la stratégie du gérant. Sinon (fonds mixte, obligataire, zone peu clair
   étrangers sont souvent moins chers mais leurs frais ne sont pas connus avant le registre européen ESAP (2028) : ils ne sont donc pas proposés pour un fonds achetable en France (seulement, sans frais chiffrés, pour un fonds qui ne l'est pas).
 - **Sécurité** : pdf.js 3.11 est lancé avec `isEvalSupported: false` (faille CVE-2024-4367, exécution de code via une police de PDF), testé par `tests/pdf-securite.test.mjs`.
 
+## Pages des fonds pour Google
+
+Le site est une application à une seule page par outil : Google ne voit pas les fiches ouvertes par `#ISIN`. Des pages fixes,
+générées par `scripts/construire_pages.mjs`, donnent donc à chaque fonds une adresse que Google peut indexer.
+
+- **Quelles pages** : environ 13 500 fonds : les fonds français ouverts à tous et ayant un ISIN (hors FCPE et hors HSBC Asset Management,
+  dont les données sont interdites sans accord écrit), plus les ETF cotés en Europe. Adresse : `fonds/<nom>-<ISIN>.html`.
+- **Contenu** : l'identité du fonds (société de gestion, catégorie AMF, ISIN…) et, quand GECO publie un DIC, son résumé :
+  frais, indicateur de risque (SRI), durée de détention recommandée et objectif. Environ 40 % des fonds français n'ont aucun DIC :
+  leur page ne contient alors que l'identité (rien n'est inventé).
+- **Lecture du DIC** (`scripts/lecture_dic.mjs`, pdf.js) : le DIC de la part (par ISIN) est lu en premier, puis les documents du fonds.
+- **Tâche hebdomadaire** : `.github/workflows/resumes.yml`, chaque lundi à 04 h 13 UTC. `node scripts/construire_resumes.mjs` lit
+  2 500 fonds au plus par lancement (les jamais essayés d'abord, puis les essais les plus anciens) et écrit `data/resumes.js` ;
+  `node scripts/construire_pages.mjs` régénère ensuite `fonds/`, `classements/` et les sitemaps. Le premier remplissage demande donc
+  plusieurs lundis (ou plusieurs lancements manuels).
+- **Règle « sans DIC » ou « erreur »** : « sans DIC » (aucun document, ou pas de DIC pour cet ISIN) est un cas normal et durable.
+  Une « erreur » (réseau, HTTP autre que 418, PDF invalide, délai dépassé) est notée pour être retentée. Garde-fou : un HTTP 418
+  (maintenance de GECO) ou des erreurs sur plus de la moitié des fonds tentés laissent `data/resumes.js` inchangé. Les « sans DIC »
+  ne comptent pas comme erreurs.
+- **Pages de classement** (`classements/`) : PEA classés par frais, un classement par indice, un par catégorie AMF, et un index A-Z de tous les fonds.
+- **Sitemaps** : `sitemap.xml` est un index qui renvoie vers `sitemap-N.xml`, de 50 000 adresses au plus chacun.
+- **Pages dans un sous-dossier** : `js/mode-site.js` fixe `RACINE_SITE` (`""` à la racine, `"../"` dans `fonds/` et `classements/`) ;
+  les liens et les scripts des pages rangées dans un dossier commencent par ce préfixe.
+- **Pas de `robots.txt`** : à la racine de `github.io` on ne peut pas en publier un pour ce projet ; le sitemap est donc déclaré dans la Search Console.
+
+**À faire par l'utilisateur (gratuit)** :
+1. Créer une propriété « Préfixe d'URL » dans Google Search Console pour `https://cleante-f.github.io/decrypte-ton-fonds/`.
+2. Choisir la vérification par balise HTML et coller la valeur fournie dans `<meta name="google-site-verification" content="">` de `index.html`, puis publier.
+3. Cliquer sur « Vérifier », puis soumettre `sitemap.xml` (menu « Sitemaps »). L'indexation prend ensuite plusieurs semaines.
+
 ## Données personnelles (RGPD)
 
 **Mode gratuit** (GitHub Pages, adresse principale de Cloudflare) : pas de compte, pas de cookie, pas de mesure d'audience.
@@ -454,7 +484,13 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `scripts/construire_alternatives.mjs` | Tâche mensuelle (Node) : lit le DIC de chaque candidat dans le prospectus GECO avec pdf.js ; génère `data/alternatives.js` |
 | `data/alternatives.js` | Fonds de référence par indice, avec leurs frais lus dans le DIC (générée par le script) |
 | `.github/workflows/alternatives.yml` | Tâche mensuelle des alternatives (le 25 de chaque mois, 06 h 47 UTC) |
-| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains), `alternatives.test.mjs` et `construire-alternatives.test.mjs` (alternatives moins chères : choix, bloc, script de construction), `radiographie.test.mjs` (radiographie Mon contrat : exposition cumulée, doublons, frais en euros), `pdf-securite.test.mjs` (pdf.js lancé avec `isEvalSupported: false`). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
+| `scripts/lecture_dic.mjs` | Lecture d'un DIC (pdf.js) : frais, SRI, durée recommandée, objectif ; part (ISIN) d'abord, puis documents du fonds |
+| `scripts/construire_resumes.mjs` | Tâche hebdomadaire (Node) : lit au plus 2 500 DIC par lancement ; génère `data/resumes.js` |
+| `data/resumes.js` | Résumés des DIC et suivi des essais, sans DIC et erreurs (générée par le script) |
+| `scripts/construire_pages.mjs` | Génère `fonds/*.html`, `classements/*.html`, `sitemap.xml` et `sitemap-N.xml` |
+| `fonds/` / `classements/` / `sitemap*.xml` | Pages fixes des fonds, classements et plans du site pour Google (générés, voir « Pages des fonds pour Google ») |
+| `.github/workflows/resumes.yml` | Tâche hebdomadaire des résumés et des pages (lundi, 04 h 13 UTC) |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains), `alternatives.test.mjs` et `construire-alternatives.test.mjs` (alternatives moins chères : choix, bloc, script de construction), `radiographie.test.mjs` (radiographie Mon contrat : exposition cumulée, doublons, frais en euros), `pdf-securite.test.mjs` (pdf.js lancé avec `isEvalSupported: false`), `lecture-dic.test.mjs` (lecture d'un DIC), `construire-resumes.test.mjs` (choix des fonds à lire, garde-fous), `pages-fonds.test.mjs` (page d'un fonds, classements, sitemaps) et `pages-site.test.mjs` (pages fixes : liens, préfixe `RACINE_SITE`, scripts). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 
