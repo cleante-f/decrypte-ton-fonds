@@ -475,8 +475,8 @@ Sans ces secrets, la tâche s'arrête avec un avertissement et n'envoie rien.
 
 **À faire par toi, avant le premier envoi** :
 - créer le secret `ALERTES_SECRET` sur GitHub, puis lancer une fois le workflow `supabase.yml` (il le recopie dans Supabase) ;
-- dans Brevo, **désactiver le suivi des ouvertures et des clics** pour tous les e-mails (e-mails du compte et alertes). Sans cela, les liens
-  passent par `sendibt2.com` / `sendibt3.com` et `confidentialite.html` (version comptes) serait inexact ;
+- suivi des ouvertures et des clics de Brevo : impossible à couper dans l'offre gratuite (liens par `sendibt2.com` / `sendibt3.com`) ;
+  `confidentialite.html` (version comptes) le dit. À couper si l'offre change, puis mettre la page à jour ;
 - au passage au domaine des comptes, changer `BASE_SITE` dans `scripts/alertes.mjs` (adresse utilisée dans les liens des e-mails).
 
 **Limites à connaître** :

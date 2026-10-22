@@ -30,7 +30,7 @@
     <h1>Confidentialité</h1>
     <div data-seulement="comptes">
       <p class="sous-titre">En bref : sans compte, rien n'est enregistré sur un serveur. Avec un compte, nous gardons seulement ce qu'il faut pour le faire fonctionner.
-        Un seul cookie, strictement nécessaire à la connexion. Aucune mesure d'audience, aucune publicité.</p>
+        Un seul cookie, strictement nécessaire à la connexion. Aucune mesure d'audience sur le site, aucune publicité (Brevo, qui envoie nos e-mails, note leurs ouvertures et clics : voir plus bas).</p>
     </div>
     <div data-seulement="gratuit">
       <p class="sous-titre">En bref : pas de compte, pas de cookie, pas de mesure d'audience, pas de publicité. Tes recherches et tes simulations sont calculées dans ton navigateur et ne nous sont jamais envoyées.</p>
@@ -113,8 +113,9 @@
               <td>Quand tu es connecté, ou quand tu cliques sur le lien de désinscription d'un e-mail d'alerte</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
             <tr><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
               <td>Quand tu t'abonnes ou gères ton abonnement</td><td>Irlande (Stripe Payments Europe)</td></tr>
-            <tr><th scope="row">Brevo</th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité) et les alertes sur les fonds suivis.
-              Le suivi des ouvertures et des clics est désactivé : les liens mènent directement au site. Brevo reçoit ton adresse et le contenu de l'e-mail (pour les alertes : les noms des fonds concernés) et garde un journal des envois selon sa propre durée de conservation.</td>
+            <tr><th scope="row">Brevo <small>(liens des e-mails : sendibt2.com, sendibt3.com)</small></th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité) et les alertes sur les fonds suivis.
+              Brevo note, pour chaque e-mail, s'il a été ouvert (petite image invisible) et si un lien a été cliqué (les liens passent par une adresse de Brevo avant d'arriver sur le site).
+              Ce suivi ne peut pas être coupé dans l'offre gratuite de Brevo ; nous ne nous en servons pas. Brevo reçoit ton adresse et le contenu de l'e-mail (pour les alertes : les noms des fonds concernés) et garde un journal des envois selon sa propre durée de conservation.</td>
               <td>Lors de ces envois (au plus un e-mail d'alerte par jour)</td><td>France</td></tr>
             <tr><th scope="row">GitHub Actions <small>(tâche quotidienne, pas ton navigateur)</small></th><td>Faire tourner la tâche qui vérifie les fonds suivis et envoie les alertes. Elle lit ton adresse e-mail le temps de l'envoi, sans l'écrire nulle part.</td>
               <td>Une fois par jour, si tu as une alerte à recevoir</td><td>États-Unis (GitHub adhère au cadre de protection des données UE–États-Unis)</td></tr>
