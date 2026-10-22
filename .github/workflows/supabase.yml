@@ -1,5 +1,5 @@
 # Déploie la base (supabase/migrations) et les fonctions serveur (supabase/functions) sur le projet Supabase.
-# Secrets : SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, SUPABASE_PROJECT_REF (Settings → Secrets and variables → Actions).
+# Secrets : SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, SUPABASE_PROJECT_REF, ALERTES_SECRET (Settings → Secrets and variables → Actions).
 name: Supabase (base et fonctions)
 
 on:
@@ -39,5 +39,12 @@ jobs:
           # Ensuite : l'adresse principale, l'adresse de test de la branche « refonte » (Cloudflare Pages) et le serveur local.
           ORIGINES: "https://comptes.decrypte-ton-fonds.pages.dev,https://decrypte-ton-fonds.pages.dev,https://refonte.decrypte-ton-fonds.pages.dev,http://localhost:8770"
         run: supabase secrets set ORIGINES="$ORIGINES" --project-ref "$PROJET"
+      - name: Secret des liens de désinscription des alertes (le même que celui de la tâche alertes.yml)
+        env:
+          ALERTES_SECRET: ${{ secrets.ALERTES_SECRET }}
+        # Secret absent : on ne remplace pas une valeur déjà en place par une valeur vide.
+        run: |
+          if [ -n "$ALERTES_SECRET" ]; then supabase secrets set ALERTES_SECRET="$ALERTES_SECRET" --project-ref "$PROJET"
+          else echo "::warning::secret ALERTES_SECRET absent : la désinscription en un clic refusera les liens"; fi
       - name: Déployer les fonctions serveur
         run: if [ -d supabase/functions ] && ls supabase/functions/*/index.ts >/dev/null 2>&1; then supabase functions deploy --project-ref "$PROJET"; fi

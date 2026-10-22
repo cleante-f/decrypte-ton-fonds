@@ -7,3 +7,7 @@ verify_jwt = false
 
 [functions.entretien]
 verify_jwt = false
+
+# Ouverte depuis le lien d'un e-mail, sans jeton d'utilisateur : elle vérifie son propre jeton signé (ALERTES_SECRET)
+[functions.alertes-desinscription]
+verify_jwt = false
