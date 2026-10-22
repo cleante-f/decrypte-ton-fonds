@@ -85,7 +85,8 @@ async function pagesDuPdf(donnees) {
   return pages;
 }
 
-// Texte du DIC d'une part et date du document, ou null. Une pause suit chaque lecture (politesse envers GECO).
+// Texte du DIC d'une part et date du document, ou null quand GECO n'a pas de DIC pour cette part (aucun document, ni DIC ni prospectus,
+// ou pas de section pour cet ISIN : cas normal, « sans DIC »). Une erreur (HTTP, PDF invalide, délai) lève une exception. Une pause suit chaque lecture (politesse envers GECO).
 export async function lireDicGeco({ cmpId, prdId, isin }) {
   try {
     const documents = await (await gecoFetch(`/document/byCompartAndProduct?compartCode=c${cmpId}&prdCode=p${prdId}`)).json();

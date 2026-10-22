@@ -6,7 +6,7 @@ import vm from "node:vm";
 import { readFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { candidatsResumes, aLire, lireMorceau, fusionner, ecrire, garde } from "../scripts/construire_resumes.mjs";
+import { candidatsResumes, aLire, lireMorceau, fusionner, ecrire, garde, traiterMorceau } from "../scripts/construire_resumes.mjs";
 
 const ligne = (cmpId, nom, isins, extra = {}) =>
   ["G", cmpId, cmpId, nom, extra.gest ?? "SOCIETE", "", extra.nature ?? "FCP", isins, "", "FR", "", "", "", 0, extra.pub ?? 1];
@@ -75,10 +75,51 @@ test("fusionner : garde l'ancienne valeur si non relu, remplace si relu, retire 
   assert.equal(fusionner(null, nouveaux, "m", ["A", "C"]).fonds.C[0], 5);
 });
 
-test("garde : moins de la moitié des fonds tentés lus → refus", () => {
+test("garde : refus seulement si les erreurs dépassent la moitié des fonds tentés (« sans DIC » n'est pas une erreur)", () => {
   assert.equal(garde(10, 5), true);
-  assert.equal(garde(10, 4), false);
+  assert.equal(garde(10, 6), false);
+  assert.equal(garde(10, 0), true);
   assert.equal(garde(0, 0), false);
+});
+
+test("lireMorceau : distingue lus, sans DIC et erreurs", async () => {
+  const cand = ["a", "b", "c", "d"].map(isin => ({ isin, nom: isin }));
+  const lireDic = async c => { if (c.isin === "b") return null; if (c.isin === "c") throw new Error("Invalid PDF structure"); if (c.isin === "d") return { texte: "rien d'utile", date: "" }; return { texte: DIC, date: "" }; };
+  const r = await lireMorceau(cand, lireDic, { pause: 0 });
+  assert.deepEqual(Object.keys(r.lus), ["a"]);
+  assert.deepEqual(r.sansDic, ["b", "d"]);
+  assert.deepEqual(r.erreurs, ["c"]);
+  assert.deepEqual(r.echecs, ["b", "c", "d"]);
+});
+
+// Simule principal() sur un dossier temporaire : 10 fonds, `sans` sans DIC, `lus` lus, le reste en erreur
+async function lancer(sans, lus) {
+  const dossier = mkdtempSync(join(tmpdir(), "resumes-"));
+  try {
+    const cand = Array.from({ length: 10 }, (_, i) => ({ isin: "I" + i, nom: "F" + i }));
+    const lireDic = async c => { const i = +c.isin.slice(1); if (i < lus) return { texte: DIC, date: "" }; if (i < lus + sans) return null; throw new Error("réseau"); };
+    const logs = [];
+    const log = console.log; console.log = m => logs.push(m);
+    try { await traiterMorceau(cand, null, lireDic, dossier, { pause: 0, aujourdhui: "2026-10-22", tous: cand.map(c => c.isin) }); } finally { console.log = log; }
+    const f = join(dossier, "resumes.js");
+    if (!existsSync(f)) return { ecrit: false, logs };
+    const ctx = vm.createContext({}); vm.runInContext(readFileSync(f, "utf8"), ctx);
+    return { ecrit: true, logs, resumes: JSON.parse(JSON.stringify(vm.runInContext("RESUMES", ctx))) };
+  } finally { rmSync(dossier, { recursive: true }); }
+}
+
+test("morceau de 10 : 6 sans DIC, 3 lus, 1 erreur → fichier écrit, 7 essais notés", async () => {
+  const r = await lancer(6, 3);
+  assert.equal(r.ecrit, true);
+  assert.equal(Object.keys(r.resumes.fonds).length, 3);
+  assert.equal(Object.keys(r.resumes.essais).length, 7);
+  assert.ok(r.logs.some(l => /3 lus.*6 sans DIC.*1 erreur/.test(l)), r.logs.join("|"));
+});
+
+test("morceau de 10 : 6 erreurs → rien d'écrit, ::warning::", async () => {
+  const r = await lancer(0, 4);
+  assert.equal(r.ecrit, false);
+  assert.ok(r.logs.some(l => l.startsWith("::warning::")));
 });
 
 test("ecrire : en-tête et un fonds par ligne, relisible comme RESUMES", () => {

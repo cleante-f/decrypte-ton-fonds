@@ -3,7 +3,9 @@
  * Lu par morceaux : au plus --max fonds par lancement (2 500 par défaut), les jamais lus d'abord puis les plus anciennement lus.
  * Les valeurs des fonds non relus sont conservées d'un lancement à l'autre.
  *
- * Garde-fous : HTTP 418 (maintenance de GECO) ou moins de la moitié des fonds tentés lus → fichier inchangé, avec un ::warning::.
+ * Trois issues par fonds : « lu », « sans DIC » (aucun document, ou pas de DIC pour cet ISIN : cas normal et durable) et
+ * « erreur » (réseau, HTTP autre que 418, PDF invalide, délai dépassé). Les fonds non lus sont notés dans `essais` pour tourner.
+ * Garde-fous : HTTP 418 (maintenance de GECO) ou erreurs sur plus de la moitié des fonds tentés → fichier inchangé, avec un ::warning::.
  *
  * Usage : node scripts/construire_resumes.mjs [--max N]
  */
@@ -54,32 +56,34 @@ export function aLire(candidats, resumes, max = MAX_DEFAUT) {
 
 const attendre = ms => new Promise(r => setTimeout(r, ms));
 
-// lireDic(candidat) → { texte, date } ou null. Retourne { tentes, echecs: [isin], lus: { isin: [frais, sri, durée, objectif, dateDic, dateLecture] } }.
-// HTTP 418 (maintenance, e.maintenance) : tout s'arrête ; une autre erreur ou un DIC illisible écarte seulement le fonds.
+// lireDic(candidat) → { texte, date } (DIC trouvé) ou null (pas de DIC pour ce fonds) ; une exception = erreur de lecture.
+// Retourne { tentes, lus: { isin: [frais, sri, durée, objectif, dateDic, dateLecture] }, sansDic: [isin], erreurs: [isin], echecs: [isin non lus] }.
+// HTTP 418 (maintenance, e.maintenance) : tout s'arrête ; une autre erreur écarte seulement le fonds.
 export async function lireMorceau(liste, lireDic, { pause = PAUSE_MS, aujourdhui = new Date().toISOString().slice(0, 10) } = {}) {
-  const lus = {}, echecs = [];
+  const lus = {}, sansDic = [], erreurs = [];
   let tentes = 0;
   for (const c of liste) {
     tentes++;
     try {
       const dic = await lireDic(c);
-      if (dic) {
-        const r = resumeDic(extraireDic(dic.texte));
-        if (r.frais !== null || r.sri !== null || r.duree || r.objectif)
-          lus[c.isin] = [r.frais, r.sri, r.duree || "", r.objectif || "", dic.date || "", aujourdhui];
-      }
+      const r = dic ? resumeDic(extraireDic(dic.texte)) : null;
+      if (r && (r.frais !== null || r.sri !== null || r.duree || r.objectif))
+        lus[c.isin] = [r.frais, r.sri, r.duree || "", r.objectif || "", dic.date || "", aujourdhui];
+      else sansDic.push(c.isin);
     } catch (e) {
       if (e.maintenance) throw e;
       console.warn(`${c.nom} (${c.isin}) : ${e.message}`);
+      erreurs.push(c.isin);
     }
-    if (!lus[c.isin]) echecs.push(c.isin);
     if (pause) await attendre(pause);
   }
-  return { tentes, lus, echecs };
+  const echecs = [...sansDic, ...erreurs].sort();
+  return { tentes, lus, sansDic, erreurs, echecs };
 }
 
-// Garde : au moins la moitié des fonds tentés doivent être lus
-export function garde(tentes, lus) { return tentes > 0 && lus * 2 >= tentes; }
+// Garde : le fichier n'est écrit que si les erreurs ne dépassent pas la moitié des fonds tentés.
+// Les fonds « sans DIC » ne comptent pas : GECO n'a souvent aucun document pour eux, ce n'est pas une panne.
+export function garde(tentes, erreurs) { return tentes > 0 && erreurs * 2 <= tentes; }
 
 // Valeurs relues par-dessus les anciennes ; les fonds qui ne sont plus dans l'annuaire (isinsActuels) sont retirés
 // `echecs` : ISIN tentés sans succès, notés dans `essais` à la date `maj` ; un fonds lu sort de `essais`.
@@ -120,18 +124,24 @@ async function principal() {
   const ancien = existsSync(fichier) ? lireConstante(fichier, "RESUMES") : null;
   const liste = aLire(candidats, ancien, max);
   console.log(`${candidats.length} fonds candidats, ${liste.length} à lire`);
+  await traiterMorceau(liste, ancien, lireDicGeco, join(RACINE, "data"), { tous: candidats.map(c => c.isin) });
+}
+
+// Lit un morceau, applique la garde, écrit resumes.js dans `dossier` et affiche le bilan : lus / sans DIC / erreurs
+export async function traiterMorceau(liste, ancien, lireDic, dossier, { pause = PAUSE_MS, aujourdhui = new Date().toISOString().slice(0, 10), tous } = {}) {
   let r;
-  try { r = await lireMorceau(liste, lireDicGeco); } catch (e) {
+  try { r = await lireMorceau(liste, lireDic, { pause, aujourdhui }); } catch (e) {
     console.log(`::warning::${e.message} : data/resumes.js n'est pas modifié`);
     return;
   }
   const nb = Object.keys(r.lus).length;
-  if (!garde(r.tentes, nb)) {
-    console.log(`::warning::DIC lus pour ${nb} fonds sur ${r.tentes} seulement : data/resumes.js n'est pas modifié`);
+  console.log(`${r.tentes} fonds tentés : ${nb} lus, ${r.sansDic.length} sans DIC, ${r.erreurs.length} erreurs`);
+  if (!garde(r.tentes, r.erreurs.length)) {
+    console.log(`::warning::${r.erreurs.length} erreurs de lecture sur ${r.tentes} fonds tentés (plus de la moitié) : data/resumes.js n'est pas modifié`);
     return;
   }
-  ecrire(fusionner(ancien, r.lus, new Date().toISOString().slice(0, 10), candidats.map(c => c.isin), r.echecs), join(RACINE, "data"));
-  console.log(`data/resumes.js écrit : ${nb} fonds relus sur ${r.tentes}`);
+  ecrire(fusionner(ancien, r.lus, aujourdhui, tous, r.echecs), dossier);
+  console.log(`data/resumes.js écrit : ${nb} fonds relus, ${r.echecs.length} notés dans les essais`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
