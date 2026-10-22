@@ -22,17 +22,25 @@ function lireEntree(l) {
   };
 }
 
+// ISIN → numéro de la ligne que le site ouvre pour cet ISIN. Aussi utilisé par js/adresses.js (pages fixes des fonds).
+// Un ISIN présent sur plusieurs lignes ouvre le fonds français (GECO), où il est officiel : un fonds étranger a pu le
+// recevoir par erreur en rapprochant les noms dans FIRDS (ex. FR0010135103 et « CARMIGNAC PORTFOLIO - PATRIMOINE »)
+function lignesParIsin(lignes) {
+  const parIsin = new Map();
+  lignes.forEach((l, i) => {
+    for (const isin of (l[7] ? l[7].split(" ") : [])) {
+      const deja = parIsin.get(isin);
+      if (deja === undefined || l[0] === "G" || lignes[deja][0] !== "G") parIsin.set(isin, i);
+    }
+  });
+  return parIsin;
+}
+
 let _indexAnnuaire = null;
 function indexAnnuaire() {
   if (_indexAnnuaire) return _indexAnnuaire;
-  const parIsin = new Map(), parTicker = new Map(), noms = [];
+  const parIsin = lignesParIsin(ANNUAIRE), parTicker = new Map(), noms = [];
   ANNUAIRE.forEach((l, i) => {
-    // Un ISIN présent sur plusieurs lignes ouvre le fonds français (GECO), où il est officiel : un fonds étranger a pu le
-    // recevoir par erreur en rapprochant les noms dans FIRDS (ex. FR0010135103 et « CARMIGNAC PORTFOLIO - PATRIMOINE »)
-    for (const isin of (l[7] ? l[7].split(" ") : [])) {
-      const deja = parIsin.get(isin);
-      if (deja === undefined || l[0] === "G" || ANNUAIRE[deja][0] !== "G") parIsin.set(isin, i);
-    }
     for (const t of (l[10] ? l[10].split(" ") : [])) if (!parTicker.has(t)) parTicker.set(t, i);
     noms.push(normaliser(l[3] + " " + l[4]));
   });
@@ -285,8 +293,9 @@ function chargerPdfJs() {
   if (_pdfjs) return _pdfjs;
   _pdfjs = new Promise((ok, ko) => {
     const s = document.createElement("script");
-    s.src = PDFJS + "pdf.min.js";
-    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; ok(pdfjsLib); };
+    const dossier = racineSite() + PDFJS;   // "../js/vendor/pdfjs/" sur une page rangée dans un dossier (js/outils.js)
+    s.src = dossier + "pdf.min.js";
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = dossier + "pdf.worker.min.js"; ok(pdfjsLib); };
     s.onerror = () => ko(new Error("pdf.js non chargé"));
     document.head.appendChild(s);
   });
@@ -296,7 +305,7 @@ function chargerPdfJs() {
 async function texteDuPdf(url) {
   const lib = await chargerPdfJs();
   const donnees = await (await gecoFetch(url)).arrayBuffer();
-  const pdf = await lib.getDocument({ data: donnees }).promise;
+  const pdf = await lib.getDocument({ data: donnees, isEvalSupported: false }).promise;
   let texte = "";
   for (let p = 1; p <= Math.min(pdf.numPages, 4); p++) {
     const contenu = await (await pdf.getPage(p)).getTextContent();
@@ -312,9 +321,10 @@ function extraireDic(brut) {
   const t = brut.normalize("NFC").replace(/[  ]/g, " ").replace(/[’`]/g, "'").replace(/\s+/g, " ");
   const chercher = (...res) => { for (const re of res) { const m = t.match(re); if (m) return m[1]; } return undefined; };
   const pctApres = (...libelles) => {
-    // premier pourcentage dans les 250 caractères qui suivent le libellé
+    // premier pourcentage dans les 250 caractères qui suivent le libellé, sans passer la ligne « Coûts de transaction » : dans certains
+    // DIC (BNP Paribas), le pourcentage des frais de gestion précède leur libellé, que suit directement celui des coûts de transaction
     for (const libelle of libelles) {
-      const m = t.match(new RegExp(libelle + "[^%]{0,250}?(\\d{1,2}(?:[.,]\\d{1,3})?)\\s?%", "i"));
+      const m = t.match(new RegExp(libelle + "(?:(?!Co[uû]ts de transaction)[^%]){0,250}?(\\d{1,2}(?:[.,]\\d{1,3})?)\\s?%", "i"));
       if (m) return nombreFr(m[1]);
     }
     return null;
@@ -328,7 +338,9 @@ function extraireDic(brut) {
     /(?:dur[ée]e|horizon) de placement recommand[ée]e?\s*\((?:au )?minimum\s*(?:de )?(\d+\s*ans?)\)/i);
   r.entree = /(pas de|aucun|ne facturons pas de) (frais|co[uû]ts?) d'entr[ée]e/i.test(t) ? 0 : pctApres("Co[uû]ts d'entr[ée]e");
   r.sortie = /(pas de|aucun|ne facturons pas de) (frais|co[uû]ts?) de sortie/i.test(t) ? 0 : pctApres("Co[uû]ts de sortie");
-  r.gestion = pctApres("Frais de gestion et autres (?:frais|co[uû]ts) administratifs(?: et d'exploitation)?", "Autres co[uû]ts r[ée]currents", "Frais de gestion");
+  // « Coûts récurrents prélevés chaque année » : dans certains DIC (BNP Paribas), le pourcentage des frais de gestion précède leur libellé
+  r.gestion = pctApres("Frais de gestion et autres (?:frais|co[uû]ts) administratifs(?: et d'exploitation)?", "Autres co[uû]ts r[ée]currents",
+    "Co[uû]ts r[ée]currents pr[ée]lev[ée]s chaque ann[ée]e", "Frais de gestion");
   r.transaction = pctApres("Co[uû]ts de transaction");
 
   // Commission de surperformance : le DIC donne souvent un taux de partage (« 20 % de la surperformance »),

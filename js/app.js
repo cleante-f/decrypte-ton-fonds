@@ -1,7 +1,13 @@
 /*
  * Chef d'orchestre : recherche, navigation (#ISIN dans l'adresse), réglages et infobulles.
+ *
+ * Page fixe d'un fonds (fonds/…, scripts/construire_pages.mjs) : la page définit FICHE_FIXE (ISIN du fonds) juste avant ce script.
+ * Sans « # » dans l'adresse, elle ouvre ce fonds sous son résumé ; un « # » l'emporte. Une recherche qui trouve un autre fonds
+ * mène à decrypte.html#… (le résumé de la page ne parle que de son fonds).
  */
 let seuils = chargerSeuils();
+const ficheFixe = typeof FICHE_FIXE === "string" ? FICHE_FIXE : "";
+const titreInitial = document.title;   // titre de la page fixe, fait pour Google : gardé tant que son fonds est affiché
 
 const champ = document.getElementById("champ-recherche");
 const zoneResultat = document.getElementById("resultat");
@@ -16,7 +22,7 @@ const EXEMPLES_REELS = [
 document.getElementById("exemples").innerHTML =
   // tout le site (annuaire européen et zones) d'après data/resume.js ; à défaut, l'annuaire européen seul
   `<span>${(typeof RESUME_ANNUAIRE !== "undefined" ? RESUME_ANNUAIRE.total : ANNUAIRE.length).toLocaleString("fr-FR")} fonds référencés. Exemples :</span> ` +
-  EXEMPLES_REELS.map(([isin, nom]) => `<a href="#${isin}" class="chip">${esc(nom)}</a>`).join(" ");
+  EXEMPLES_REELS.map(([isin, nom]) => `<a href="${esc(lienAutreFonds(isin))}" class="chip">${esc(nom)}</a>`).join(" ");
 
 // ---------- Recherche et navigation ----------
 
@@ -31,10 +37,12 @@ async function lancerRecherche(texte) {
   if (recherche !== rechercheEnCours || affichage !== affichageEnCours) return; // autre recherche, ou autre fonds ouvert entre-temps
   if (reels.length === 1) {
     const adresse = location.hash;
-    location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    const cle = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (ficheFixe && cle !== cleAffichee()) { location.href = `${racineSite()}decrypte.html#${encodeURIComponent(cle)}`; return; }
+    if (!ficheFixe || location.hash) location.hash = cle;
     if (location.hash === adresse) zoneResultat.replaceChildren(...avant); // fonds déjà ouvert : l'adresse ne change pas, on remet sa fiche
   } else {
-    zoneResultat.innerHTML = afficherListe(texte, reels);
+    zoneResultat.innerHTML = afficherListe(texte, reels, lienFiche);
   }
 }
 
@@ -43,10 +51,16 @@ document.getElementById("form-recherche").addEventListener("submit", e => {
   lancerRecherche(champ.value);
 });
 
+// Fonds à afficher : celui de l'adresse (#…), sinon celui de la page fixe
+function cleAffichee() {
+  return decodeURIComponent(location.hash.slice(1)) || ficheFixe;
+}
+
 async function afficherDepuisAdresse() {
-  const cle = decodeURIComponent(location.hash.slice(1));
+  const cle = cleAffichee();
+  const fondsDeLaPage = !!ficheFixe && !location.hash;   // page fixe ouverte sans « # » : son titre et sa position restent
   const numero = ++affichageEnCours;
-  document.title = "Décrypte ton fonds";
+  document.title = fondsDeLaPage ? titreInitial : "Décrypte ton fonds";
   if (!cle) { zoneResultat.innerHTML = ""; return; }
 
   // Fonds de l'annuaire (fiche générée automatiquement). Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste.
@@ -65,12 +79,12 @@ async function afficherDepuisAdresse() {
     return;
   }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
-  document.title = `${entree.nom} · Décrypte ton fonds`;
+  if (!fondsDeLaPage) document.title = `${entree.nom} · Décrypte ton fonds`;
   const enGeco = entree.source === "G";
   const avecSec = entree.source === "S" || (!enGeco && !!serieSecDe(entree, isin));   // fonds américain, ou fonds européen qui est aussi une série américaine
   const avecRegistre = entree.source === "R";   // fonds européen du registre de l'ESMA (hors France) : ses informations se chargent à l'ouverture
   zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco || avecSec || avecRegistre);
-  zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!fondsDeLaPage) zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });   // page fixe : son résumé reste en vue
 
   let donnees = { erreurs: [] };
   const rendre = () => {
@@ -130,6 +144,7 @@ async function afficherDepuisAdresse() {
     if (numero !== affichageEnCours) return;
     donnees.composition = { fini: true, c: donnees.sec && donnees.sec.compo };
     rendre();
+    await completerAlternatives(entree, donnees, rendre, numero);
     return;
   }
 
@@ -172,6 +187,7 @@ async function afficherDepuisAdresse() {
     if (donnees.sec && donnees.sec.compo) {
       donnees.composition = { fini: true, c: donnees.sec.compo };
       rendre();
+      await completerAlternatives(entree, donnees, rendre, numero);
       return;
     }
     donnees.composition = { fini: false, progression: "Recherche d'un fonds français qui suit le même indice…" };
@@ -180,12 +196,64 @@ async function afficherDepuisAdresse() {
 
   // ETF étrangers et fonds sans données : on passe par un fonds français qui suit le même indice
   const jumeau = trouverJumeau(entree.nom);
-  if (!jumeau) { donnees.composition = { fini: true, c: null }; rendre(); return; }
+  if (!jumeau) { donnees.composition = { fini: true, c: null }; rendre(); await completerAlternatives(entree, donnees, rendre, numero); return; }
   donnees.composition.jumeau = jumeau;
   let dj = null;
   try { dj = await chargerHistoriqueEtDocuments(jumeau.fonds); } catch (err) { /* ignoré */ }
-  if (!dj) { donnees.composition = { fini: true, c: null, jumeau }; rendre(); return; }
+  if (!dj) { donnees.composition = { fini: true, c: null, jumeau }; rendre(); await completerAlternatives(entree, donnees, rendre, numero); return; }
   await analyserComposition(donnees, jumeau.fonds.nom, jumeau.fonds.isins[0], dj.historique, dj.documents, null, progression, rendre, jumeau);
+  await completerAlternatives(entree, donnees, rendre, numero);
+}
+
+// Fonds non achetable en France (États-Unis, hors EEE, non notifié) : candidats pour l'alternative moins chère, qui ne figurent pas
+// dans data/alternatives.js : fonds américains de la zone « etats-unis » (frais lus à la SEC) et ETF européens notifiés de l'annuaire
+// (frais inconnus). Résultat dans donnees.alternativesAutres (3 au plus), puis rendre().
+async function completerAlternatives(entree, donnees, rendre, numero) {
+  try {
+    if (typeof achetableEnFrance !== "function" || achetableEnFrance(entree)) return;
+    let indice = indiceDuNom(entree.nom || "");
+    if (!indice) {
+      const c = compositionPourAlternatives(donnees);
+      indice = c ? indicePourExposition(c.zones, c.classes) : null;
+    }
+    if (!indice) return;
+    const moi = new Set(entree.isins || []);
+    const cleMoi = cleEntree(entree);
+    const us = [];
+    const zone = typeof ANNUAIRE_ZONES !== "undefined" ? ANNUAIRE_ZONES["etats-unis"] : null;
+    // Limite connue : on retient les 8 premiers candidats dans l'ordre du fichier, avant de connaître leurs frais ;
+    // un fonds américain moins cher placé plus loin dans l'annuaire n'est donc pas proposé.
+    for (const l of zone ? zone.lignes : []) {
+      if (us.length >= 8) break;
+      if (indiceDuNom(l[3] || "") !== indice) continue;
+      const x = lireEntree(l);
+      if (cleEntree(x) !== cleMoi) us.push(x);
+    }
+    const avecFrais = await Promise.all(us.map(async x => {
+      let frais = null;
+      try {
+        const detail = await chargerDetailSec(cleEntree(x));
+        const part = detail ? partSec(detail, x) : null;
+        const f = part ? fraisSec(part) : null;
+        frais = f && Number.isFinite(f.retenu) ? f.retenu : null;
+      } catch (err) { /* frais inconnus */ }
+      return { cle: cleEntree(x), nom: x.nom, frais, pea: false, etf: x.etf };
+    }));
+    avecFrais.sort((a, b) => (a.frais === null) - (b.frais === null) || a.frais - b.frais);
+    const autres = avecFrais.slice(0, 3);
+    for (const l of typeof ANNUAIRE !== "undefined" ? ANNUAIRE : []) {
+      if (autres.length >= 3) break;
+      if (l[0] !== "E" || indiceDuNom(l[3] || "") !== indice) continue;
+      const x = lireEntree(l);
+      if (!x.isins.length || x.isins.some(i => moi.has(i)) || !achetableEnFrance(x)) continue;
+      autres.push({ cle: x.isins[0], nom: x.nom, frais: null, pea: false, etf: x.etf });
+    }
+    if (numero !== affichageEnCours) return;
+    donnees.alternativesAutres = autres;
+    rendre();
+  } catch (err) {
+    console.error("Alternatives moins chères indisponibles :", err);   // la fiche reste affichée sans elles
+  }
 }
 
 // Lance les deux moteurs : d'abord les rendements (rapide), puis l'inventaire (lecture du rapport, plus long)
@@ -236,6 +304,7 @@ panneau.addEventListener("submit", e => {
     seuils[cle].rouge = rouge;
   }
   sauverSeuils(seuils);
+  enregistrerReglagesDansLeCompte();
   panneau.hidden = true;
   btnReglages.setAttribute("aria-expanded", "false");
   afficherDepuisAdresse();
@@ -245,7 +314,43 @@ panneau.addEventListener("click", e => {
   if (e.target.id === "btn-reinit") {
     reinitialiserSeuils();
     seuils = chargerSeuils();
+    enregistrerReglagesDansLeCompte(true);
     panneau.innerHTML = afficherReglages(seuils);
     afficherDepuisAdresse();
   }
+});
+
+// ---------- Compte (mode comptes, personne connectée) : réglages des alertes et fonds suivis ----------
+// En mode gratuit ou sans session : rien n'est lu ni envoyé (aucun appel à Supabase).
+function connecteEnModeComptes() {
+  return typeof Compte !== "undefined" && typeof modeSite === "function" && modeSite(location.hostname) === "comptes" && !!Compte.session();
+}
+
+// Réglages enregistrés aussi dans le compte ; « Valeurs par défaut » les efface du compte.
+// En cas d'échec, ceux du navigateur restent, et le panneau des réglages le dit.
+const NOTE_REGLAGES_LOCAUX = "Réglages gardés sur cet appareil seulement : enregistrement dans ton compte impossible pour le moment.";
+function enregistrerReglagesDansLeCompte(parDefaut = false) {
+  if (!connecteEnModeComptes()) return Promise.resolve();
+  return Compte.enregistrerReglagesFiche(parDefaut ? {} : reglagesPourCompte(seuils)).catch(() => {
+    panneau.innerHTML = `<p class="note note-erreur" role="status">${esc(NOTE_REGLAGES_LOCAUX)}</p>${afficherReglages(seuils)}`;
+    panneau.hidden = false;
+    btnReglages.setAttribute("aria-expanded", "true");
+  });
+}
+
+if (connecteEnModeComptes()) {
+  // Réglages du compte : ils l'emportent sur ceux du navigateur (fiche redessinée s'ils changent les seuils)
+  Compte.preferencesAlertes().then(p => {
+    const avant = JSON.stringify(seuils);
+    appliquerSeuilsCompte(p && p.reglages_fiche);
+    seuils = chargerSeuils();
+    if (JSON.stringify(seuils) !== avant) afficherDepuisAdresse();
+  }).catch(() => { /* réglages du navigateur gardés */ });
+  chargerSuivis();
+}
+
+// Bouton « ☆ Suivre ce fonds » de la fiche (rendu par js/fiche-auto.js en mode comptes seulement)
+zoneResultat.addEventListener("click", e => {
+  const bouton = e.target && e.target.closest ? e.target.closest("[data-suivre]") : null;
+  if (bouton) cliquerSuivi(bouton);
 });

@@ -14,10 +14,11 @@ function fragmentCours(isin) {
 
 async function chargerCours(isin) {
   if (!isin) return null;
-  const index = await (await fetch("data/cours/index.json", { cache: "no-cache" })).json();
+  const racine = racineSite();   // "../" sur une page rangée dans un dossier (js/outils.js)
+  const index = await (await fetch(`${racine}data/cours/index.json`, { cache: "no-cache" })).json();
   const nn = fragmentCours(isin);
   const annees = await Promise.all(index.annees.map(a =>
-    fetch(`data/cours/${a}/${nn}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null)));
+    fetch(`${racine}data/cours/${a}/${nn}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null)));
   const dates = [], valeurs = [], lieux = [];
   for (const f of annees) {
     if (!f || !f.c[isin]) continue;

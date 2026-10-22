@@ -24,6 +24,7 @@ const ZONES = [
 // Un seul <script> par fichier, même si plusieurs appels se suivent. Après un échec (réseau coupé, fichier bloqué) ou un
 // délai dépassé (le serveur ne répond pas), la promesse est retirée : le prochain appel réessaie. Le premier événement
 // (chargé, en erreur, délai) l'emporte ; un fichier qui arrive après le délai ne ressuscite rien.
+// src est relatif à la racine du site (« data/… ») : racineSite() (js/outils.js) est placé devant pour une page rangée dans un dossier.
 let DELAI_CHARGEMENT = 20000;   // millisecondes ; une variable pour que les tests puissent le raccourcir
 const _scriptsCharges = new Map();
 function chargerScript(src) {
@@ -35,7 +36,7 @@ function chargerScript(src) {
     const minuteur = setTimeout(() => finir(() => ko(new Error(`${src} : délai dépassé`))), DELAI_CHARGEMENT);
     s.onload = () => finir(ok);
     s.onerror = () => finir(() => ko(new Error(`${src} non chargé`)));
-    s.src = src;
+    s.src = racineSite() + src;
     document.head.appendChild(s);
   });
   _scriptsCharges.set(src, promesse);

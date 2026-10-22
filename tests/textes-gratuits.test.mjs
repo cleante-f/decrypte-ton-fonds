@@ -113,8 +113,8 @@ test("un seul hébergeur visible en mode gratuit", () => {
   }
 });
 
-test("dates de mise à jour (confidentialité : 11 octobre 2026, mentions légales : 7 octobre 2026), communes aux deux modes", () => {
-  for (const [nom, date] of [["confidentialite", "11 octobre 2026"], ["mentions-legales", "7 octobre 2026"]])
+test("dates de mise à jour (confidentialité : 22 octobre 2026, mentions légales : 7 octobre 2026), communes aux deux modes", () => {
+  for (const [nom, date] of [["confidentialite", "22 octobre 2026"], ["mentions-legales", "7 octobre 2026"]])
     assert.ok(texte(communATous(nom)).includes(`Page mise à jour le ${date}.`), nom);
 });
 
@@ -123,10 +123,10 @@ test("confidentialité : les liens vers les sources officielles (SEC, Banque cen
   assert.ok(liens.includes("Les liens vers d'autres sites (communiqués, LinkedIn, Euronext, EDGAR de la SEC, registre de la Banque centrale d'Irlande…) ne transmettent rien tant que tu ne cliques pas."));
 });
 
-// ---- Pages de compte (connexion, compte, abonnement, cgv) : elles n'existent qu'en mode comptes ----
+// ---- Pages de compte (connexion, compte, abonnement, cgv, alertes-desactivees) : elles n'existent qu'en mode comptes ----
 // Sans JavaScript (robots, mode lecture, script bloqué), la page s'affiche en version gratuite : aucun formulaire
 // (un envoi sans « method » mettrait l'e-mail et le mot de passe dans l'adresse), aucune offre payante, aucune valeur « [[…]] ».
-const PAGES_COMPTE = ["connexion", "compte", "abonnement", "cgv"];
+const PAGES_COMPTE = ["connexion", "compte", "abonnement", "cgv", "alertes-desactivees"];
 const contenuMain = html => html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)[1];
 // Texte du <body>, sans les scripts (le <title> et les <meta> du <head> ne s'affichent pas dans la page)
 const texteVisible = html => texte(html.match(/<body[^>]*>([\s\S]*)<\/body>/)[1].replace(/<script\b[\s\S]*?<\/script>/g, " "));

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <title>Mon compte · Décrypte ton fonds</title>
-  <meta name="description" content="Ton compte Décrypte ton fonds : simulations enregistrées, abonnement, données personnelles.">
+  <meta name="description" content="Ton compte Décrypte ton fonds : simulations enregistrées, fonds suivis, alertes par e-mail, abonnement, données personnelles.">
   <meta name="robots" content="noindex">
   <script src="js/mode-site.js"></script>
   <link rel="stylesheet" href="css/style.css">
@@ -33,6 +33,17 @@
       <section class="carte" id="simulations">
         <h2>Mes simulations</h2>
         <ul class="liste-simulations" id="liste-simulations"><li class="chargement">Chargement…</li></ul>
+      </section>
+      <section class="carte" id="suivis">
+        <h2>Mes fonds suivis</h2>
+        <p class="aide">Jusqu'à 30 fonds. Pour en ajouter un, ouvre sa fiche et clique sur « ☆ Suivre ce fonds ».
+          Dernières valeurs lues dans les DIC (AMF – base GECO).</p>
+        <ul class="liste-simulations" id="liste-suivis"><li class="chargement">Chargement…</li></ul>
+      </section>
+      <section class="carte" id="alertes">
+        <h2>Alertes par e-mail</h2>
+        <p class="aide">Un e-mail par jour au plus, qui regroupe les alertes de tes fonds suivis. Chaque e-mail contient un lien pour les désactiver en un clic.</p>
+        <form id="form-alertes" class="formulaire-compte"><p class="chargement">Chargement…</p></form>
       </section>
       <section class="carte">
         <h2>Mes informations</h2>
@@ -68,6 +79,9 @@
   </footer>
 
   <script src="js/outils.js"></script>
+  <script src="js/geco.js"></script>
+  <script src="js/zones.js"></script>
+  <script src="js/adresses.js"></script>
   <script src="js/affichage.js"></script>
   <script src="js/config-compte.js"></script>
   <script src="js/compte.js"></script>

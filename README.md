@@ -21,6 +21,7 @@ en mode gratuit (voir « Deux modes selon l'adresse »).
 | `confidentialite.html` | **Confidentialité** : responsables, données transmises à des tiers, stockage dans le navigateur, droits (RGPD), bouton d'effacement. Deux versions du texte selon le mode (voir plus bas) |
 | `mentions-legales.html` | **Mentions légales** : éditeurs, hébergeur, contenus et sources. Deux versions du texte selon le mode |
 | `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques). Libre et sans compte en mode gratuit ; réservé aux comptes en mode comptes |
+| `alertes-desactivees.html` | **Alertes désactivées** : page où le lien de désinscription des e-mails d'alerte renvoie (réussite, lien expiré ou erreur) ; mode comptes seulement |
 | `connexion.html`, `compte.html`, `abonnement.html`, `cgv.html` | **Pages de compte** (connexion, espace personnel, abonnement, conditions de vente) : elles ne servent qu'en mode comptes |
 
 Le fonds consulté est dans l'adresse (`#ISIN`) : les onglets et les boutons « Voir le graphique des performances » /
@@ -132,6 +133,18 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
 7. **Contexte** (`js/contexte-fonds.js`) : tableau de bord des risques (marché, géopolitique, change, secteur,
    concentration, taux, réglementation), indicateurs économiques pertinents pour le fonds, risques géopolitiques illustrés par des titres de presse récents (datés, sourcés), exposition aux
    tendances technologiques (opportunité / risque, sans recommandation).
+8. **Mon contrat** (onglet « Mon contrat », calculs dans `js/radiographie.js`, panneau dans `js/simulateur.js`) : radiographie d'un contrat
+   (assurance-vie, PEA, compte-titres…). L'utilisateur ajoute jusqu'à 15 fonds avec un montant en euros, puis clique sur « Analyser mon contrat ».
+   Le site calcule :
+   - **l'exposition cumulée** du contrat par zone géographique, classe d'actifs et devise, pondérée par les montants, avec des alertes par zone calculées sur la seule part en actions ;
+   - **les doublons**, à deux niveaux : deux fonds qui suivent le même indice (ou le même fonds), et deux fonds dont le recouvrement zone × classe atteint 80 % ;
+   - **les frais en euros par an** : frais connus lus dans le DIC, dans le résumé de prospectus SEC ou dans `data/alternatives.js`. Un fonds aux frais inconnus est
+     exclu du calcul et le total est alors annoncé « au moins » ; le **coût sur 10 ans** (rendement brut supposé de 5 %, comme le simulateur) ;
+   - **une alternative moins chère** pour chaque fonds, quand le catalogue d'alternatives en propose une.
+   Un fonds dont l'analyse échoue est marqué « non analysé » et laissé hors des calculs. Les lignes sont figées pendant le chargement ; si les montants changent
+   ensuite, il faut recliquer sur « Analyser mon contrat ». L'accès suit la règle du simulateur (libre en mode gratuit, réservé aux comptes en mode comptes) et la
+   radiographie est enregistrée avec les simulations en mode comptes. Aucune nouvelle clé `localStorage` et aucun nouveau service.
+   **Limites** : pas de comparaison ligne à ligne des titres détenus par les fonds, et pas d'import d'un relevé de contrat (les fonds et montants sont saisis à la main).
 
 ### Données mises à jour automatiquement chaque jour
 
@@ -295,9 +308,9 @@ Le premier calcul, ou un recalcul complet, se lance à la main : onglet **Action
 Les données représentent 20 à 25 Mo réécrits à chaque trimestre.
 
 Un lancement « complet » peut durer longtemps (le workflow s'arrête au bout de 90 minutes) et partage le groupe de concurrence `donnees-simulateur` avec les tâches
-quotidiennes (`contexte.yml` à 5 h 23 UTC, `cours.yml` à 5 h 41 et 13 h 41 UTC) et avec les tâches mensuelles de l'identité (le 20, 6 h 17 UTC) et des fonds américains (le 12, 5 h 37 UTC).
+quotidiennes (`contexte.yml` à 5 h 23 UTC, `cours.yml` à 5 h 41 et 13 h 41 UTC) et avec les tâches mensuelles de l'identité (le 20, 6 h 17 UTC), des fonds américains (le 12, 5 h 37 UTC) et des alternatives (le 25, 6 h 47 UTC).
 GitHub n'y garde qu'une seule tâche en attente : une tâche quotidienne qui attendrait derrière un lancement complet pourrait être remplacée et sautée.
-Lance-le donc en dehors de ces heures : après 15 h 45, heure de Paris (le dernier relevé des cours part à 13 h 41 UTC, soit 15 h 41 en été), et ni le 12 ni le 20 du mois.
+Lance-le donc en dehors de ces heures : après 15 h 45, heure de Paris (le dernier relevé des cours part à 13 h 41 UTC, soit 15 h 41 en été), et ni le 12, ni le 20, ni le 25 du mois.
 
 Le tableau de prêt de titres de N-PORT (`SECURITIES_LENDING.tsv`) sert à retirer des répartitions et du top 10 les positions qui réinvestissent des garanties reçues en espèces
 (par exemple un fonds monétaire « Invesco Private Prime Fund » dans un fonds d'actions) : ce n'est ni une exposition ni un produit dérivé, mais un placement de l'argent du prêt,
@@ -355,6 +368,125 @@ Sources et droits de réutilisation (vérifiés le 01/10/2026) :
 | Webstat (Banque de France) | Aucun | Valeurs accessibles seulement avec un compte développeur et une clé (vérifié le 06/10/2026) | Écartée : la même statistique est diffusée sans clé par la BCE |
 | Eurostat | Aucun | — | Écartée : l'inflation est déjà lue à la BCE (même indice) |
 
+## Alternatives moins chères
+
+La section 6 de la fiche (« Alternative moins chère ») propose, pour un fonds qui suit un indice, des fonds de droit
+français suivant le même indice avec des frais plus bas, et chiffre l'écart (frais courants, effet sur 10 ans). Pour un
+fonds à gestion active, quand sa composition permet de choisir un indice (actions à 80 % ou plus et une zone dominante, ou MSCI World),
+elle affiche « Alternative indicielle (pas le même fonds) » : jusqu'à 3 fonds indiciels, avec la précision qu'ils suivent un marché
+et non la stratégie du gérant. Sinon (fonds mixte, obligataire, zone peu claire), elle dit qu'il n'existe pas d'alternative indicielle comparable.
+
+- **Source** : le DIC (document d'informations clés) de chaque candidat, lu dans le prospectus publié par la base GECO de l'AMF.
+  Aucun frais n'est inventé : sans DIC lisible, le fonds n'est pas proposé.
+- **Tâche mensuelle** : `.github/workflows/alternatives.yml` (le 25 de chaque mois) lance `node scripts/construire_alternatives.mjs`,
+  qui réécrit `data/alternatives.js`, puis `node scripts/construire_pages.mjs` (pages des fonds, qui reprennent ces frais).
+  Si moins de la moitié des candidats est lisible, l'ancien fichier est conservé.
+  Sont exclus les fonds de HSBC Asset Management (données interdites sans accord écrit) et les FCPE.
+- **Exception Node** : ce script est en Node et non en Python, car il réutilise `extraireDic` de `js/geco.js` et pdf.js
+  (`js/vendor/pdfjs/`), qui lisent déjà les DIC dans le navigateur ; les réécrire en Python (bibliothèque standard seule) serait fragile.
+- **Fonds non achetable en France** (par exemple un ETF américain) : la liste montre aussi des ETF étrangers du même indice
+  (frais « non publiés dans nos sources ») et des fonds américains avec leurs frais SEC, 3 au total.
+- **Limites** : peu de fonds indiciels français (16 fonds sur 12 indices au dernier calcul) ; pour le MSCI World, seule une
+  variante « Climate Paris Aligned » existe ; 9 fonds restent illisibles (DIC absent ou de présentation inhabituelle) ; les ETF
+  étrangers sont souvent moins chers mais leurs frais ne sont pas connus avant le registre européen ESAP (2028) : ils ne sont donc pas proposés pour un fonds achetable en France (seulement, sans frais chiffrés, pour un fonds qui ne l'est pas).
+- **Sécurité** : pdf.js 3.11 est lancé avec `isEvalSupported: false` (faille CVE-2024-4367, exécution de code via une police de PDF), testé par `tests/pdf-securite.test.mjs`.
+
+## Pages des fonds pour Google
+
+Le site est une application à une seule page par outil : Google ne voit pas les fiches ouvertes par `#ISIN`. Des pages fixes,
+générées par `scripts/construire_pages.mjs`, donnent donc à chaque fonds une adresse que Google peut indexer.
+
+- **Quelles pages** : environ 13 500 fonds : les fonds français ouverts à tous et ayant un ISIN (hors FCPE et hors HSBC Asset Management,
+  dont les données sont interdites sans accord écrit), plus les ETF cotés en Europe. Adresse : `fonds/<nom>-<ISIN>.html`.
+- **Contenu** : l'identité du fonds (société de gestion, catégorie AMF, ISIN…) et, quand GECO publie un DIC, son résumé :
+  frais, indicateur de risque (SRI), durée de détention recommandée et objectif. Environ 40 % des fonds français n'ont aucun DIC :
+  leur page ne contient alors que l'identité (rien n'est inventé).
+- **Lecture du DIC** (`scripts/lecture_dic.mjs`, pdf.js) : le DIC de la part (par ISIN) est lu en premier, puis les documents du fonds.
+- **Tâche hebdomadaire** : `.github/workflows/resumes.yml`, chaque lundi à 01 h 13 UTC (bien avant la tâche quotidienne des données,
+  avec qui elle partage sa file d'attente). `node scripts/construire_resumes.mjs --minutes 110` lit 2 500 fonds au plus par lancement
+  (les jamais essayés d'abord, puis les essais les plus anciens) et écrit `data/resumes.js` ; passé 110 minutes, la lecture s'arrête
+  et ce qui a été lu est enregistré (après le garde-fou), au lieu de tout perdre à la limite de 150 minutes de la tâche.
+  `node scripts/construire_pages.mjs` régénère ensuite `fonds/`, `classements/` et les sitemaps. Le premier remplissage demande donc
+  plusieurs lundis (ou plusieurs lancements manuels).
+- **Pages à jour entre deux lundis** : la même tâche se lance aussi à chaque envoi sur `main` qui modifie `data/annuaire.js`,
+  `data/alternatives.js`, `decrypte.html`, `js/adresses.js`, `js/geco.js`, `js/style.js` ou `scripts/construire_pages.mjs` ;
+  elle ne fait alors que `construire_pages.mjs` (1 à 2 secondes, sans réseau) et enregistre les pages si elles ont changé.
+  Les envois faits par une tâche GitHub ne relancent pas d'autre tâche : `alternatives.yml` reconstruit donc lui-même les pages.
+- **Titres uniques** : quand plusieurs pages portent le même nom de fonds (à la casse près, souvent des noms génériques du
+  registre FIRDS), leur titre et leur titre principal (h1) sont suivis de « (ISIN) » ; la description commence toujours par le nom et l'ISIN.
+  Sur une page de fonds, le nom de la fiche affichée sous le résumé est un sous-titre (h2) : la page n'a qu'un h1.
+- **Règle « sans DIC » ou « erreur »** : « sans DIC » (aucun document, ou pas de DIC pour cet ISIN) est un cas normal et durable.
+  Une « erreur » (réseau, HTTP autre que 418, PDF invalide, délai dépassé) est notée pour être retentée. Garde-fou : un HTTP 418
+  (maintenance de GECO) ou des erreurs sur plus de la moitié des fonds tentés laissent `data/resumes.js` inchangé. Les « sans DIC »
+  ne comptent pas comme erreurs.
+- **Pages de classement** (`classements/`) : PEA classés par frais, un classement par indice, un par catégorie AMF, et un index A-Z de tous les fonds.
+  Les classements par frais indiquent la date de relevé des chiffres (`RESUMES.maj`, « chiffres relevés au … »).
+- **Sitemaps** : `sitemap.xml` est un index qui renvoie vers `sitemap-N.xml`, de 50 000 adresses au plus chacun.
+- **Pages dans un sous-dossier** : `js/mode-site.js` fixe `RACINE_SITE` (`""` à la racine, `"../"` dans `fonds/` et `classements/`) ;
+  les liens et les scripts des pages rangées dans un dossier commencent par ce préfixe.
+- **Pas de `robots.txt`** : à la racine de `github.io` on ne peut pas en publier un pour ce projet ; le sitemap est donc déclaré dans la Search Console.
+
+**À faire par l'utilisateur (gratuit)** :
+1. Créer une propriété « Préfixe d'URL » dans Google Search Console pour `https://cleante-f.github.io/decrypte-ton-fonds/`.
+2. Choisir la vérification par balise HTML et coller la valeur fournie dans `<meta name="google-site-verification" content="">` de `index.html`, puis publier.
+3. Cliquer sur « Vérifier », puis soumettre `sitemap.xml` (menu « Sitemaps »). L'indexation prend ensuite plusieurs semaines.
+
+## Liste de suivi et alertes e-mail (mode comptes)
+
+Une personne connectée peut suivre jusqu'à 30 fonds et recevoir un e-mail quand l'un d'eux change. Tout est décrit dans la version « comptes »
+de `confidentialite.html`.
+
+**Tables Supabase** (migration `supabase/migrations/20261022000000_suivi_alertes.sql`) :
+- `fonds_suivis` : les fonds suivis par chaque personne (code du fonds, date d'ajout). Limite de 30 par personne, vérifiée par la base ;
+- `preferences_alertes` : l'interrupteur, les types d'alerte (nouveau DIC, frais, risque), le seuil de baisse (5, 10 ou 20 %) et les réglages de la fiche ;
+- `etat_fonds_suivis` : le dernier état public de chaque fonds suivi (date du DIC, frais, SRI, valeur, historique récent). Pas de données personnelles ;
+  seule la tâche quotidienne la lit et l'écrit (clé « service »).
+
+Les deux premières tables sont effacées avec le compte (cascade). Le navigateur ne voit que ses propres lignes.
+
+**Dans le site** : le bouton « ☆ Suivre ce fonds » est sur la fiche (`js/fiche-auto.js`, `js/app.js`). « Mon compte » a une section « Mes fonds suivis »
+(retirer un fonds) et une section « Alertes par e-mail » (interrupteur, types, seuil). Au premier suivi, un message près du bouton dit que
+l'e-mail d'alerte est activé (avec un lien « Désactiver les alertes » vers `compte.html`), ou qu'il est coupé et où le réactiver.
+
+**La tâche quotidienne** : `.github/workflows/alertes.yml` lance `scripts/alertes.mjs` chaque jour à 6 h 20 UTC (après le relevé des cours).
+Pour chaque fonds suivi, elle lit :
+- fonds français : le DIC (AMF, base GECO) et les valeurs liquidatives des 60 derniers jours (GECO) ;
+- fonds coté à Francfort (Xetra) : les cours de `data/cours/` ;
+- fonds américain : les rendements mensuels de la SEC (`data/etats-unis/`).
+
+Elle compare avec l'état de la veille, puis envoie **au plus un e-mail par personne et par jour** (API Brevo), qui regroupe ses alertes.
+L'adresse e-mail est lue dans le compte au moment de l'envoi, pour les seules personnes qui ont une alerte. Au premier passage d'un fonds,
+rien n'est envoyé : on enregistre seulement son état. Rien n'est écrit dans le dépôt.
+
+**En cas d'échec** : si GECO est en maintenance (HTTP 418) ou si le quota de Brevo est dépassé, rien n'est envoyé (ou l'envoi s'arrête),
+l'état n'est pas modifié, et les alertes repartent au passage suivant. Une adresse refusée par Brevo est simplement sautée.
+
+**Désinscription** : chaque e-mail contient un lien signé, valable 60 jours. Il appelle la fonction Supabase `alertes-desinscription`
+(`supabase/functions/alertes-desinscription/`), qui coupe les alertes du compte puis renvoie vers `alertes-desactivees.html`.
+Les personnes les réactivent dans « Mon compte ».
+
+**Secrets à créer par toi** (GitHub : Settings → Secrets and variables → Actions) :
+- `SUPABASE_SERVICE_ROLE_KEY` : clé « service » de Supabase (jamais dans le code) ;
+- `BREVO_API_KEY` : clé de l'API Brevo ;
+- `ALERTES_SECRET` : un texte secret long et aléatoire, qui signe les liens de désinscription. Il est recopié dans Supabase par
+  `supabase.yml` au prochain lancement de ce workflow.
+
+Sans ces secrets, la tâche s'arrête avec un avertissement et n'envoie rien.
+
+**À faire par toi, avant le premier envoi** :
+- créer le secret `ALERTES_SECRET` sur GitHub, puis lancer une fois le workflow `supabase.yml` (il le recopie dans Supabase) ;
+- dans Brevo, **désactiver le suivi des ouvertures et des clics** pour tous les e-mails (e-mails du compte et alertes). Sans cela, les liens
+  passent par `sendibt2.com` / `sendibt3.com` et `confidentialite.html` (version comptes) serait inexact ;
+- au passage au domaine des comptes, changer `BASE_SITE` dans `scripts/alertes.mjs` (adresse utilisée dans les liens des e-mails).
+
+**Limites à connaître** :
+- l'alerte « nouveau DIC » (et celles de frais et de risque, qui en dépendent) ne marche que si GECO publie un DIC pour le fonds ;
+- fonds américains : une seule valeur par mois, donc la baisse n'est vue qu'une fois par mois ;
+- fonds d'HSBC Asset Management : aucune alerte (données interdites sans accord écrit) ;
+- Brevo gratuit : 300 e-mails par jour, donc au plus 300 personnes alertées par jour ;
+- 30 fonds suivis au plus par personne ;
+- certaines messageries ouvrent d'elles-mêmes les liens des e-mails : elles peuvent couper des alertes sans que la personne l'ait voulu.
+
 ## Données personnelles (RGPD)
 
 **Mode gratuit** (GitHub Pages, adresse principale de Cloudflare) : pas de compte, pas de cookie, pas de mesure d'audience.
@@ -365,7 +497,7 @@ récupéré par la tâche quotidienne. Stockage local (`localStorage`) :
 
 **Mode comptes** (aperçu, `localhost`) : en plus, un cookie `dtf_session` et la session `compte-session-v1` pour les visiteurs connectés ;
 le navigateur contacte aussi Supabase (comptes, simulations enregistrées), Stripe (paiement) et, sur la page de connexion, Cloudflare
-Turnstile (anti-robot). Brevo envoie les e-mails du compte. Tout est décrit dans la version « comptes » de `confidentialite.html`.
+Turnstile (anti-robot). Brevo envoie les e-mails du compte et les alertes sur les fonds suivis (voir « Liste de suivi et alertes e-mail »). Tout est décrit dans la version « comptes » de `confidentialite.html`.
 
 Toute nouvelle clé de stockage doit être ajoutée à `CLES_STOCKAGE_SITE` (`js/outils.js`) et décrite sur `confidentialite.html`.
 Tout nouveau service contacté par le navigateur doit aussi y être décrit.
@@ -416,7 +548,17 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `data/annuaire-registres-ue.js` / `data/registres-ue-infos.js` | Zone « registres-ue » : fonds européens du registre de l'ESMA, hors France (clé `R<numéro>`) ; leurs informations (LEI, pays de commercialisation, politique, tranche d'encours, parapluie), chargées à l'ouverture d'une fiche (générés par `scripts/construire_identite.py`) |
 | `scripts/registres_ue.py` | Registre de l'ESMA : lecture, rapprochement avec l'annuaire, autorités, zone « registres-ue » (fonctions pures, bibliothèque standard Python) |
 | `data/societes.js` | Sociétés de gestion agréées par l'AMF : n° d'agrément, début d'autorisation, site (générée par `scripts/construire_identite.py`) |
-| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
+| `js/alternatives.js` | Alternatives moins chères : choix des fonds du même indice, calcul de l'écart de frais, bloc de la section 6 |
+| `scripts/construire_alternatives.mjs` | Tâche mensuelle (Node) : lit le DIC de chaque candidat dans le prospectus GECO avec pdf.js ; génère `data/alternatives.js` |
+| `data/alternatives.js` | Fonds de référence par indice, avec leurs frais lus dans le DIC (générée par le script) |
+| `.github/workflows/alternatives.yml` | Tâche mensuelle des alternatives (le 25 de chaque mois, 06 h 47 UTC) |
+| `scripts/lecture_dic.mjs` | Lecture d'un DIC (pdf.js) : frais, SRI, durée recommandée, objectif ; part (ISIN) d'abord, puis documents du fonds |
+| `scripts/construire_resumes.mjs` | Tâche hebdomadaire (Node) : lit au plus 2 500 DIC par lancement, en 110 minutes au plus (`--minutes`) ; génère `data/resumes.js` |
+| `data/resumes.js` | Résumés des DIC et suivi des essais, sans DIC et erreurs (générée par le script) |
+| `scripts/construire_pages.mjs` | Génère `fonds/*.html`, `classements/*.html`, `sitemap.xml` et `sitemap-N.xml` |
+| `fonds/` / `classements/` / `sitemap*.xml` | Pages fixes des fonds, classements et plans du site pour Google (générés, voir « Pages des fonds pour Google ») |
+| `.github/workflows/resumes.yml` | Tâche hebdomadaire des résumés et des pages (lundi, 01 h 13 UTC) ; pages seules à chaque envoi sur `main` qui touche l'annuaire, le gabarit ou leur code |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains), `alternatives.test.mjs` et `construire-alternatives.test.mjs` (alternatives moins chères : choix, bloc, script de construction), `radiographie.test.mjs` (radiographie Mon contrat : exposition cumulée, doublons, frais en euros), `pdf-securite.test.mjs` (pdf.js lancé avec `isEvalSupported: false`), `lecture-dic.test.mjs` (lecture d'un DIC), `construire-resumes.test.mjs` (choix des fonds à lire, garde-fous), `pages-fonds.test.mjs` (page d'un fonds, classements, sitemaps) et `pages-site.test.mjs` (pages fixes : liens, préfixe `RACINE_SITE`, scripts). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 

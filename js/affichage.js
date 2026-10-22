@@ -98,6 +98,21 @@ function fondsDetenuDansAnnuaire(ligne) {
 // Places de cotation Euronext (code MIC) : page officielle de l'ETF sur le site de la Bourse
 const MIC_EURONEXT = { "Paris": "XPAR", "Amsterdam": "XAMS", "Brussels": "XBRU", "ETF Plus": "ETFP", "Lisbon": "XLIS", "Dublin": "XMSM", "Oslo Børs": "XOSL" };
 
+// Adresse de la fiche d'un fonds depuis la page affichée : sa page fixe (fonds/…, adresseFonds de js/adresses.js) quand il la
+// possède et que la part demandée est la première, sinon decrypte.html#<clé>. Précédée de la racine du site (racineSite, js/outils.js).
+function lienFiche(e, isin) {
+  const page = (!isin || isin === e.isins[0]) && typeof adresseFonds === "function" ? adresseFonds(e) : null;
+  return racineSite() + (page || `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}`);
+}
+
+// Lien vers un autre fonds depuis une fiche (fonds moins cher, fonds jumeau) : « #clé », ouvert sur place, sauf sur une page fixe
+// (FICHE_FIXE, js/app.js) dont le résumé ne parle que de son fonds : là, la fiche de l'autre fonds (lienFiche). À échapper (esc).
+function lienAutreFonds(cle) {
+  if (typeof FICHE_FIXE === "undefined") return "#" + cle;
+  const e = typeof annuaireParIsin === "function" ? annuaireParIsin(cle) : null;
+  return e ? lienFiche(e, e.isins[0] === cle ? null : cle) : `${racineSite()}decrypte.html#${encodeURIComponent(cle)}`;
+}
+
 /*
  * Où envoyer l'utilisateur quand il clique sur un fonds détenu :
  *   - notre fiche, si elle est bien fournie (fonds français suivi par l'AMF, ou ETF dont l'indice est reconnu) ;
@@ -107,9 +122,9 @@ const MIC_EURONEXT = { "Paris": "XPAR", "Amsterdam": "XAMS", "Brussels": "XBRU",
  */
 function destinationFonds(e, isin) {
   if (!e) return null;
-  if (e.source === "G" && e.isins.length) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
-  if (e.source === "E" && typeof trouverJumeau === "function" && trouverJumeau(e.nom)) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
-  if (e.source === "U" && e.isins.length) return { type: "fiche", url: `decrypte.html#${encodeURIComponent(cleEntree(e, isin))}` };
+  if (e.source === "G" && e.isins.length) return { type: "fiche", url: lienFiche(e, isin) };
+  if (e.source === "E" && typeof trouverJumeau === "function" && trouverJumeau(e.nom)) return { type: "fiche", url: lienFiche(e, isin) };
+  if (e.source === "U" && e.isins.length) return { type: "fiche", url: lienFiche(e, isin) };
   if (e.source === "G" || e.source === "N") return { type: "officielle", url: `https://geco.amf-france.org/produit-d-epargne/c${e.cmpId}`, site: "AMF" };
   if (e.source === "E" && e.isins.length) {
     const places = (e.marches || "").split(",").map(m => m.trim());
@@ -200,7 +215,8 @@ function noteZonesIncompletes(reels) {
   return `<p class="note">Certains fonds n'ont pas pu être chargés (${esc(origines.join(", "))}) : réessaie dans un instant.</p>`;
 }
 
-function afficherListe(requete, reels) {
+// lienDe(e) : adresse de chaque fonds (lienFiche sur Décrypte) ; sans elle, « #clé » choisit le fonds sur place (simulateur)
+function afficherListe(requete, reels, lienDe = null) {
   if (!reels.length) {
     return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p>
       <p class="aide">L'annuaire européen contient ${ANNUAIRE.length.toLocaleString("fr-FR")} fonds : tous les fonds de droit français (base GECO de l'AMF),
@@ -209,7 +225,7 @@ function afficherListe(requete, reels) {
   }
   const lignes = reels.map(e => {
     const cle = cleEntree(e);
-    return `<li><a href="#${esc(cle)}">${esc(e.nom)}</a>
+    return `<li><a href="${esc(lienDe ? lienDe(e) : "#" + cle)}">${esc(e.nom)}</a>
       <small>${esc(e.isins[0] || "ISIN non publié")} · ${esc(origineFonds(e))}${e.gestionnaire ? " · " + esc(e.gestionnaire) : ""}${e.classification ? " · " + esc(e.classification) : ""}${e.public ? "" : " · réservé"}</small></li>`;
   }).join("");
   return `<div class="carte"><h2>${reels.length >= 50 ? "Plus de 50" : reels.length} fonds trouvés</h2>

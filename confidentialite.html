@@ -72,29 +72,52 @@
             <tr><th scope="row">Abonnement : état, date de fin, référence client du prestataire de paiement, factures</th>
               <td>Gérer l'abonnement et la comptabilité</td><td>Exécution du contrat ; obligation légale pour les factures (art. 6.1 c)</td>
               <td>Factures : 10 ans (Code de commerce), conservées par Stripe. Tes données de carte ne passent jamais par ce site.</td></tr>
+            <tr><th scope="row">Liste de suivi : codes des fonds que tu suis, date d'ajout</th>
+              <td>Te montrer tes fonds suivis et savoir sur quels fonds te prévenir</td><td>Exécution du contrat (ton service de suivi, que tu demandes en cliquant sur « Suivre »)</td>
+              <td>Jusqu'à ce que tu retires le fonds, ou supprimes ton compte (effacement automatique)</td></tr>
+            <tr><th scope="row">Préférences d'alerte : interrupteur, types d'alerte choisis, seuil de baisse, réglages de la fiche</th>
+              <td>N'envoyer que les alertes que tu as demandées, et retrouver tes réglages sur tous tes appareils</td><td>Exécution du contrat (ta demande d'alertes)</td>
+              <td>Jusqu'à ce que tu les modifies, coupes les alertes ou supprimes ton compte</td></tr>
+            <tr><th scope="row">État public des fonds suivis : frais courants, niveau de risque (SRI), date du dernier DIC, dernière valeur</th>
+              <td>Repérer ce qui a changé d'un jour à l'autre. Ce sont des données publiques sur les fonds, <strong>pas des données personnelles</strong> : elles ne sont reliées à aucune personne.</td>
+              <td>Sans objet (données non personnelles)</td><td>Tant qu'au moins une personne suit le fonds</td></tr>
             <tr><th scope="row">Adresse IP dans les journaux techniques</th><td>Sécurité (tentatives de connexion, abus)</td><td>Intérêt légitime (art. 6.1 f)</td><td>Durée fixée par nos prestataires</td></tr>
           </tbody>
         </table></div>
+        <h3>Alertes par e-mail sur les fonds suivis</h3>
+        <p>Si tu suis des fonds et gardes les alertes activées, nous t'écrivons quand un fonds change : nouveau DIC, frais courants en hausse, niveau de risque modifié, ou baisse
+          au-delà du seuil que tu as choisi. Les alertes sont envoyées parce que tu les as demandées (exécution du service, RGPD art. 6.1 b).</p>
+        <ul>
+          <li><strong>Un seul e-mail par jour au plus</strong>, qui regroupe tes alertes, depuis <span translate="no">contact@decrypte-ton-fonds.fr</span>. L'envoi est fait par Brevo (voir « Nos prestataires »).</li>
+          <li><strong>Ton adresse e-mail n'est enregistrée nulle part ailleurs que dans ton compte.</strong> Elle est lue par une tâche automatique (GitHub Actions) et transmise à Brevo le temps de l'envoi, seulement si tu as une alerte à recevoir.
+            Elle n'écrit aucune donnée personnelle dans le dépôt du site ni dans ses journaux.</li>
+          <li><strong>Un message près du bouton « Suivre »</strong> t'indique, dès que tu suis un fonds, si les alertes sont activées et comment les désactiver.</li>
+          <li><strong>Durée</strong> : jusqu'à ce que tu retires le fonds, coupes les alertes ou supprimes ton compte.</li>
+          <li><strong>Te désinscrire</strong> : chaque e-mail contient un lien « Ne plus recevoir ces alertes », valable 60 jours, et l'interrupteur de « Mon compte » fait la même chose.
+            Certaines messageries ouvrent d'elles-mêmes les liens des e-mails pour les vérifier : elles peuvent alors couper tes alertes sans que tu l'aies voulu. Tu peux les réactiver dans « Mon compte ».</li>
+        </ul>
       </section>
     </div>
 
     <section class="carte">
       <div data-seulement="comptes">
         <h2>Nos prestataires</h2>
-        <p>Ton navigateur contacte les services suivants, qui voient alors ton <strong>adresse IP</strong>. Les autres ne reçoivent tes données que pour nous rendre service.</p>
+        <p>Ton navigateur contacte les services suivants, qui voient alors ton <strong>adresse IP</strong>. Les autres ne reçoivent tes données que pour nous rendre service : les e-mails passent par Brevo et, pour les alertes, une tâche automatique (GitHub Actions) lit ton adresse.</p>
         <div class="cadre-tableau"><table class="tableau-texte">
           <thead><tr><th scope="col">Prestataire</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Où</th></tr></thead>
           <tbody>
             <tr><th scope="row">Cloudflare (hébergeur) <small>(pages du site ; challenges.cloudflare.com)</small></th>
               <td>Envoyer les pages du site, contrôler l'accès au simulateur, vérifier que tu n'es pas un robot (Turnstile) à l'inscription et à la connexion.</td>
               <td>À chaque visite ; Turnstile seulement sur la page de connexion</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
-            <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, état de l'abonnement.</td>
-              <td>Quand tu es connecté ou que tu te connectes</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
+            <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, fonds suivis et préférences d'alerte, état de l'abonnement.</td>
+              <td>Quand tu es connecté, ou quand tu cliques sur le lien de désinscription d'un e-mail d'alerte</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
             <tr><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
               <td>Quand tu t'abonnes ou gères ton abonnement</td><td>Irlande (Stripe Payments Europe)</td></tr>
-            <tr><th scope="row">Brevo <small>(liens des e-mails : sendibt2.com, sendibt3.com)</small></th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité).
-              Le lien de ces e-mails passe par une adresse de Brevo, qui compte les ouvertures et les clics <strong>de façon anonyme</strong> : seulement des totaux, jamais reliés à ton adresse.</td>
-              <td>Lors de ces envois ; quand tu ouvres l'e-mail ou cliques sur son lien</td><td>France</td></tr>
+            <tr><th scope="row">Brevo</th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité) et les alertes sur les fonds suivis.
+              Le suivi des ouvertures et des clics est désactivé : les liens mènent directement au site. Brevo reçoit ton adresse et le contenu de l'e-mail (pour les alertes : les noms des fonds concernés) et garde un journal des envois selon sa propre durée de conservation.</td>
+              <td>Lors de ces envois (au plus un e-mail d'alerte par jour)</td><td>France</td></tr>
+            <tr><th scope="row">GitHub Actions <small>(tâche quotidienne, pas ton navigateur)</small></th><td>Faire tourner la tâche qui vérifie les fonds suivis et envoie les alertes. Elle lit ton adresse e-mail le temps de l'envoi, sans l'écrire nulle part.</td>
+              <td>Une fois par jour, si tu as une alerte à recevoir</td><td>États-Unis (GitHub adhère au cadre de protection des données UE–États-Unis)</td></tr>
             <tr><th scope="row">AMF, base GECO <small>(geco.amf-france.org)</small></th><td>Lire les données officielles d'un fonds : valeurs liquidatives, documents, rapports.</td><td>Quand tu consultes un fonds</td><td>France</td></tr>
             <tr><th scope="row">Banque centrale européenne <small>(data-api.ecb.europa.eu)</small></th><td>Lire des taux d'intérêt et de change pour les calculs.</td><td>Analyse d'un fonds, performances, simulateur</td><td>Union européenne</td></tr>
           </tbody>
@@ -135,7 +158,7 @@
           <tbody>
             <tr><th scope="row">Cookie « dtf_session »</th><td>Prouver au serveur que tu es connecté, pour t'ouvrir le simulateur.</td><td>Quand tu te connectes</td><td>1 heure, renouvelé tant que tu restes connecté ; effacé à la déconnexion</td></tr>
             <tr><th scope="row">Ta session (« compte-session-v1 »)</th><td>Rester connecté d'une page à l'autre.</td><td>Quand tu te connectes</td><td>Jusqu'à la déconnexion</td></tr>
-            <tr><th scope="row">Tes réglages des alertes</th><td>Garder les seuils que tu as choisis.</td><td>Quand tu les enregistres</td><td>Jusqu'à ce que tu les réinitialises ou effaces tes données</td></tr>
+            <tr><th scope="row">Tes seuils de couleur de la fiche</th><td>Garder les seuils que tu as choisis (si tu es connecté, aussi enregistrés dans ton compte).</td><td>Quand tu les enregistres</td><td>Jusqu'à ce que tu les réinitialises ou effaces tes données</td></tr>
             <tr><th scope="row">Copies de données publiques</th><td>Éviter de retélécharger la composition des fonds et les séries de marché.</td><td>Quand tu consultes un fonds</td><td>7 jours au plus (1 jour pour les cours), puis effacées automatiquement</td></tr>
           </tbody>
         </table></div>
@@ -172,7 +195,7 @@
           Pour toute autre demande, ouvre un ticket sur la <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a>.</p>
       </div>
       <p>Si tu estimes que tes droits ne sont pas respectés, tu peux adresser une réclamation à la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">cnil.fr</a>), RGPD article 77.</p>
-      <p class="source">Page mise à jour le 11 octobre 2026.</p>
+      <p class="source">Page mise à jour le 22 octobre 2026.</p>
     </section>
   </main>
 

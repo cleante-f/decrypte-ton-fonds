@@ -1,16 +1,19 @@
 /*
  * Onglets du site : le fonds consulté (dans l'adresse, après #) suit l'utilisateur d'un onglet à l'autre.
  * Ex. sur decrypte.html#FR0010135103, l'onglet « Performances » pointe vers performances.html#FR0010135103.
+ * Sur la page fixe d'un fonds (FICHE_FIXE, défini plus bas dans la page, d'où la mise à jour une fois la page lue), sans « # » :
+ * le fonds de la page.
  */
 (function () {
   function majOnglets() {
-    const cle = decodeURIComponent(location.hash.slice(1));
+    const cle = decodeURIComponent(location.hash.slice(1)) || (typeof FICHE_FIXE === "string" ? FICHE_FIXE : "");
     const fonds = /^[A-Z0-9]{5,}$/i.test(cle) ? "#" + encodeURIComponent(cle) : "";
     document.querySelectorAll(".onglets a[data-fonds]").forEach(a => {
       a.href = a.dataset.page + fonds;
     });
   }
   window.addEventListener("hashchange", majOnglets);
+  window.addEventListener("DOMContentLoaded", majOnglets);
   majOnglets();
 })();
 

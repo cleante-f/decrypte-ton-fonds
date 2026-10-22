@@ -1,0 +1,87 @@
+# Résumés des DIC et pages fixes des fonds.
+# Chaque lundi (job « resumes ») : scripts/construire_resumes.mjs lit au plus 2 500 DIC (GECO) en 110 minutes au plus
+# (--minutes : au-delà, la lecture s'arrête et ce qui a été lu est enregistré) → data/resumes.js,
+# puis scripts/construire_pages.mjs écrit fonds/*.html, classements/*.html, sitemap.xml et sitemap-N.xml.
+# À chaque envoi sur main qui touche l'annuaire, le gabarit ou le code des pages (job « pages ») : seulement les pages
+# (1 à 2 secondes, sans réseau), pour qu'elles ne restent pas en retard jusqu'au lundi suivant.
+# Les envois de la tâche elle-même (GITHUB_TOKEN) ne relancent pas de tâche : data/alternatives.js, écrit par alternatives.yml,
+# reconstruit donc les pages dans alternatives.yml.
+name: Résumés des DIC et pages des fonds
+
+on:
+  schedule:
+    - cron: "13 1 * * 1"   # chaque lundi à 1 h 13 UTC (3 h 13 à Paris en été) : bien avant la tâche quotidienne des données
+  push:
+    branches: [main]
+    paths:
+      - data/annuaire.js
+      - data/alternatives.js
+      - decrypte.html
+      - js/adresses.js
+      - js/geco.js
+      - js/style.js
+      - scripts/construire_pages.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: donnees-simulateur
+  cancel-in-progress: false
+
+jobs:
+  resumes:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Lire les DIC (GECO, AMF)
+        run: node scripts/construire_resumes.mjs --minutes 110
+      - name: Construire les pages des fonds
+        run: node scripts/construire_pages.mjs
+      - name: Enregistrer les fichiers
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Les dossiers fonds/ et classements/ peuvent ne pas exister encore : git add ignore les chemins absents grâce à la boucle.
+          for chemin in data/resumes.js fonds classements sitemap*.xml; do
+            if compgen -G "$chemin" > /dev/null; then git add -A -- $chemin; fi
+          done
+          if git diff --cached --quiet; then
+            echo "Rien de nouveau."
+          else
+            git commit -m "Résumés des DIC et pages des fonds du $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi
+
+  pages:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Construire les pages des fonds
+        run: node scripts/construire_pages.mjs
+      - name: Enregistrer les pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for chemin in fonds classements sitemap*.xml; do
+            if compgen -G "$chemin" > /dev/null; then git add -A -- $chemin; fi
+          done
+          if git diff --cached --quiet; then
+            echo "Pages déjà à jour."
+          else
+            git commit -m "Pages des fonds du $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push
+          fi

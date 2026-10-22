@@ -45,7 +45,8 @@ test("Mon compte : un clic sur un lien ou un bouton d'envoi n'est pas annulé", 
 // appelées (session, retour d'e-mail, appels à Supabase), renvois (location.replace, location.href) et scripts ajoutés à la page.
 async function demarrer(script, hote) {
   const appels = [], renvois = [], scripts = [];
-  const reponses = { session: null, lireRetourEmail: null, jetonValide: false, droits: { offertes_restantes: 3 }, simulations: [], utilisateur: { email: "a@exemple.fr" } };
+  const reponses = { session: null, lireRetourEmail: null, jetonValide: false, droits: { offertes_restantes: 3 }, simulations: [], utilisateur: { email: "a@exemple.fr" },
+    fondsSuivis: [], preferencesAlertes: { actives: true, nouveau_dic: true, frais: true, risque: true, seuil_baisse: null, reglages_fiche: {} } };
   const Compte = new Proxy({}, { get: (_, nom) => () => { appels.push(nom); return nom === "session" ? reponses.session : Promise.resolve(reponses[nom]); } });
   const element = () => ({ addEventListener() {}, querySelector: element, querySelectorAll: () => [], hidden: false, textContent: "", className: "", innerHTML: "", value: "", dataset: {} });
   const location = { hostname: hote, pathname: "/", search: "", hash: "", replace: u => renvois.push(u) };
@@ -72,7 +73,7 @@ test("pages de compte en mode comptes : démarrage inchangé", async () => {
   assert.ok(connexion.appels.includes("lireRetourEmail"), "connexion : retour d'e-mail non lu");
   assert.deepEqual(connexion.scripts, ["https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=captchaPret"]);
   const espace = await demarrer("js/espace-compte.js", "comptes.decrypte-ton-fonds.pages.dev");
-  for (const nom of ["session", "droits", "simulations", "utilisateur"]) assert.ok(espace.appels.includes(nom), `compte : ${nom} non appelée`);
+  for (const nom of ["session", "droits", "simulations", "utilisateur", "fondsSuivis", "preferencesAlertes"]) assert.ok(espace.appels.includes(nom), `compte : ${nom} non appelée`);
   assert.deepEqual(espace.renvois, ["connexion.html?vue=connexion&retour=compte.html"], "compte : sans session, renvoi vers la connexion");
   assert.ok((await demarrer("js/abonnement.js", "localhost")).appels.includes("session"), "abonnement : offre non affichée");
 });
@@ -89,7 +90,7 @@ function blocsComptes(js) {
 }
 
 test("scripts des pages de compte : démarrage dans un bloc modeSite(location.hostname) === \"comptes\"", () => {
-  const demarrages = { "js/connexion.js": ["Compte.lireRetourEmail()"], "js/espace-compte.js": ["Compte.session()", "rafraichirEspace().catch"],
+  const demarrages = { "js/connexion.js": ["Compte.lireRetourEmail()"], "js/espace-compte.js": ["Compte.session()", "rafraichirEspace().catch", "rafraichirSuivis().catch", "rafraichirAlertes().catch"],
     "js/abonnement.js": ["afficherOffre();"] };
   for (const [script, reperes] of Object.entries(demarrages)) {
     const js = lire(script), blocs = blocsComptes(js);

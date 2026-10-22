@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const PAGES = ["index", "decrypte", "performances", "simulateur", "connexion", "compte", "abonnement", "confidentialite",
-  "mentions-legales", "cgv"];
+  "mentions-legales", "cgv", "alertes-desactivees"];
 export const lirePage = nom => readFileSync(new URL(`../${nom}.html`, import.meta.url), "utf8");
 const CSS = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
 // Premier bloc <header class="site-header"> ou <footer class="site-footer">, espaces normalisés
@@ -15,7 +15,7 @@ export function bloc(html, balise) {
   return m[0].replace(/\s+/g, " ");
 }
 
-test("en-tête identique sur les 10 pages", () => {
+test("en-tête identique sur les 11 pages", () => {
   // #lien-compte est réécrit par Compte.majNavigation() ; aria-current dépend de la page
   const normal = nom => bloc(lirePage(nom), "header").replace(/ aria-current="page"/g, "")
     .replace(/<a class="btn-compte" id="lien-compte"[^>]*>[^<]*<\/a>/, "[lien-compte]");
@@ -23,7 +23,7 @@ test("en-tête identique sur les 10 pages", () => {
   for (const nom of PAGES) assert.equal(normal(nom), modele, nom);
 });
 
-test("pied de page identique sur les 10 pages", () => {
+test("pied de page identique sur les 11 pages", () => {
   const modele = bloc(lirePage("index"), "footer");
   for (const nom of PAGES) assert.equal(bloc(lirePage(nom), "footer"), modele, nom);
   for (const attendu of ["ni un conseil en investissement, ni une recommandation", 'href="mentions-legales.html"', 'href="cgv.html"',
@@ -154,4 +154,49 @@ test("décrypte, performances, simulateur : correspondance des fonds américains
 test("_routes.json : annuaire et correspondance des fonds américains, js/zones.js et js/etats-unis.js exclus des Functions", () => {
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   for (const chemin of ["/data/annuaire-etats-unis.js", "/data/etats-unis-isin.js", "/js/zones.js", "/js/etats-unis.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
+});
+
+// ---- Alternative moins chère : données et script de la section 6 ----
+test("décrypte : data/alternatives.js après data/resume.js, js/alternatives.js juste après js/style.js ; fichiers exclus des Functions", () => {
+  const scripts = [...lirePage("decrypte").matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+  const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${src} absent`); return i; };
+  assert.ok(place("data/alternatives.js") > place("data/resume.js"));
+  assert.equal(place("js/alternatives.js"), place("js/style.js") + 1);
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  for (const chemin of ["/data/alternatives.js", "/js/alternatives.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
+});
+
+// ---- Radiographie « Mon contrat » : scripts du simulateur ----
+test("simulateur : data/alternatives.js, js/alternatives.js (après style.js, avant fiche-auto.js), js/radiographie.js juste après ; _routes.json", () => {
+  const scripts = [...lirePage("simulateur").matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+  const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${src} absent`); return i; };
+  assert.ok(place("data/alternatives.js") < place("js/alternatives.js"));
+  assert.ok(place("js/alternatives.js") > place("js/style.js"));
+  assert.ok(place("js/alternatives.js") < place("js/fiche-auto.js"));
+  assert.equal(place("js/radiographie.js"), place("js/alternatives.js") + 1);
+  assert.ok(place("js/radiographie.js") < place("js/simulateur.js"));
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  for (const chemin of ["/data/alternatives.js", "/js/alternatives.js", "/js/radiographie.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
+  assert.ok(routes.exclude.length <= 100);
+  assert.ok(!routes.exclude.some(c => c.includes("*")));
+});
+
+// ---- Pages fixes des fonds (fonds/…) : adresses dans les trois outils, balise de Google sur l'accueil ----
+test("décrypte, performances, simulateur : js/adresses.js juste après js/etats-unis.js (donc après js/geco.js) et avant js/affichage.js ; _routes.json", () => {
+  for (const nom of ["decrypte", "performances", "simulateur"]) {
+    const scripts = [...lirePage(nom).matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+    const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${nom} : ${src} absent`); return i; };
+    assert.equal(place("js/adresses.js"), place("js/etats-unis.js") + 1, `${nom} : js/adresses.js juste après js/etats-unis.js`);
+    assert.ok(place("js/adresses.js") > place("js/geco.js"), `${nom} : js/adresses.js après js/geco.js (lireEntree, lignesParIsin)`);
+    assert.ok(place("js/adresses.js") < place("js/affichage.js"), `${nom} : js/adresses.js avant js/affichage.js`);
+    assert.equal(place("js/mode-site.js"), 0, `${nom} : js/mode-site.js en premier (il fixe RACINE_SITE)`);
+  }
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  assert.ok(routes.exclude.includes("/js/adresses.js"));
+  assert.ok(routes.exclude.length <= 100);
+  assert.ok(!routes.exclude.some(c => c.includes("*")));
+});
+
+test("accueil : emplacement de la balise de vérification de Google Search Console (vide)", () => {
+  assert.ok(lirePage("index").includes('<meta name="google-site-verification" content="">'));
 });

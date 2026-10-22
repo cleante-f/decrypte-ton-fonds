@@ -85,7 +85,7 @@ html:not([data-heberge-par="cloudflare"]) [data-si-hebergeur="cloudflare"] { dis
 
 /* ---------- Recherche ---------- */
 .recherche { padding: 24px 0 16px; }
-.recherche h1 { font-size: 1.6rem; margin: 0 0 4px; }
+.recherche h1, .recherche h2 { font-size: 1.6rem; margin: 0 0 4px; }
 .sous-titre { margin: 0 0 16px; color: var(--texte-2); }
 #form-recherche { display: flex; gap: 8px; }
 #champ-recherche {
@@ -114,7 +114,7 @@ html:not([data-heberge-par="cloudflare"]) [data-si-hebergeur="cloudflare"] { dis
   padding: 16px; margin: 16px 0;
 }
 .fiche-entete { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 20px 24px; margin: 16px 0; }
-.fiche-entete h1 { margin: 0; font-size: clamp(26px, 3.5vw, 34px); }
+.fiche-entete h1, .fiche-entete > h2 { margin: 0; font-size: clamp(26px, 3.5vw, 34px); }   /* h2 : fiche sous le résumé d'une page fixe */
 .fiche-entete .etiquettes { margin: 12px 0 0; }
 .num-section { color: var(--accent); }
 .fiche-entete p { margin: 4px 0 0; color: var(--texte-2); }
@@ -400,6 +400,8 @@ body.createur-actif { overflow: hidden; }
 }
 .btn-onglet:hover { background: var(--piste); color: var(--texte); }
 .actions-fiche { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 12px; }
+.message-suivi { flex-basis: 100%; font-size: .9rem; color: var(--rouge-texte); }
+.message-suivi:empty { display: none; }
 
 /* ---------- Page d'accueil ---------- */
 .accueil { padding-top: 8px; }

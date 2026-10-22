@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <title>KRANESHARES ICAV Class USD Institutional · Décrypte ton fonds</title>
+  <meta name="description" content="KRANESHARES ICAV Class USD Institutional (IE0009ZB3ZX2) : etf. Résumé du DIC et analyse gratuite : où est investi le fonds, ses risques et ses frais.">
+  <link rel="canonical" href="https://cleante-f.github.io/decrypte-ton-fonds/fonds/kraneshares-icav-class-usd-institutional-IE0009ZB3ZX2.html">
+  <script src="../js/mode-site.js"></script>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="../index.html" class="logo">Décrypte ton fonds</a>
+    <nav class="onglets" aria-label="Pages du site">
+      <a href="../index.html" data-page="../index.html">Accueil</a>
+      <a href="../decrypte.html" data-page="../decrypte.html" data-fonds aria-current="page">Décrypte<span class="texte-long"> ton fonds</span></a>
+      <a href="../performances.html" data-page="../performances.html" data-fonds>Performances</a>
+      <a href="../simulateur.html" data-page="../simulateur.html" data-fonds>Simulateur</a>
+    </nav>
+    <div class="entete-actions">
+      <a class="btn-compte" id="lien-compte" data-seulement="comptes" href="../connexion.html">Se connecter</a>
+      <button type="button" class="btn-createur" id="btn-createur" aria-label="Créateurs du site (ouvre leurs profils LinkedIn)">Créateurs</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="recherche" aria-label="Recherche d'un fonds">
+      <h2>Qu'y a-t-il vraiment dans ton fonds ?</h2>
+      <p class="sous-titre">Saisis un code ISIN, un ticker ou un nom de fonds.</p>
+      <form id="form-recherche" autocomplete="off">
+        <label for="champ-recherche" class="sr-only">Code ISIN, ticker ou nom du fonds</label>
+        <input id="champ-recherche" type="search" placeholder="ex. FR0010135103, CW8 ou « Carmignac »" required>
+        <button type="submit" class="btn">Analyser</button>
+      </form>
+      <div id="exemples" class="exemples"></div>
+      <p class="reglages-alertes"><button type="button" class="btn-link" id="btn-reglages" aria-expanded="false" aria-controls="panneau-reglages">Réglages des alertes</button></p>
+    </section>
+
+    <section id="panneau-reglages" class="panneau" hidden aria-label="Réglages des seuils d'alerte"></section>
+
+    <section class="fiche-entete resume-fixe" aria-label="Résumé du fonds">
+      <h1>KRANESHARES ICAV Class USD Institutional</h1>
+      <dl class="grille-infos"><div><dt>ISIN</dt><dd>IE0009ZB3ZX2</dd></div><div><dt>Type</dt><dd>ETF (fonds indiciel coté)</dd></div><div><dt>Pays</dt><dd>Irlande</dd></div></dl>
+      <p><strong>Classements :</strong></p>
+      <ul><li><a href="../classements/lettre-k.html">Fonds de K</a></li></ul>
+    </section>
+
+    <div id="resultat" aria-live="polite"></div>
+  </main>
+
+  <footer class="site-footer">
+    <p><strong>Mention légale :</strong> ce site fournit une information générale et pédagogique. Il ne constitue
+      <strong>ni un conseil en investissement, ni une recommandation</strong> d'acheter ou de vendre un produit financier.
+      Les données peuvent être incomplètes ou dépassées : vérifie toujours le DIC (document d'informations clés) et le
+      prospectus officiels avant d'investir. Les performances passées ne préjugent pas des performances futures.</p>
+    <p class="sources-pied">Sources : AMF (base GECO), Banque centrale européenne, ESMA, Deutsche Börse (cours différés), GLEIF, OpenFIGI et SEC (EDGAR).</p>
+    <p class="liens-pied"><a href="../mentions-legales.html">Mentions légales</a> · <span data-seulement="comptes"><a href="../cgv.html">CGV</a> · </span><a href="../confidentialite.html">Confidentialité</a></p>
+  </footer>
+
+  <!-- Infobulle unique, déplacée par le JS -->
+  <div id="infobulle" role="tooltip" hidden></div>
+
+  <!-- Ordre important : données, puis configuration, puis logique -->
+  <script src="../data/annuaire.js"></script>
+  <script src="../data/etats-unis-isin.js"></script>
+  <script src="../data/resume.js"></script>
+  <script src="../data/alternatives.js"></script>
+  <script src="../data/firds.js"></script>
+  <script src="../data/identite.js"></script>
+  <script src="../data/societes.js"></script>
+  <script src="../data/references.js"></script>
+  <script src="../data/marches.js"></script>
+  <script src="../js/glossaire.js"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/outils.js"></script>
+  <script src="../js/geco.js"></script>
+  <script src="../js/zones.js"></script>
+  <script src="../js/etats-unis.js"></script>
+  <script src="../js/adresses.js"></script>
+  <script src="../js/inventaire.js"></script>
+  <script src="../js/style.js"></script>
+  <script src="../js/alternatives.js"></script>
+  <script src="../js/composition.js"></script>
+  <script src="../js/affichage.js"></script>
+  <script src="../js/marches.js"></script>
+  <script src="../js/cours.js"></script>
+  <script src="../js/fiche-auto.js"></script>
+  <script src="../js/config-compte.js"></script>
+  <script src="../js/compte.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>var FICHE_FIXE = "IE0009ZB3ZX2";</script>
+  <script src="../js/app.js"></script>
+  <script src="../js/infobulles.js"></script>
+  <script src="../js/createur.js"></script>
+</body>
+</html>

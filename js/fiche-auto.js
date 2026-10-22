@@ -777,7 +777,7 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
 
   if (chargement) corps = `<p class="chargement">Chargement des données…</p>`;
   else if (compo && compo.jumeau) corps += `<p class="note">Pas de données publiques pour ce fonds étranger. Estimation à partir d'un fonds français qui suit le <strong>même indice (${esc(compo.jumeau.indice)})</strong> :
-      <a href="#${esc(compo.jumeau.fonds.isins[0])}">${esc(compo.jumeau.fonds.nom)}</a>${/ESG|SRI|SCREENED|CLIMATE|PAB|CTB|SELECTION|PARIS/i.test(compo.jumeau.fonds.nom) ? " (version ESG ou climat de l'indice : la composition peut légèrement différer)" : ""}. Les frais et la méthode de réplication peuvent différer.</p>`;
+      <a href="${esc(lienAutreFonds(compo.jumeau.fonds.isins[0]))}">${esc(compo.jumeau.fonds.nom)}</a>${/ESG|SRI|SCREENED|CLIMATE|PAB|CTB|SELECTION|PARIS/i.test(compo.jumeau.fonds.nom) ? " (version ESG ou climat de l'indice : la composition peut légèrement différer)" : ""}. Les frais et la méthode de réplication peuvent différer.</p>`;
 
   if (!chargement && c && c.principale) {
     const seuils = chargerSeuils();
@@ -885,6 +885,68 @@ function sectionConcentrationAuto(e, d, chargement) {
   </section>`;
 }
 
+// ---------- Suivre ce fonds (mode comptes seulement, js/mode-site.js) ----------
+// En mode gratuit, aucun bouton n'est rendu (et data-seulement="comptes" le masquerait de toute façon).
+// Sans session : lien vers la connexion, qui ramène sur la fiche. Connecté : bouton « ☆ Suivre ce fonds » / « ★ Suivi ».
+// Liste des fonds suivis (clés), lue une fois dans le compte par chargerSuivis() (js/app.js) ; null tant qu'elle n'est pas lue.
+let FONDS_SUIVIS = null;
+const TEXTE_SUIVRE = "☆ Suivre ce fonds", TEXTE_SUIVI = "★ Suivi";
+function suiviPossible() {
+  return typeof modeSite === "function" && typeof location !== "undefined" && modeSite(location.hostname) === "comptes" && typeof Compte !== "undefined";
+}
+// Sans session (ou session expirée) : lien vers la connexion, qui ramène sur la fiche
+function lienConnexionSuivi(cle) {
+  return `<a class="btn btn-secondaire btn-suivre" data-seulement="comptes" title="Connecte-toi pour suivre ce fonds et recevoir ses alertes par e-mail"
+      href="${esc(racineSite())}connexion.html?vue=connexion&amp;retour=${encodeURIComponent("decrypte.html#" + cle)}">${TEXTE_SUIVRE}</a>`;
+}
+function boutonSuivi(cle) {
+  if (!suiviPossible()) return "";
+  if (!Compte.session()) return lienConnexionSuivi(cle);
+  const suivi = !!FONDS_SUIVIS && FONDS_SUIVIS.has(cle);
+  return `<button type="button" class="btn btn-secondaire btn-suivre" data-seulement="comptes" data-suivre="${esc(cle)}" aria-pressed="${suivi}">${suivi ? TEXTE_SUIVI : TEXTE_SUIVRE}</button>
+      <span class="message-suivi" data-seulement="comptes" data-message-suivi role="status" aria-live="polite"></span>`;
+}
+// Met tous les boutons de la page à l'état de FONDS_SUIVIS
+function majBoutonsSuivi() {
+  document.querySelectorAll("[data-suivre]").forEach(b => {
+    const suivi = !!FONDS_SUIVIS && FONDS_SUIVIS.has(b.dataset.suivre);
+    b.setAttribute("aria-pressed", String(suivi));
+    b.textContent = suivi ? TEXTE_SUIVI : TEXTE_SUIVRE;
+  });
+}
+async function chargerSuivis() {
+  if (!suiviPossible() || !Compte.session()) return;
+  try { FONDS_SUIVIS = new Set(await Compte.fondsSuivis()); majBoutonsSuivi(); } catch (e) { /* boutons laissés à « Suivre » */ }
+}
+// Message près du bouton après un premier suivi : alertes actives ou coupées (sans ligne de préférences : actives)
+async function messageAlertes() {
+  const lien = texte => `<a href="${esc(racineSite())}compte.html">${texte}</a>`;
+  let actives = true;
+  try { actives = (await Compte.preferencesAlertes()).actives !== false; } catch (e) { /* on suppose les alertes actives */ }
+  return actives ? `Tu recevras un e-mail si ce fonds change. ${lien("Désactiver les alertes")}`
+    : `Alertes par e-mail coupées : réactive-les dans ${lien("Mon compte")}.`;
+}
+// Clic : suit le fonds, ou ne le suit plus s'il l'est déjà. Erreur (limite de 30 fonds…) : message près du bouton ;
+// session expirée : le bouton redevient le lien vers la connexion.
+async function cliquerSuivi(bouton) {
+  const cle = bouton.dataset.suivre, suivi = bouton.getAttribute("aria-pressed") === "true";
+  const message = bouton.parentNode && bouton.parentNode.querySelector("[data-message-suivi]");
+  if (message) message.textContent = "";
+  bouton.disabled = true;
+  try {
+    if (suivi) await Compte.nePlusSuivre(cle); else await Compte.suivreFonds(cle);
+    if (!FONDS_SUIVIS) FONDS_SUIVIS = new Set();
+    if (suivi) FONDS_SUIVIS.delete(cle); else FONDS_SUIVIS.add(cle);
+    majBoutonsSuivi();
+    if (message && !suivi) message.innerHTML = await messageAlertes();
+  } catch (err) {
+    if (err.code === "non_connecte") bouton.outerHTML = lienConnexionSuivi(cle);   // session expirée : se reconnecter
+    else if (message) message.textContent = err.message;
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
 function afficherFicheAuto(e, isin, d, chargement) {
   const nomIdx = indicesDuNom(e.nom);
   const dic = d && d.dic;
@@ -920,19 +982,22 @@ function afficherFicheAuto(e, isin, d, chargement) {
         `<li><a href="${LIENS.document(doc)}" target="_blank" rel="noopener">${esc(doc.docTypeLib)}</a> <small>du ${dateFr(doc.dateEffet)}</small></li>`).join("")}</ul>`
     : "";
 
+  // Page fixe du fonds (FICHE_FIXE, js/app.js) : son résumé porte déjà le titre principal (h1), le nom de la fiche passe en h2
+  const titreNom = typeof FICHE_FIXE === "string" && e.isins && e.isins[0] === FICHE_FIXE ? "h2" : "h1";
   const entete = `
     <p class="bandeau-auto">Fiche générée <strong>automatiquement</strong> à partir de sources publiques.
       Les éléments non disponibles sont signalés : vérifie toujours ${estSec ? "les documents officiels du fonds (prospectus)" : "le DIC officiel"}.</p>
     <header class="fiche-entete">
-      <h1>${esc(e.nom)}</h1>
+      <${titreNom}>${esc(e.nom)}</${titreNom}>
       <p>${estSec ? `${esc(typeof texteSec === "function" ? texteSec(serieSec) : `Série SEC ${serieSec}`)}${partSecVisible ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker ? ` (${esc(sec.part.ticker)})` : ""}` : ""}`
         : estR ? `Registre de l'ESMA, fiche n° ${esc(e.cmpId)}`
         : `${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}`}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>
       ${types.length ? `<div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>` : ""}
       ${enBref(e, d)}
       <div class="actions-fiche">
-        <a class="btn btn-simuler" href="simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
-        <a class="btn btn-secondaire" href="performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
+        <a class="btn btn-simuler" href="${esc(racineSite())}simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
+        <a class="btn btn-secondaire" href="${esc(racineSite())}performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
+        ${boutonSuivi(cleEntree(e, isin))}
       </div>
     </header>`;
 
@@ -1039,7 +1104,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       ]) : nonDispo("Historique des valeurs liquidatives non disponible dans GECO.")}
       ${s && s.frequence !== "quotidienne" && s.frequence !== "hebdomadaire" ? `<p class="note">Valeur calculée de façon ${s.frequence} : la volatilité n'est pas calculée car elle ne serait pas significative.</p>` : ""}
       ${graphiqueVL(d.historique)}
-      ${d.historique ? `<p class="aide"><a href="performances.html#${esc(cleEntree(e, isin))}">Ouvrir le graphique interactif (périodes, comparaisons, performances par année) →</a></p>` : ""}
+      ${d.historique ? `<p class="aide"><a href="${esc(racineSite())}performances.html#${esc(cleEntree(e, isin))}">Ouvrir le graphique interactif (périodes, comparaisons, performances par année) →</a></p>` : ""}
       <p class="note">Performances calculées sur la ${terme("valeur_liquidative", "valeur liquidative")}, frais de gestion déduits. Pour une part distribuante, les revenus versés ne sont pas inclus. Les performances passées ne préjugent pas des performances futures.</p>
       <dl class="grille-risques">
         ${ligne("risque_change", "Risque de change", change)}
@@ -1088,7 +1153,8 @@ function afficherFicheAuto(e, isin, d, chargement) {
   }
 
   // ----- 6. Comparaison : autres parts du même fonds -----
-  let comparaison = nonDispo("La comparaison automatique avec des fonds similaires n'est pas encore disponible pour les fiches automatiques.");
+  let comparaison = typeof blocAlternatives === "function" ? blocAlternatives(e, d, chargement, isin)   // js/alternatives.js
+    : nonDispo("Comparaison des frais indisponible pour le moment.");
   if (sec) comparaison = comparaisonSec(sec) + comparaison;
   else if (d && d.parts && d.parts.length > 1) {
     comparaison = `<p>Ce fonds existe en <strong>${d.parts.length} parts</strong>. Elles ont le même portefeuille, mais des frais, des devises ou des montants minimums différents. Une autre part est parfois moins chère ou accessible dans ton contrat.</p>
