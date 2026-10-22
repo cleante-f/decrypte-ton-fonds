@@ -918,6 +918,14 @@ async function chargerSuivis() {
   if (!suiviPossible() || !Compte.session()) return;
   try { FONDS_SUIVIS = new Set(await Compte.fondsSuivis()); majBoutonsSuivi(); } catch (e) { /* boutons laissés à « Suivre » */ }
 }
+// Message près du bouton après un premier suivi : alertes actives ou coupées (sans ligne de préférences : actives)
+async function messageAlertes() {
+  const lien = texte => `<a href="${esc(racineSite())}compte.html">${texte}</a>`;
+  let actives = true;
+  try { actives = (await Compte.preferencesAlertes()).actives !== false; } catch (e) { /* on suppose les alertes actives */ }
+  return actives ? `Tu recevras un e-mail si ce fonds change. ${lien("Désactiver les alertes")}`
+    : `Alertes par e-mail coupées : réactive-les dans ${lien("Mon compte")}.`;
+}
 // Clic : suit le fonds, ou ne le suit plus s'il l'est déjà. Erreur (limite de 30 fonds…) : message près du bouton ;
 // session expirée : le bouton redevient le lien vers la connexion.
 async function cliquerSuivi(bouton) {
@@ -930,6 +938,7 @@ async function cliquerSuivi(bouton) {
     if (!FONDS_SUIVIS) FONDS_SUIVIS = new Set();
     if (suivi) FONDS_SUIVIS.delete(cle); else FONDS_SUIVIS.add(cle);
     majBoutonsSuivi();
+    if (message && !suivi) message.innerHTML = await messageAlertes();
   } catch (err) {
     if (err.code === "non_connecte") bouton.outerHTML = lienConnexionSuivi(cle);   // session expirée : se reconnecter
     else if (message) message.textContent = err.message;

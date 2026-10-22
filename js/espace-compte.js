@@ -50,12 +50,13 @@ async function chargerResumes() {
 const dateJma = iso => String(iso).slice(0, 10).split("-").reverse().join("/");
 function valeursSuivi(cle) {
   const r = typeof RESUMES !== "undefined" && RESUMES && RESUMES.fonds && Object.prototype.hasOwnProperty.call(RESUMES.fonds, cle) ? RESUMES.fonds[cle] : null;
-  if (!r) return "Pas de DIC publié sur GECO";
+  const sansDic = zoneDeCle(cle) !== "europe" ? "Fonds hors GECO (pas de DIC lu)" : "Pas de DIC publié sur GECO";
+  if (!r) return sansDic;
   const parties = [];
   if (typeof r[0] === "number") parties.push(`Frais ${pct(r[0], 2)}`);
   if (typeof r[1] === "number") parties.push(`Risque ${r[1]}/7`);
   if (/^\d{4}-\d{2}-\d{2}/.test(r[4] || "")) parties.push(`DIC du ${dateJma(r[4])}`);
-  return parties.length ? parties.join(" · ") : "Pas de DIC publié sur GECO";
+  return parties.length ? parties.join(" · ") : sansDic;
 }
 function ligneSuivi(cle, e) {
   const lien = (e && adresseFonds(e)) || `decrypte.html#${encodeURIComponent(cle)}`;

@@ -445,7 +445,8 @@ de `confidentialite.html`.
 Les deux premières tables sont effacées avec le compte (cascade). Le navigateur ne voit que ses propres lignes.
 
 **Dans le site** : le bouton « ☆ Suivre ce fonds » est sur la fiche (`js/fiche-auto.js`, `js/app.js`). « Mon compte » a une section « Mes fonds suivis »
-(retirer un fonds) et une section « Alertes par e-mail » (interrupteur, types, seuil).
+(retirer un fonds) et une section « Alertes par e-mail » (interrupteur, types, seuil). Au premier suivi, un message près du bouton dit que
+l'e-mail d'alerte est activé (avec un lien « Désactiver les alertes » vers `compte.html`), ou qu'il est coupé et où le réactiver.
 
 **La tâche quotidienne** : `.github/workflows/alertes.yml` lance `scripts/alertes.mjs` chaque jour à 6 h 20 UTC (après le relevé des cours).
 Pour chaque fonds suivi, elle lit :
@@ -471,6 +472,12 @@ Les personnes les réactivent dans « Mon compte ».
   `supabase.yml` au prochain lancement de ce workflow.
 
 Sans ces secrets, la tâche s'arrête avec un avertissement et n'envoie rien.
+
+**À faire par toi, avant le premier envoi** :
+- créer le secret `ALERTES_SECRET` sur GitHub, puis lancer une fois le workflow `supabase.yml` (il le recopie dans Supabase) ;
+- dans Brevo, **désactiver le suivi des ouvertures et des clics** pour tous les e-mails (e-mails du compte et alertes). Sans cela, les liens
+  passent par `sendibt2.com` / `sendibt3.com` et `confidentialite.html` (version comptes) serait inexact ;
+- au passage au domaine des comptes, changer `BASE_SITE` dans `scripts/alertes.mjs` (adresse utilisée dans les liens des e-mails).
 
 **Limites à connaître** :
 - l'alerte « nouveau DIC » (et celles de frais et de risque, qui en dépendent) ne marche que si GECO publie un DIC pour le fonds ;

@@ -97,7 +97,7 @@ function fiche(hote, compte) {
 }
 // Faux bouton rendu par boutonSuivi, avec sa zone de message
 function fauxBouton(cle) {
-  const message = { textContent: "" };
+  const message = { innerHTML: "", set textContent(v) { this.innerHTML = String(v); }, get textContent() { return this.innerHTML; } };
   const attributs = { "aria-pressed": "false" };
   return { dataset: { suivre: cle }, textContent: "☆ Suivre ce fonds", disabled: false, message, outerHTML: "<button>",
     getAttribute: n => attributs[n], setAttribute: (n, v) => { attributs[n] = String(v); },
@@ -135,6 +135,32 @@ test("bouton Suivre : avec session, suivreFonds puis « ★ Suivi » ; un second
   await c.cliquerSuivi(b);
   assert.deepEqual(appels.at(-1), ["neplus", "FR0011871128"]);
   assert.equal(b.textContent, "☆ Suivre ce fonds");
+});
+
+test("bouton Suivre : au premier suivi, message sur les alertes (actives) avec lien vers Mon compte", async () => {
+  const c = fiche("localhost", { session: () => ({ user: { id: "u1" } }), suivreFonds: async () => {}, nePlusSuivre: async () => {},
+    preferencesAlertes: async () => ({ actives: true }) });
+  const b = fauxBouton("FR0011871128");
+  c._boutons = [b];
+  await c.cliquerSuivi(b);
+  assert.match(b.message.innerHTML, /^Tu recevras un e-mail si ce fonds change\. <a href="compte\.html">Désactiver les alertes<\/a>$/);
+  await c.cliquerSuivi(b);   // « Ne plus suivre » : plus de message
+  assert.equal(b.message.innerHTML, "");
+});
+
+test("bouton Suivre : alertes coupées → message pour les réactiver ; préférences illisibles → message des alertes actives", async () => {
+  const c = fiche("localhost", { session: () => ({ user: { id: "u1" } }), suivreFonds: async () => {},
+    preferencesAlertes: async () => ({ actives: false }) });
+  const b = fauxBouton("FR0011871128");
+  c._boutons = [b];
+  await c.cliquerSuivi(b);
+  assert.match(b.message.innerHTML, /^Alertes par e-mail coupées : réactive-les dans <a href="compte\.html">Mon compte<\/a>\.$/);
+  const c2 = fiche("localhost", { session: () => ({ user: { id: "u1" } }), suivreFonds: async () => {},
+    preferencesAlertes: async () => { throw new Error("réseau"); } });
+  const b2 = fauxBouton("FR0011871128");
+  c2._boutons = [b2];
+  await c2.cliquerSuivi(b2);
+  assert.match(b2.message.innerHTML, /Tu recevras un e-mail/);
 });
 
 test("bouton Suivre : limite de 30 fonds → message, bouton inchangé", async () => {
@@ -193,7 +219,7 @@ async function monCompte({ suivis = ["FR0011871128"], preferences, entrees = {},
     console, URLSearchParams, modeSite, Compte, CONFIG_COMPTE: { simulationsOffertes: 3 },
     esc: s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
     location: { hostname: "localhost", search: "", replace() {}, href: "" },
-    entreeParCle: async cle => entrees[cle] || null, adresseFonds: e => e.page || null, zoneDeCle: () => "europe",
+    entreeParCle: async cle => entrees[cle] || null, adresseFonds: e => e.page || null, zoneDeCle: cle => (/^[SR]\d/.test(cle) ? "etats-unis" : "europe"),
     chargerScript: async src => { scripts.push(src); if (src === "data/resumes.js" && resumes) ctx.RESUMES = resumes; },
     ANNUAIRE: [],
     document: { getElementById: el, querySelector: el, addEventListener: (t, fn) => { el("document").ecouteurs[t] = fn; } }
@@ -233,7 +259,7 @@ test("Mon compte : dernières valeurs connues lues dans data/resumes.js, fonds t
   assert.deepEqual(scripts, ["data/resumes.js"]);
   assert.ok(html.includes("Frais 2,39 % · Risque 3/7 · DIC du 24/04/2026"), html);
   assert.ok(html.includes("Risque 4/7 · DIC du 04/03/2024") && !html.includes("Frais n.d."));
-  assert.ok(html.includes("Pas de DIC publié sur GECO"));
+  assert.ok(html.includes("Fonds hors GECO (pas de DIC lu)") && !html.includes("Pas de DIC publié sur GECO"));
   assert.ok(html.indexOf("ALPHA") < html.indexOf("MILIEU") && html.indexOf("MILIEU") < html.indexOf("ZETA"));
 });
 
