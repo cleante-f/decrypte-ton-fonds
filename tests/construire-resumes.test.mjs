@@ -90,6 +90,6 @@ test("ecrire : en-tête et un fonds par ligne, relisible comme RESUMES", () => {
     const ctx = vm.createContext({});
     vm.runInContext(texte, ctx);
     assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext("RESUMES", ctx))), contenu);
-    assert.equal(texte.split("\n").filter(l => l.includes("FR000000000")).length, 2);
+    assert.equal(texte.split("\n").filter(l => l.includes("FR000000000") && l.includes("[")).length, 2);
   } finally { rmSync(dossier, { recursive: true }); }
 });
