@@ -30,11 +30,13 @@ export function fraisCourants(dic) {
   return Math.round((dic.gestion + (dic.transaction || 0)) * 10000) / 10000;
 }
 
+// « DIC », « DICI », « KID », « KIID » comme mots (pas « indice », « periodic »…) ; « _ » et les chiffres séparent les mots
+const estDic = d => /(?:^|[^a-z])(?:DICI?|KIID?)(?![a-z])/i.test(d.docTypeLib + " " + d.docName);
+
 // Document à lire : DIC le plus récent (celui dont le nom porte l'ISIN de la part d'abord), sinon le prospectus le plus récent
 export function choisirDocument(documents, isin) {
   const recents = [...documents].sort((a, b) => (b.dateEffet || "").localeCompare(a.dateEffet || ""));
-  // « DIC », « DICI », « KID », « KIID » comme mots (pas « indice », « periodic »…) ; « _ » et les chiffres séparent les mots
-  const dics = recents.filter(d => /(?:^|[^a-z])(?:DICI?|KIID?)(?![a-z])/i.test(d.docTypeLib + " " + d.docName));
+  const dics = recents.filter(estDic);
   return dics.find(d => (d.docName || "").includes(isin)) || dics[0] || recents.find(d => /prospectus/i.test(d.docTypeLib)) || null;
 }
 
@@ -89,8 +91,15 @@ async function pagesDuPdf(donnees) {
 // ou pas de section pour cet ISIN : cas normal, « sans DIC »). Une erreur (HTTP, PDF invalide, délai) lève une exception. Une pause suit chaque lecture (politesse envers GECO).
 export async function lireDicGeco({ cmpId, prdId, isin }) {
   try {
-    const documents = await (await gecoFetch(`/document/byCompartAndProduct?compartCode=c${cmpId}&prdCode=p${prdId}`)).json();
-    const doc = choisirDocument(documents, isin);
+    // Comme la fiche du site : le DIC de la part (documents des parts du compartiment) d'abord, sinon les documents du fonds
+    const parts = await (await gecoFetch(`/funds/compartment/c${cmpId}/shares`)).json();
+    const part = (Array.isArray(parts) ? parts : []).find(p => p.isin === isin);
+    const dicPart = ((part && part.documentEsEntities) || []).filter(estDic);
+    let doc = dicPart.length ? choisirDocument(dicPart, isin) : null;
+    if (!doc) {
+      const documents = await (await gecoFetch(`/document/byCompartAndProduct?compartCode=c${cmpId}&prdCode=p${prdId}`)).json();
+      doc = choisirDocument(documents, isin);
+    }
     if (!doc) return null;
     const pages = await pagesDuPdf(await (await gecoFetch(`/document/download/${doc.idInterne}`)).arrayBuffer());
     const texte = sectionDic(pages, isin);

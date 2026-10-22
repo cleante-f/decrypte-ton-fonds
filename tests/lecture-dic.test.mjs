@@ -44,3 +44,29 @@ test("resumeDic : objectif court gardé tel quel ; parties absentes → null, ja
   assert.deepEqual(resumeDic(null), { frais: null, sri: null, duree: null, objectif: null });
   assert.equal(resumeDic({ sri: NaN }).sri, null);
 });
+
+test("lireDicGeco : le DIC de la part prime sur le prospectus du fonds ; sans DIC de part, documents du fonds", async () => {
+  const dic = i => `Ce document fournit des informations essentielles. ${i} Indicateur de risque 3 sur 7`;
+  const appels = [];
+  const reel = globalThis.fetch;
+  const rep = (corps) => ({ ok: true, status: 200, json: async () => corps, arrayBuffer: async () => new ArrayBuffer(0) });
+  try {
+    for (const [parts, attendu] of [
+      [[{ isin: "FR1", documentEsEntities: [{ docTypeLib: "DIC", docName: "x", idInterne: 11, dateEffet: "2026-01-01" }] }], "/document/download/11"],
+      [[{ isin: "FR1", documentEsEntities: [] }], "/document/byCompartAndProduct?compartCode=c5&prdCode=p6"]
+    ]) {
+      appels.length = 0;
+      globalThis.fetch = async url => {
+        appels.push(url.replace("https://geco.amf-france.org/back-office", ""));
+        if (url.endsWith("/shares")) return rep(parts);
+        if (url.includes("byCompartAndProduct")) return rep([{ docTypeLib: "Prospectus", docName: "p", idInterne: 22, dateEffet: "2026-01-01" }]);
+        return rep(null);
+      };
+      await assert.rejects(lireDicGeco({ cmpId: 5, prdId: 6, isin: "FR1" }), /./);   // le faux PDF vide est invalide : on observe seulement les appels
+      assert.equal(appels[0], "/funds/compartment/c5/shares");
+      assert.ok(appels.includes(attendu), appels.join(" "));
+      if (attendu.startsWith("/document/download")) assert.ok(!appels.some(a => a.includes("byCompartAndProduct")));
+      else assert.ok(appels.includes("/document/download/22"));
+    }
+  } finally { globalThis.fetch = reel; }
+});
