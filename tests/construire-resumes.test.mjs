@@ -19,10 +19,53 @@ const SANS = ligne(6, "Fonds sans ISIN", "");
 const MASQUE = ligne(8, "Fonds à l'ISIN masqué", "XXXXXXXXXXXX");
 const ETF = ["E", 0, 0, "ETF coté", "", "", "", "LU0000000007", "", "LU", "ETF", "Paris", "EUR", 1, 1];
 
-test("candidatsResumes : G publics avec ISIN, hors FCPE, HSBC, non publics ; ISIN de la première part", () => {
+test("candidatsResumes : G publics avec ISIN, hors FCPE, HSBC, non publics ; ISIN de la première part ; un seul par ISIN", () => {
+  // A en double : la page (et le résumé) est celle de la dernière ligne G pour cet ISIN, comme dans le site
   const c = candidatsResumes([A, B, FCPE, HSBC, PRIVE, SANS, MASQUE, ETF, A]);
-  assert.deepEqual(c.map(x => x.isin), ["FR0000000010", "FR0000000002"]);
-  assert.deepEqual(c[0], { isin: "FR0000000010", nom: "Fonds A", cmpId: 1, prdId: 1 });
+  assert.deepEqual(c.map(x => x.isin), ["FR0000000002", "FR0000000010"]);
+  assert.deepEqual(c[1], { isin: "FR0000000010", nom: "Fonds A", cmpId: 1, prdId: 1 });
+});
+
+test("candidatsResumes : même propriétaire que les pages (fondsDesPages de js/adresses.js) : la ligne que le site ouvre pour l'ISIN", () => {
+  // X reprend les ISIN de A et B (ligne G plus loin dans l'annuaire) : le site ouvre X pour ces ISIN, seule X a une page et un résumé
+  const X = ligne(9, "Fonds X", "FR0000000002 FR0000000010");
+  assert.deepEqual(candidatsResumes([A, B, X]), [{ isin: "FR0000000002", nom: "Fonds X", cmpId: 9, prdId: 9 }]);
+  // Une ligne E au même ISIN qu'une ligne G : la page (et le résumé) est celle de la ligne G
+  const E = ["E", 0, 0, "ETF coté", "", "", "", "FR0000000002", "", "FR", "ETF", "Paris", "EUR", 1, 1];
+  assert.deepEqual(candidatsResumes([E, B]).map(c => c.nom), ["Fonds B"]);
+});
+
+test("lireMorceau : budget de temps dépassé → lecture arrêtée, ce qui est lu est gardé (horloge simulée)", async () => {
+  const cand = ["a", "b", "c", "d"].map(isin => ({ isin, nom: isin }));
+  let t = 0;
+  const horloge = () => t;
+  const lus = [];
+  const lireDic = async c => { lus.push(c.isin); t += 60_000; return { texte: DIC, date: "" }; };   // une minute par fonds
+  const r = await lireMorceau(cand, lireDic, { pause: 0, horloge, finAvant: 2 * 60_000 });
+  assert.deepEqual(lus, ["a", "b"]);
+  assert.equal(r.tentes, 2);
+  assert.equal(r.interrompu, true);
+  assert.deepEqual(Object.keys(r.lus), ["a", "b"]);
+  const complet = await lireMorceau(cand, async () => ({ texte: DIC, date: "" }), { pause: 0, horloge: () => 0, finAvant: 1 });
+  assert.equal(complet.tentes, 4);
+  assert.equal(complet.interrompu, false);
+});
+
+test("traiterMorceau : budget dépassé → la garde s'applique aux fonds tentés et le fichier est écrit", async () => {
+  const dossier = mkdtempSync(join(tmpdir(), "resumes-"));
+  try {
+    const cand = ["I0", "I1", "I2", "I3"].map(isin => ({ isin, nom: isin }));
+    let t = 1000;
+    const logs = [];
+    const log = console.log; console.log = m => logs.push(m);
+    try {
+      await traiterMorceau(cand, null, async () => { t += 60_000; return { texte: DIC, date: "" }; }, dossier,
+        { pause: 0, aujourdhui: "2026-10-22", tous: cand.map(c => c.isin), horloge: () => t, minutes: 1 });
+    } finally { console.log = log; }
+    const ctx = vm.createContext({}); vm.runInContext(readFileSync(join(dossier, "resumes.js"), "utf8"), ctx);
+    assert.deepEqual(Object.keys(vm.runInContext("RESUMES", ctx).fonds), ["I0"]);
+    assert.ok(logs.some(l => /budget/i.test(l)), logs.join("|"));
+  } finally { rmSync(dossier, { recursive: true }); }
 });
 
 test("aLire : jamais lus d'abord, puis dateLecture croissante, plafonné", () => {

@@ -47,6 +47,15 @@ export function fondsDesPages(annuaire) {
   return [...fondsDesPagesSite(annuaire)];
 }
 
+// Nom affiché par page (titre, h1) : ISIN de la première part → nom. Un nom porté par plusieurs pages (à la casse près : noms
+// génériques du registre FIRDS, fonds homonymes) est suivi de « (ISIN) », pour que chaque page ait un titre différent.
+export function nomsDesPages(fonds) {
+  const cle = e => e.nom.trim().toLowerCase();
+  const nb = new Map();
+  for (const e of fonds) nb.set(cle(e), (nb.get(cle(e)) || 0) + 1);
+  return new Map(fonds.map(e => [e.isins[0], nb.get(cle(e)) > 1 ? `${e.nom} (${e.isins[0]})` : e.nom]));
+}
+
 // Frais des fonds indiciels (data/alternatives.js) : ISIN → { frais, dateDic, releve }
 export function fraisAlternatives(alternatives) {
   const res = {};
@@ -125,7 +134,7 @@ const remplacer = (texte, cherche, par) => {
   return texte.slice(0, i) + par + texte.slice(i + cherche.length);
 };
 
-function resumeFixe(e, c) {
+function resumeFixe(e, c, nomPage) {
   const indice = indiceDuNom(e.nom);
   const infos = [
     ["ISIN", e.isins[0]],
@@ -142,7 +151,7 @@ function resumeFixe(e, c) {
   ].filter(([, v]) => v);
   const liens = classementsDuFonds(e).map(([chemin, texte]) => `<li><a href="../${esc(chemin)}">${esc(texte)}</a></li>`).join("");
   return `<section class="fiche-entete resume-fixe" aria-label="Résumé du fonds">
-      <h1>${esc(e.nom)}</h1>
+      <h1>${esc(nomPage)}</h1>
       <dl class="grille-infos">${infos.map(([t, v]) => `<div><dt>${esc(t)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
 ${c.objectif ? `      <p><strong>Objectif (extrait du DIC) :</strong> ${esc(c.objectif)}</p>\n` : ""}${c.sources.map(s => `      <p class="source">${esc(texteSource(s))}</p>\n`).join("")}      <p><strong>Classements :</strong></p>
       <ul>${liens}</ul>
@@ -151,17 +160,30 @@ ${c.objectif ? `      <p><strong>Objectif (extrait du DIC) :</strong> ${esc(c.ob
     `;
 }
 
-// Page d'un fonds. extras : { gabarit (decrypte.html), base, alternative ({ frais, dateDic, releve } de data/alternatives.js) }
+// Page d'un fonds. extras : { gabarit (decrypte.html), base, alternative ({ frais, dateDic, releve } de data/alternatives.js),
+// nomPage (nom du titre et du h1, nomsDesPages : e.nom suivi de « (ISIN) » s'il n'est pas unique) }
 export function pageFonds(e, resume, extras = {}) {
-  const { gabarit = lireGabarit(), base = BASE, alternative = null } = extras;
+  const { gabarit = lireGabarit(), base = BASE, alternative = null, nomPage = e.nom } = extras;
   const c = chiffres(resume, alternative);
-  let html = entete(remonter(gabarit), titreFonds(e.nom, c), descriptionFonds(e, c), base + adresseFonds(e));
+  let html = entete(remonter(gabarit), titreFonds(nomPage, c), descriptionFonds(e, c), base + adresseFonds(e));
   // Un seul titre principal : le nom du fonds ; la recherche passe en sous-titre
   html = html.replace(/<h1>([^<]*)<\/h1>/, (m, texte) => `<h2>${texte}</h2>`);
-  html = remplacer(html, '<div id="resultat"', resumeFixe(e, c) + '<div id="resultat"');
+  html = remplacer(html, '<div id="resultat"', resumeFixe(e, c, nomPage) + '<div id="resultat"');
   html = remplacer(html, '<script src="../js/app.js"></script>',
     `<script>var FICHE_FIXE = ${JSON.stringify(e.isins[0])};</script>\n  <script src="../js/app.js"></script>`);
   return html;
+}
+
+// Pages de tous les fonds, une à une (pour ne pas garder 13 000 pages en mémoire) : { e, chemin, html, resume }.
+// resumes : RESUMES (data/resumes.js) ou null ; alternatives : fraisAlternatives(…)
+export function* pagesDesFonds(fonds, resumes, alternatives, { gabarit = lireGabarit(), base = BASE } = {}) {
+  const noms = nomsDesPages(fonds);
+  for (const e of fonds) {
+    const isin = e.isins[0];
+    const resume = resumes && resumes.fonds && resumes.fonds[isin];
+    yield { e, chemin: adresseFonds(e), resume,
+      html: pageFonds(e, resume, { gabarit, base, alternative: alternatives && alternatives[isin], nomPage: noms.get(isin) }) };
+  }
 }
 
 // ---------- Classements ----------
@@ -198,12 +220,14 @@ function tableau(liste) {
     + `<th scope="col">Risque (SRI)</th></tr></thead>\n<tbody>\n${lignes}\n</tbody></table>`;
 }
 
-const AVERTISSEMENT = `<p class="note">Classement d'après les frais courants publiés dans les DIC (${SOURCE_DIC}). Ce n'est ni un conseil, ni une recommandation : vérifie le DIC avant d'investir. « n.d. » : chiffre non disponible dans nos sources.</p>`;
+// maj : date de relevé des chiffres (RESUMES.maj), omise si inconnue
+const avertissement = maj => `<p class="note">Classement d'après les frais courants publiés dans les DIC (${SOURCE_DIC})${dateFr(maj) ? `, chiffres relevés au ${dateFr(maj)}` : ""}. Ce n'est ni un conseil, ni une recommandation : vérifie le DIC avant d'investir. « n.d. » : chiffre non disponible dans nos sources.</p>`;
 
 // Toutes les pages de classement : { chemin: html }. fonds : entrées (fondsDesPages) ; resumes : RESUMES ; alternatives : fraisAlternatives(…)
 export function pagesClassement(fonds, resumes, alternatives, { gabarit = lireGabarit(), base = BASE } = {}) {
   const tous = fonds.map(e => ({ e, c: chiffres(resumes && resumes.fonds && resumes.fonds[e.isins[0]], alternatives && alternatives[e.isins[0]]) }));
   const pages = {};
+  const AVERTISSEMENT = avertissement(resumes && resumes.maj);
   const page = (chemin, titre, description, contenu) => {
     pages[chemin] = pageSimple(gabarit, base, chemin, `${titre} · Décrypte ton fonds`, description,
       `<p><a href="index.html">Tous les classements</a></p>\n    <h1>${esc(titre)}</h1>\n    ${contenu}`);
@@ -314,10 +338,8 @@ function principal() {
   const fonds = fondsDesPages(annuaire);
   let ecrites = 0;
   const gardees = new Set(), adresses = PAGES_PRINCIPALES.map(chemin => ({ chemin, lastmod: dateAnnuaire }));
-  for (const e of fonds) {
-    const resume = resumes && resumes.fonds[e.isins[0]];
-    const chemin = adresseFonds(e);
-    if (ecrireSiChange(join(RACINE, chemin), pageFonds(e, resume, { gabarit, alternative: alternatives[e.isins[0]] }))) ecrites++;
+  for (const { chemin, html, resume } of pagesDesFonds(fonds, resumes, alternatives, { gabarit })) {
+    if (ecrireSiChange(join(RACINE, chemin), html)) ecrites++;
     gardees.add(chemin.slice("fonds/".length));
     adresses.push({ chemin, lastmod: [dateAnnuaire, resume && resume[5]].filter(Boolean).sort().pop() });
   }

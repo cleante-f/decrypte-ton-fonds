@@ -71,8 +71,24 @@ async function attendre(condition, delai = 3000) {
 test("page fixe sans « # » : la fiche du fonds de la page s'ouvre, le titre de la page reste", async () => {
   const p = page({ ficheFixe: "LU1681043599", racine: "../" });
   const resultat = p.element("resultat");
-  await attendre(() => resultat.innerHTML.includes("<h1>Amundi MSCI World Swap UCITS ETF EUR Acc</h1>"));
+  await attendre(() => resultat.innerHTML.includes("Amundi MSCI World Swap UCITS ETF EUR Acc</h2>"));
   assert.equal(p.document.title, "Titre de la page", "le titre fait pour Google n'est pas remplacé");
+});
+
+test("page fixe : le nom de la fiche du fonds de la page est un h2 (le h1 est celui du résumé fixe) ; h1 ailleurs", async () => {
+  const p = page({ ficheFixe: "LU1681043599", racine: "../" });
+  const resultat = p.element("resultat");
+  await attendre(() => resultat.innerHTML.includes("Amundi MSCI World Swap UCITS ETF EUR Acc</h2>"));
+  assert.ok(!resultat.innerHTML.includes("<h1"), "pas de second h1 sur la page fixe");
+  // Autre fonds ouvert par « # » sur une page fixe, ou fiche sur decrypte.html : h1
+  const D = { erreurs: [], composition: { fini: true, c: null } };
+  const e = p.ctx.lireEntree(EUNL);
+  assert.ok(p.ctx.afficherFicheAuto(e, null, D, false).includes("<h1>iShares Core MSCI World UCITS ETF USD (Acc)</h1>"));
+  const d = page();
+  assert.ok(d.ctx.afficherFicheAuto(d.ctx.lireEntree(CW8), null, D, false).includes("<h1>Amundi MSCI World Swap UCITS ETF EUR Acc</h1>"));
+  // Autre part du fonds de la page : toujours le fonds de la page, donc h2
+  const sp = page({ ficheFixe: "FR0011871128", racine: "../" });
+  assert.ok(sp.ctx.afficherFicheAuto(sp.ctx.lireEntree(SP500), "FR0011871136", D, false).includes("<h2>AMUNDI PEA S&amp;P 500 UCITS ETF</h2>"));
 });
 
 test("page fixe avec « #autre » : l'adresse l'emporte", async () => {

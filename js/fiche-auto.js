@@ -920,11 +920,13 @@ function afficherFicheAuto(e, isin, d, chargement) {
         `<li><a href="${LIENS.document(doc)}" target="_blank" rel="noopener">${esc(doc.docTypeLib)}</a> <small>du ${dateFr(doc.dateEffet)}</small></li>`).join("")}</ul>`
     : "";
 
+  // Page fixe du fonds (FICHE_FIXE, js/app.js) : son résumé porte déjà le titre principal (h1), le nom de la fiche passe en h2
+  const titreNom = typeof FICHE_FIXE === "string" && e.isins && e.isins[0] === FICHE_FIXE ? "h2" : "h1";
   const entete = `
     <p class="bandeau-auto">Fiche générée <strong>automatiquement</strong> à partir de sources publiques.
       Les éléments non disponibles sont signalés : vérifie toujours ${estSec ? "les documents officiels du fonds (prospectus)" : "le DIC officiel"}.</p>
     <header class="fiche-entete">
-      <h1>${esc(e.nom)}</h1>
+      <${titreNom}>${esc(e.nom)}</${titreNom}>
       <p>${estSec ? `${esc(typeof texteSec === "function" ? texteSec(serieSec) : `Série SEC ${serieSec}`)}${partSecVisible ? ` · part « ${esc(sec.part.nom)} »${sec.part.ticker ? ` (${esc(sec.part.ticker)})` : ""}` : ""}`
         : estR ? `Registre de l'ESMA, fiche n° ${esc(e.cmpId)}`
         : `${esc(isin || "ISIN non publié")}${part ? ` · part « ${esc(part.parNom)} »` : ""}`}${e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</p>

@@ -6,8 +6,10 @@
  * Trois issues par fonds : « lu », « sans DIC » (aucun document, ou pas de DIC pour cet ISIN : cas normal et durable) et
  * « erreur » (réseau, HTTP autre que 418, PDF invalide, délai dépassé). Les fonds non lus sont notés dans `essais` pour tourner.
  * Garde-fous : HTTP 418 (maintenance de GECO) ou erreurs sur plus de la moitié des fonds tentés → fichier inchangé, avec un ::warning::.
+ * Budget de temps (--minutes, 110 par défaut) : une fois dépassé, la lecture s'arrête et ce qui a été lu est écrit (après la garde),
+ * pour que la tâche hebdomadaire finisse bien avant sa limite (150 minutes) au lieu de tout perdre.
  *
- * Usage : node scripts/construire_resumes.mjs [--max N]
+ * Usage : node scripts/construire_resumes.mjs [--max N] [--minutes N]
  */
 import vm from "node:vm";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -18,28 +20,21 @@ import { extraireDic, resumeDic, lireDicGeco } from "./lecture_dic.mjs";
 const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 const ENTETE = "/* Généré par scripts/construire_resumes.mjs — ne pas modifier à la main.\n * Source : AMF – DIC (base GECO). */\n";
 const MAX_DEFAUT = 2500;
+const MINUTES_DEFAUT = 110;
 const PAUSE_MS = 500;
 
 // Règle des fonds avec une page (js/adresses.js) et lecture des lignes de l'annuaire (lireEntree, js/geco.js) : le code du site,
 // chargé avec node:vm, pour que les résumés et les pages suivent la même règle
 const site = vm.createContext({});
 for (const f of ["js/geco.js", "js/adresses.js"]) vm.runInContext(readFileSync(join(RACINE, f), "utf8"), site, { filename: f });
-const lireEntree = vm.runInContext("lireEntree", site);
-const fondsAvecPage = vm.runInContext("fondsAvecPage", site);
+const fondsDesPages = vm.runInContext("fondsDesPages", site);
 
 // Lignes de l'annuaire : [source, cmpId, prdId, nom, gestionnaire, classification, nature, isins, date, pays, tickers, marchés, devise, etf, public]
-// Fonds G qui ont une page (ouverts à tous, avec un ISIN valide, hors FCPE et hors HSBC). Clé = ISIN de la première part.
+// Fonds G qui ont une page (ouverts à tous, avec un ISIN valide, hors FCPE et hors HSBC), avec le même propriétaire que la page :
+// la ligne que le site ouvre pour l'ISIN (fondsDesPages, js/adresses.js). Clé = ISIN de la première part.
 export function candidatsResumes(annuaire) {
-  const res = [], vus = new Set();
-  for (const l of annuaire) {
-    const e = lireEntree(l);
-    if (e.source !== "G" || !fondsAvecPage(e)) continue;
-    const isin = e.isins[0];
-    if (vus.has(isin)) continue;
-    vus.add(isin);
-    res.push({ isin, nom: e.nom, cmpId: e.cmpId, prdId: e.prdId });
-  }
-  return res;
+  return [...fondsDesPages(annuaire)].filter(e => e.source === "G")
+    .map(e => ({ isin: e.isins[0], nom: e.nom, cmpId: e.cmpId, prdId: e.prdId }));
 }
 
 // Les jamais tentés d'abord (dans l'ordre de l'annuaire), puis par date croissante : la plus récente entre la lecture
@@ -59,10 +54,13 @@ const attendre = ms => new Promise(r => setTimeout(r, ms));
 // lireDic(candidat) → { texte, date } (DIC trouvé) ou null (pas de DIC pour ce fonds) ; une exception = erreur de lecture.
 // Retourne { tentes, lus: { isin: [frais, sri, durée, objectif, dateDic, dateLecture] }, sansDic: [isin], erreurs: [isin], echecs: [isin non lus] }.
 // HTTP 418 (maintenance, e.maintenance) : tout s'arrête ; une autre erreur écarte seulement le fonds.
-export async function lireMorceau(liste, lireDic, { pause = PAUSE_MS, aujourdhui = new Date().toISOString().slice(0, 10) } = {}) {
+// finAvant : heure limite (en ms, selon horloge) ; une fois atteinte, plus aucun fonds n'est lu et `interrompu` vaut vrai.
+export async function lireMorceau(liste, lireDic,
+  { pause = PAUSE_MS, aujourdhui = new Date().toISOString().slice(0, 10), horloge = Date.now, finAvant = Infinity } = {}) {
   const lus = {}, sansDic = [], erreurs = [];
-  let tentes = 0;
+  let tentes = 0, interrompu = false;
   for (const c of liste) {
+    if (horloge() >= finAvant) { interrompu = true; break; }
     tentes++;
     try {
       const dic = await lireDic(c);
@@ -78,7 +76,7 @@ export async function lireMorceau(liste, lireDic, { pause = PAUSE_MS, aujourdhui
     if (pause) await attendre(pause);
   }
   const echecs = [...sansDic, ...erreurs].sort();
-  return { tentes, lus, sansDic, erreurs, echecs };
+  return { tentes, lus, sansDic, erreurs, echecs, interrompu };
 }
 
 // Garde : le fichier n'est écrit que si les erreurs ne dépassent pas la moitié des fonds tentés.
@@ -119,22 +117,29 @@ async function principal() {
   const i = process.argv.indexOf("--max");
   const max = i > 0 ? parseInt(process.argv[i + 1], 10) : MAX_DEFAUT;
   if (!(max > 0)) throw new Error("--max attend un nombre entier positif");
+  const j = process.argv.indexOf("--minutes");
+  const minutes = j > 0 ? Number(process.argv[j + 1]) : MINUTES_DEFAUT;
+  if (!(minutes > 0)) throw new Error("--minutes attend un nombre positif");
   const candidats = candidatsResumes(lireConstante(join(RACINE, "data/annuaire.js"), "ANNUAIRE"));
   const fichier = join(RACINE, "data/resumes.js");
   const ancien = existsSync(fichier) ? lireConstante(fichier, "RESUMES") : null;
   const liste = aLire(candidats, ancien, max);
   console.log(`${candidats.length} fonds candidats, ${liste.length} à lire`);
-  await traiterMorceau(liste, ancien, lireDicGeco, join(RACINE, "data"), { tous: candidats.map(c => c.isin) });
+  await traiterMorceau(liste, ancien, lireDicGeco, join(RACINE, "data"), { tous: candidats.map(c => c.isin), minutes });
 }
 
 // Lit un morceau, applique la garde, écrit resumes.js dans `dossier` et affiche le bilan : lus / sans DIC / erreurs
-export async function traiterMorceau(liste, ancien, lireDic, dossier, { pause = PAUSE_MS, aujourdhui = new Date().toISOString().slice(0, 10), tous } = {}) {
+// minutes : budget de temps de la lecture (horloge : Date.now, remplaçable dans les tests)
+export async function traiterMorceau(liste, ancien, lireDic, dossier,
+  { pause = PAUSE_MS, aujourdhui = new Date().toISOString().slice(0, 10), tous, minutes = Infinity, horloge = Date.now } = {}) {
   let r;
-  try { r = await lireMorceau(liste, lireDic, { pause, aujourdhui }); } catch (e) {
+  const finAvant = horloge() + minutes * 60_000;
+  try { r = await lireMorceau(liste, lireDic, { pause, aujourdhui, horloge, finAvant }); } catch (e) {
     console.log(`::warning::${e.message} : data/resumes.js n'est pas modifié`);
     return;
   }
   const nb = Object.keys(r.lus).length;
+  if (r.interrompu) console.log(`::warning::budget de temps (${minutes} minutes) dépassé : lecture arrêtée après ${r.tentes} fonds sur ${liste.length}`);
   console.log(`${r.tentes} fonds tentés : ${nb} lus, ${r.sansDic.length} sans DIC, ${r.erreurs.length} erreurs`);
   if (!garde(r.tentes, r.erreurs.length)) {
     console.log(`::warning::${r.erreurs.length} erreurs de lecture sur ${r.tentes} fonds tentés (plus de la moitié) : data/resumes.js n'est pas modifié`);

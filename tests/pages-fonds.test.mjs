@@ -6,7 +6,7 @@ import vm from "node:vm";
 import { readFileSync, mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, statSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pageFonds, pagesClassement, sitemaps, ecrireSiChange, supprimerDisparues, fondsDesPages, BASE } from "../scripts/construire_pages.mjs";
+import { pageFonds, pagesClassement, sitemaps, ecrireSiChange, supprimerDisparues, fondsDesPages, nomsDesPages, pagesDesFonds, fraisAlternatives, BASE } from "../scripts/construire_pages.mjs";
 
 const lire = f => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 
@@ -167,6 +167,46 @@ test("classements : PEA par indice trié par frais, page par indice, par catégo
     assert.ok(html.includes(`<link rel="canonical" href="${BASE}${chemin}">`), chemin);
     assert.ok(html.includes('href="../css/style.css"') && !/undefined|NaN/.test(html), chemin);
   }
+});
+
+test("noms en double : « (ISIN) » ajouté au titre et au h1 ; description qui commence par le nom et l'ISIN", () => {
+  const AUTRE = ["G", 8, 8, "carmignac patrimoine", "AUTRE", "Fonds mixtes", "FCP", "FR0000000010", "", "FR", "", "", "", 0, 1];
+  const fonds = fondsDesPages([CARMIGNAC, AUTRE, SP500]);
+  const noms = nomsDesPages(fonds);
+  assert.equal(noms.get("FR0010135103"), "CARMIGNAC PATRIMOINE (FR0010135103)");
+  assert.equal(noms.get("FR0000000010"), "carmignac patrimoine (FR0000000010)", "même nom à la casse près");
+  assert.equal(noms.get("FR0011871128"), "AMUNDI PEA S&P 500 UCITS ETF", "nom unique : inchangé");
+  const html = pageFonds(fonds[0], RESUMES.fonds.FR0010135103, { nomPage: noms.get("FR0010135103") });
+  assert.equal(titre(html), "CARMIGNAC PATRIMOINE (FR0010135103) : frais 1,5 %, risque 3/7 · Décrypte ton fonds");
+  assert.ok(html.includes("<h1>CARMIGNAC PATRIMOINE (FR0010135103)</h1>"));
+  assert.match(html, /<meta name="description" content="CARMIGNAC PATRIMOINE \(FR0010135103\) : /);
+  assert.ok(html.includes('href="https://cleante-f.github.io/decrypte-ton-fonds/fonds/carmignac-patrimoine-FR0010135103.html"'), "adresse inchangée");
+  // pagesDesFonds applique la règle
+  const titres = [...pagesDesFonds(fonds, RESUMES, {})].map(p => titre(p.html));
+  assert.ok(titres[0].startsWith("CARMIGNAC PATRIMOINE (FR0010135103) : "), titres[0]);
+});
+
+test("données réelles (data/annuaire.js) : tous les titres des pages générées sont différents", () => {
+  const constante = (f, nom) => { const ctx = vm.createContext({}); vm.runInContext(lire(f), ctx); return vm.runInContext(nom, ctx); };
+  const fonds = fondsDesPages(constante("data/annuaire.js", "ANNUAIRE"));
+  const resumes = existsSync(new URL("../data/resumes.js", import.meta.url)) ? constante("data/resumes.js", "RESUMES") : null;
+  const alternatives = fraisAlternatives(constante("data/alternatives.js", "ALTERNATIVES"));
+  const gabarit = lire("decrypte.html");
+  const titres = [...pagesDesFonds(fonds, resumes, alternatives, { gabarit })].map(p => titre(p.html));
+  for (const html of Object.values(pagesClassement(fonds, resumes, alternatives, { gabarit }))) titres.push(titre(html));
+  assert.ok(titres.length > 10000, String(titres.length));
+  const vus = new Map();
+  for (const t of titres) vus.set(t, (vus.get(t) || 0) + 1);
+  const doubles = [...vus].filter(([, n]) => n > 1);
+  assert.deepEqual(doubles.slice(0, 5), [], `${doubles.length} titres en double`);
+});
+
+test("classements : date de relevé des chiffres (RESUMES.maj) sur les pages classées par frais", () => {
+  const fonds = fondsDesPages([CARMIGNAC, SP500, PEA_CHER]);
+  const pages = pagesClassement(fonds, RESUMES, ALT);
+  for (const chemin of ["classements/etf-pea.html", "classements/indice-s-p-500.html", "classements/categorie-fonds-mixtes.html"])
+    assert.ok(pages[chemin].includes("chiffres relevés au 20/10/2026"), chemin);
+  assert.ok(!pagesClassement(fonds, null, ALT)["classements/etf-pea.html"].includes("relevés au"), "sans data/resumes.js : pas de date");
 });
 
 test("sitemaps : index + fichiers de 50 000 adresses au plus, adresses absolues", () => {

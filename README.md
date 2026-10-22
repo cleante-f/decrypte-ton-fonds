@@ -378,7 +378,8 @@ et non la stratégie du gérant. Sinon (fonds mixte, obligataire, zone peu clair
 - **Source** : le DIC (document d'informations clés) de chaque candidat, lu dans le prospectus publié par la base GECO de l'AMF.
   Aucun frais n'est inventé : sans DIC lisible, le fonds n'est pas proposé.
 - **Tâche mensuelle** : `.github/workflows/alternatives.yml` (le 25 de chaque mois) lance `node scripts/construire_alternatives.mjs`,
-  qui réécrit `data/alternatives.js`. Si moins de la moitié des candidats est lisible, l'ancien fichier est conservé.
+  qui réécrit `data/alternatives.js`, puis `node scripts/construire_pages.mjs` (pages des fonds, qui reprennent ces frais).
+  Si moins de la moitié des candidats est lisible, l'ancien fichier est conservé.
   Sont exclus les fonds de HSBC Asset Management (données interdites sans accord écrit) et les FCPE.
 - **Exception Node** : ce script est en Node et non en Python, car il réutilise `extraireDic` de `js/geco.js` et pdf.js
   (`js/vendor/pdfjs/`), qui lisent déjà les DIC dans le navigateur ; les réécrire en Python (bibliothèque standard seule) serait fragile.
@@ -400,15 +401,25 @@ générées par `scripts/construire_pages.mjs`, donnent donc à chaque fonds une
   frais, indicateur de risque (SRI), durée de détention recommandée et objectif. Environ 40 % des fonds français n'ont aucun DIC :
   leur page ne contient alors que l'identité (rien n'est inventé).
 - **Lecture du DIC** (`scripts/lecture_dic.mjs`, pdf.js) : le DIC de la part (par ISIN) est lu en premier, puis les documents du fonds.
-- **Tâche hebdomadaire** : `.github/workflows/resumes.yml`, chaque lundi à 04 h 13 UTC. `node scripts/construire_resumes.mjs` lit
-  2 500 fonds au plus par lancement (les jamais essayés d'abord, puis les essais les plus anciens) et écrit `data/resumes.js` ;
+- **Tâche hebdomadaire** : `.github/workflows/resumes.yml`, chaque lundi à 01 h 13 UTC (bien avant la tâche quotidienne des données,
+  avec qui elle partage sa file d'attente). `node scripts/construire_resumes.mjs --minutes 110` lit 2 500 fonds au plus par lancement
+  (les jamais essayés d'abord, puis les essais les plus anciens) et écrit `data/resumes.js` ; passé 110 minutes, la lecture s'arrête
+  et ce qui a été lu est enregistré (après le garde-fou), au lieu de tout perdre à la limite de 150 minutes de la tâche.
   `node scripts/construire_pages.mjs` régénère ensuite `fonds/`, `classements/` et les sitemaps. Le premier remplissage demande donc
   plusieurs lundis (ou plusieurs lancements manuels).
+- **Pages à jour entre deux lundis** : la même tâche se lance aussi à chaque envoi sur `main` qui modifie `data/annuaire.js`,
+  `data/alternatives.js`, `decrypte.html`, `js/adresses.js`, `js/geco.js`, `js/style.js` ou `scripts/construire_pages.mjs` ;
+  elle ne fait alors que `construire_pages.mjs` (1 à 2 secondes, sans réseau) et enregistre les pages si elles ont changé.
+  Les envois faits par une tâche GitHub ne relancent pas d'autre tâche : `alternatives.yml` reconstruit donc lui-même les pages.
+- **Titres uniques** : quand plusieurs pages portent le même nom de fonds (à la casse près, souvent des noms génériques du
+  registre FIRDS), leur titre et leur titre principal (h1) sont suivis de « (ISIN) » ; la description commence toujours par le nom et l'ISIN.
+  Sur une page de fonds, le nom de la fiche affichée sous le résumé est un sous-titre (h2) : la page n'a qu'un h1.
 - **Règle « sans DIC » ou « erreur »** : « sans DIC » (aucun document, ou pas de DIC pour cet ISIN) est un cas normal et durable.
   Une « erreur » (réseau, HTTP autre que 418, PDF invalide, délai dépassé) est notée pour être retentée. Garde-fou : un HTTP 418
   (maintenance de GECO) ou des erreurs sur plus de la moitié des fonds tentés laissent `data/resumes.js` inchangé. Les « sans DIC »
   ne comptent pas comme erreurs.
 - **Pages de classement** (`classements/`) : PEA classés par frais, un classement par indice, un par catégorie AMF, et un index A-Z de tous les fonds.
+  Les classements par frais indiquent la date de relevé des chiffres (`RESUMES.maj`, « chiffres relevés au … »).
 - **Sitemaps** : `sitemap.xml` est un index qui renvoie vers `sitemap-N.xml`, de 50 000 adresses au plus chacun.
 - **Pages dans un sous-dossier** : `js/mode-site.js` fixe `RACINE_SITE` (`""` à la racine, `"../"` dans `fonds/` et `classements/`) ;
   les liens et les scripts des pages rangées dans un dossier commencent par ce préfixe.
@@ -485,11 +496,11 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `data/alternatives.js` | Fonds de référence par indice, avec leurs frais lus dans le DIC (générée par le script) |
 | `.github/workflows/alternatives.yml` | Tâche mensuelle des alternatives (le 25 de chaque mois, 06 h 47 UTC) |
 | `scripts/lecture_dic.mjs` | Lecture d'un DIC (pdf.js) : frais, SRI, durée recommandée, objectif ; part (ISIN) d'abord, puis documents du fonds |
-| `scripts/construire_resumes.mjs` | Tâche hebdomadaire (Node) : lit au plus 2 500 DIC par lancement ; génère `data/resumes.js` |
+| `scripts/construire_resumes.mjs` | Tâche hebdomadaire (Node) : lit au plus 2 500 DIC par lancement, en 110 minutes au plus (`--minutes`) ; génère `data/resumes.js` |
 | `data/resumes.js` | Résumés des DIC et suivi des essais, sans DIC et erreurs (générée par le script) |
 | `scripts/construire_pages.mjs` | Génère `fonds/*.html`, `classements/*.html`, `sitemap.xml` et `sitemap-N.xml` |
 | `fonds/` / `classements/` / `sitemap*.xml` | Pages fixes des fonds, classements et plans du site pour Google (générés, voir « Pages des fonds pour Google ») |
-| `.github/workflows/resumes.yml` | Tâche hebdomadaire des résumés et des pages (lundi, 04 h 13 UTC) |
+| `.github/workflows/resumes.yml` | Tâche hebdomadaire des résumés et des pages (lundi, 01 h 13 UTC) ; pages seules à chaque envoi sur `main` qui touche l'annuaire, le gabarit ou leur code |
 | `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains), `alternatives.test.mjs` et `construire-alternatives.test.mjs` (alternatives moins chères : choix, bloc, script de construction), `radiographie.test.mjs` (radiographie Mon contrat : exposition cumulée, doublons, frais en euros), `pdf-securite.test.mjs` (pdf.js lancé avec `isEvalSupported: false`), `lecture-dic.test.mjs` (lecture d'un DIC), `construire-resumes.test.mjs` (choix des fonds à lire, garde-fous), `pages-fonds.test.mjs` (page d'un fonds, classements, sitemaps) et `pages-site.test.mjs` (pages fixes : liens, préfixe `RACINE_SITE`, scripts). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route

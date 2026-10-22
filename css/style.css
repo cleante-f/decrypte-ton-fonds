@@ -114,7 +114,7 @@ html:not([data-heberge-par="cloudflare"]) [data-si-hebergeur="cloudflare"] { dis
   padding: 16px; margin: 16px 0;
 }
 .fiche-entete { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 20px 24px; margin: 16px 0; }
-.fiche-entete h1 { margin: 0; font-size: clamp(26px, 3.5vw, 34px); }
+.fiche-entete h1, .fiche-entete > h2 { margin: 0; font-size: clamp(26px, 3.5vw, 34px); }   /* h2 : fiche sous le résumé d'une page fixe */
 .fiche-entete .etiquettes { margin: 12px 0 0; }
 .num-section { color: var(--accent); }
 .fiche-entete p { margin: 4px 0 0; color: var(--texte-2); }
