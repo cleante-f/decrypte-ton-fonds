@@ -32,6 +32,23 @@ test("aLire : jamais lus d'abord, puis dateLecture croissante, plafonné", () =>
   assert.deepEqual(aLire(cand, null, 2).map(x => x.isin), ["a", "b"]);
 });
 
+test("aLire : les essais ratés comptent comme tentés (jamais tentés d'abord, puis le plus ancien)", () => {
+  const cand = ["a", "b", "c", "d"].map(isin => ({ isin }));
+  const resumes = { fonds: { a: [1, 2, "", "", "", "2026-10-05"] }, essais: { b: "2026-10-21", c: "2026-09-01", a: "2026-10-20" } };
+  assert.deepEqual(aLire(cand, resumes).map(x => x.isin), ["d", "c", "a", "b"]);
+});
+
+test("fusionner : essais ratés notés, effacés une fois lus, retirés si le fonds disparaît", () => {
+  const ancien = { maj: "x", fonds: {}, essais: { A: "2026-09-01", B: "2026-09-01", Z: "2026-09-01" } };
+  const r = fusionner(ancien, { A: [1, 1, "", "", "", "d"] }, "2026-10-22", ["A", "B", "C"], ["B", "C", "A"]);
+  assert.deepEqual(r.essais, { B: "2026-10-22", C: "2026-10-22" });
+});
+
+test("lireMorceau : liste les échecs (illisible ou erreur)", async () => {
+  const r = await lireMorceau([{ isin: "A" }, { isin: "B" }], async c => (c.isin === "A" ? null : { texte: DIC, date: "" }), { pause: 0 });
+  assert.deepEqual(r.echecs, ["A"]);
+});
+
 const DIC = "Indicateur de risque 3 sur 7. Durée de détention recommandée : 5 ans. Frais de gestion et autres frais administratifs 1,20 %";
 
 test("lireMorceau : lit, ignore les illisibles, propage la maintenance", async () => {
@@ -66,7 +83,7 @@ test("garde : moins de la moitié des fonds tentés lus → refus", () => {
 test("ecrire : en-tête et un fonds par ligne, relisible comme RESUMES", () => {
   const dossier = mkdtempSync(join(tmpdir(), "resumes-"));
   try {
-    const contenu = { maj: "2026-10-22", fonds: { FR0000000001: [1.2, 3, "5 ans", "Objectif « test »", "2026-08-01", "2026-10-22"], FR0000000002: [null, null, "", "", "", "2026-10-22"] } };
+    const contenu = { maj: "2026-10-22", fonds: { FR0000000001: [1.2, 3, "5 ans", "Objectif « test »", "2026-08-01", "2026-10-22"], FR0000000002: [null, null, "", "", "", "2026-10-22"] }, essais: { FR0000000009: "2026-10-21" } };
     ecrire(contenu, dossier);
     const texte = readFileSync(join(dossier, "resumes.js"), "utf8");
     assert.ok(texte.startsWith("/* Généré par scripts/construire_resumes.mjs — ne pas modifier à la main."));

@@ -32,21 +32,24 @@ export function candidatsResumes(annuaire) {
   return res;
 }
 
-// Les jamais lus d'abord (dans l'ordre de l'annuaire), puis par date de lecture croissante ; au plus `max` fonds
+// Les jamais tentés d'abord (dans l'ordre de l'annuaire), puis par date croissante : la plus ancienne entre la lecture
+// et le dernier essai raté (resumes.essais), pour qu'un DIC illisible ne monopolise pas le plafond à chaque lancement.
 export function aLire(candidats, resumes, max = MAX_DEFAUT) {
   const fonds = (resumes && resumes.fonds) || {};
-  const date = c => (fonds[c.isin] ? String(fonds[c.isin][5] || "") : "");
-  const jamais = candidats.filter(c => !fonds[c.isin]);
-  const lus = candidats.filter(c => fonds[c.isin]).sort((a, b) => date(a).localeCompare(date(b)));
-  return [...jamais, ...lus].slice(0, max);
+  const essais = (resumes && resumes.essais) || {};
+  const date = c => [fonds[c.isin] && String(fonds[c.isin][5] || ""), essais[c.isin]].filter(Boolean).sort()[0] || "";
+  const connu = c => fonds[c.isin] || essais[c.isin];
+  const jamais = candidats.filter(c => !connu(c));
+  const vus = candidats.filter(connu).sort((a, b) => date(a).localeCompare(date(b)));
+  return [...jamais, ...vus].slice(0, max);
 }
 
 const attendre = ms => new Promise(r => setTimeout(r, ms));
 
-// lireDic(candidat) → { texte, date } ou null. Retourne { tentes, lus: { isin: [frais, sri, durée, objectif, dateDic, dateLecture] } }.
+// lireDic(candidat) → { texte, date } ou null. Retourne { tentes, echecs: [isin], lus: { isin: [frais, sri, durée, objectif, dateDic, dateLecture] } }.
 // HTTP 418 (maintenance, e.maintenance) : tout s'arrête ; une autre erreur ou un DIC illisible écarte seulement le fonds.
 export async function lireMorceau(liste, lireDic, { pause = PAUSE_MS, aujourdhui = new Date().toISOString().slice(0, 10) } = {}) {
-  const lus = {};
+  const lus = {}, echecs = [];
   let tentes = 0;
   for (const c of liste) {
     tentes++;
@@ -61,29 +64,36 @@ export async function lireMorceau(liste, lireDic, { pause = PAUSE_MS, aujourdhui
       if (e.maintenance) throw e;
       console.warn(`${c.nom} (${c.isin}) : ${e.message}`);
     }
+    if (!lus[c.isin]) echecs.push(c.isin);
     if (pause) await attendre(pause);
   }
-  return { tentes, lus };
+  return { tentes, lus, echecs };
 }
 
 // Garde : au moins la moitié des fonds tentés doivent être lus
 export function garde(tentes, lus) { return tentes > 0 && lus * 2 >= tentes; }
 
 // Valeurs relues par-dessus les anciennes ; les fonds qui ne sont plus dans l'annuaire (isinsActuels) sont retirés
-export function fusionner(ancien, nouveaux, maj, isinsActuels) {
+// `echecs` : ISIN tentés sans succès, notés dans `essais` à la date `maj` ; un fonds lu sort de `essais`.
+export function fusionner(ancien, nouveaux, maj, isinsActuels, echecs = []) {
   const fonds = { ...((ancien && ancien.fonds) || {}), ...nouveaux };
+  const essais = { ...((ancien && ancien.essais) || {}) };
+  for (const isin of echecs) if (!nouveaux[isin]) essais[isin] = maj;
+  for (const isin of Object.keys(nouveaux)) delete essais[isin];
   if (isinsActuels) {
     const actuels = new Set(isinsActuels);
-    for (const isin of Object.keys(fonds)) if (!actuels.has(isin)) delete fonds[isin];
+    for (const t of [fonds, essais]) for (const isin of Object.keys(t)) if (!actuels.has(isin)) delete t[isin];
   }
-  return { maj, fonds };
+  return { maj, fonds, essais };
 }
 
 // Écrit resumes.js dans le dossier donné (data/ du site) : un fonds par ligne, pour des différences lisibles
 export function ecrire(contenu, dossier) {
   const lignes = Object.entries(contenu.fonds).sort(([a], [b]) => a.localeCompare(b))
     .map(([isin, v]) => `    ${JSON.stringify(isin)}: ${JSON.stringify(v)}`);
-  const texte = `${ENTETE}const RESUMES = {\n  "maj": ${JSON.stringify(contenu.maj)},\n  "fonds": {\n${lignes.join(",\n")}\n  }\n};\n`;
+  const essais = Object.entries(contenu.essais || {}).sort(([a], [b]) => a.localeCompare(b))
+    .map(([isin, d]) => `    ${JSON.stringify(isin)}: ${JSON.stringify(d)}`);
+  const texte = `${ENTETE}const RESUMES = {\n  "maj": ${JSON.stringify(contenu.maj)},\n  "fonds": {\n${lignes.join(",\n")}\n  },\n  "essais": {\n${essais.join(",\n")}\n  }\n};\n`;
   writeFileSync(join(dossier, "resumes.js"), texte);
 }
 
@@ -112,8 +122,13 @@ async function principal() {
     console.log(`::warning::DIC lus pour ${nb} fonds sur ${r.tentes} seulement : data/resumes.js n'est pas modifié`);
     return;
   }
-  ecrire(fusionner(ancien, r.lus, new Date().toISOString().slice(0, 10), candidats.map(c => c.isin)), join(RACINE, "data"));
+  ecrire(fusionner(ancien, r.lus, new Date().toISOString().slice(0, 10), candidats.map(c => c.isin), r.echecs), join(RACINE, "data"));
   console.log(`data/resumes.js écrit : ${nb} fonds relus sur ${r.tentes}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await principal();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try { await principal(); } catch (e) {
+    console.error(`Erreur : ${e.message}`);
+    process.exit(1);
+  }
+}
