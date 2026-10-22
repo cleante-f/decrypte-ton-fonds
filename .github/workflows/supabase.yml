@@ -43,6 +43,8 @@ jobs:
         env:
           ALERTES_SECRET: ${{ secrets.ALERTES_SECRET }}
         # Secret absent : on ne remplace pas une valeur déjà en place par une valeur vide.
+        # Secret changé sur GitHub : il n'arrive sur Supabase qu'au prochain passage de ce workflow (envoi touchant supabase/**
+        # ou lancement manuel « Run workflow ») ; d'ici là, les liens signés avec le nouveau secret sont refusés.
         run: |
           if [ -n "$ALERTES_SECRET" ]; then supabase secrets set ALERTES_SECRET="$ALERTES_SECRET" --project-ref "$PROJET"
           else echo "::warning::secret ALERTES_SECRET absent : la désinscription en un clic refusera les liens"; fi

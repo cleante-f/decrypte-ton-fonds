@@ -24,7 +24,7 @@ test("hebergeurSite", () => {
 });
 test("estPageCompte : GitHub, Cloudflare (sans .html), jamais l'accueil", () => {
   const { estPageCompte } = charger(["js/mode-site.js"]);
-  for (const c of ["/connexion.html", "/decrypte-ton-fonds/compte.html", "/abonnement", "/cgv.html", "/decrypte-ton-fonds/connexion"])
+  for (const c of ["/connexion.html", "/decrypte-ton-fonds/compte.html", "/abonnement", "/cgv.html", "/decrypte-ton-fonds/connexion", "/alertes-desactivees.html", "/alertes-desactivees"])
     assert.equal(estPageCompte(c), true, c);
   for (const c of ["/", "/index.html", "/decrypte-ton-fonds/", "/simulateur.html", "/mentions-legales.html", "/confidentialite"])
     assert.equal(estPageCompte(c), false, c);

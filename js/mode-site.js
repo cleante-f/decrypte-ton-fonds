@@ -22,7 +22,7 @@
 
   // Pages qui n'existent qu'en mode comptes : nom de fichier sans « .html ».
   // GitHub les sert avec « .html » (connexion.html), Cloudflare sans (connexion).
-  const PAGES_COMPTE = ["connexion", "compte", "abonnement", "cgv"];
+  const PAGES_COMPTE = ["connexion", "compte", "abonnement", "cgv", "alertes-desactivees"];
 
   function enMinuscules(texte) {
     return String(texte || "").toLowerCase();
