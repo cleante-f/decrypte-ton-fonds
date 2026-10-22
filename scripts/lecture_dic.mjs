@@ -89,10 +89,12 @@ async function pagesDuPdf(donnees) {
 
 // Texte du DIC d'une part et date du document, ou null quand GECO n'a pas de DIC pour cette part (aucun document, ni DIC ni prospectus,
 // ou pas de section pour cet ISIN : cas normal, « sans DIC »). Une erreur (HTTP, PDF invalide, délai) lève une exception. Une pause suit chaque lecture (politesse envers GECO).
-export async function lireDicGeco({ cmpId, prdId, isin }) {
+// `options.parts` : réponse de /funds/compartment/c<cmpId>/shares déjà lue par l'appelant (scripts/alertes.mjs), pour ne pas la
+// demander deux fois à GECO ; sans elle (scripts des alternatives et des résumés), elle est lue ici.
+export async function lireDicGeco({ cmpId, prdId, isin }, options = {}) {
   try {
     // Comme la fiche du site : le DIC de la part (documents des parts du compartiment) d'abord, sinon les documents du fonds
-    const parts = await (await gecoFetch(`/funds/compartment/c${cmpId}/shares`)).json();
+    const parts = options.parts !== undefined ? options.parts : await (await gecoFetch(`/funds/compartment/c${cmpId}/shares`)).json();
     const part = (Array.isArray(parts) ? parts : []).find(p => p.isin === isin);
     const dicPart = ((part && part.documentEsEntities) || []).filter(estDic);
     let doc = dicPart.length ? choisirDocument(dicPart, isin) : null;

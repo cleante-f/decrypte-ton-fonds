@@ -27,17 +27,25 @@ test("detecter : nouveau DIC = date de DIC différente", () => {
   assert.deepEqual(a, [{ type: "nouveau_dic", date: "2026-10-20" }]);
   // DIC absent cette fois (lecture sans résultat) : pas d'alerte
   assert.deepEqual(detecter(ANCIEN, { ...ANCIEN, date_dic: null }, TOUT), []);
+  // pas de DIC lu avant (date null) : pas d'alerte quand une date apparaît
+  assert.deepEqual(detecter({ ...ANCIEN, date_dic: null }, { ...ANCIEN, date_dic: "2026-10-20" }, TOUT), []);
 });
 
-test("detecter : frais courants en hausse seulement", () => {
-  assert.deepEqual(detecter(ANCIEN, { ...ANCIEN, frais: 0.65 }, TOUT), [{ type: "frais", avant: 0.5, apres: 0.65 }]);
-  assert.deepEqual(detecter(ANCIEN, { ...ANCIEN, frais: 0.3 }, TOUT), []);
-  assert.deepEqual(detecter({ ...ANCIEN, frais: null }, { ...ANCIEN, frais: 0.65 }, TOUT), []);
+const DIC2 = { date_dic: "2026-10-20" };
+const sauf = (alertes, type) => alertes.filter(a => a.type !== type);
+
+test("detecter : frais courants en hausse seulement, avec un nouveau DIC", () => {
+  assert.deepEqual(sauf(detecter(ANCIEN, { ...ANCIEN, ...DIC2, frais: 0.65 }, TOUT), "nouveau_dic"), [{ type: "frais", avant: 0.5, apres: 0.65 }]);
+  assert.deepEqual(sauf(detecter(ANCIEN, { ...ANCIEN, ...DIC2, frais: 0.3 }, TOUT), "nouveau_dic"), []);
+  assert.deepEqual(sauf(detecter({ ...ANCIEN, frais: null }, { ...ANCIEN, ...DIC2, frais: 0.65 }, TOUT), "nouveau_dic"), []);
+  // même DIC : un autre chiffre vient de la lecture (extraction améliorée), pas du fonds → aucune alerte
+  assert.deepEqual(detecter(ANCIEN, { ...ANCIEN, frais: 0.65 }, TOUT), []);
 });
 
-test("detecter : SRI modifié, en hausse comme en baisse", () => {
-  assert.deepEqual(detecter(ANCIEN, { ...ANCIEN, sri: 5 }, TOUT), [{ type: "risque", avant: 4, apres: 5 }]);
-  assert.deepEqual(detecter(ANCIEN, { ...ANCIEN, sri: 3 }, TOUT), [{ type: "risque", avant: 4, apres: 3 }]);
+test("detecter : SRI modifié, en hausse comme en baisse, avec un nouveau DIC", () => {
+  assert.deepEqual(sauf(detecter(ANCIEN, { ...ANCIEN, ...DIC2, sri: 5 }, TOUT), "nouveau_dic"), [{ type: "risque", avant: 4, apres: 5 }]);
+  assert.deepEqual(sauf(detecter(ANCIEN, { ...ANCIEN, ...DIC2, sri: 3 }, TOUT), "nouveau_dic"), [{ type: "risque", avant: 4, apres: 3 }]);
+  assert.deepEqual(detecter(ANCIEN, { ...ANCIEN, sri: 5 }, TOUT), []);
 });
 
 test("variationSurUnMois : valeur la plus récente contre la dernière valeur au moins 30 jours avant", () => {
@@ -81,21 +89,22 @@ test("detecter : préférences (alertes décochées, seuil null, alertes désact
 const FONDS_A = { cle: "FR0000000001", nom: "Fonds A", lien: BASE_SITE + "fonds/fonds-a-FR0000000001.html" };
 const FONDS_B = { cle: "S000002839", nom: "Fonds B", lien: BASE_SITE + "decrypte.html#S000002839" };
 
-test("regrouper : un e-mail par personne, qui regroupe les alertes de ses fonds selon ses préférences", () => {
+test("regrouper : un message par personne (sans adresse : lue ensuite), qui regroupe les alertes de ses fonds selon ses préférences", () => {
   const alertesParFonds = {
     FR0000000001: { fonds: FONDS_A, alertes: [{ type: "frais", avant: 0.5, apres: 0.7 }, { type: "nouveau_dic", date: "2026-10-20" }] },
     S000002839: { fonds: FONDS_B, alertes: [{ type: "baisse", variation: -12, variationAvant: -2, date: "2026-09-30" }] }
   };
   const abonnes = [
-    { user_id: "u1", email: "a@exemple.fr", prefs: TOUT, fonds: ["FR0000000001", "S000002839"] },
-    { user_id: "u2", email: "b@exemple.fr", prefs: { ...TOUT, frais: false, seuil_baisse: 20 }, fonds: ["FR0000000001", "S000002839"] },
-    { user_id: "u3", email: "c@exemple.fr", prefs: { ...TOUT, actives: false }, fonds: ["FR0000000001"] },
-    { user_id: "u4", email: "d@exemple.fr", prefs: TOUT, fonds: ["LU0000000002"] }
+    { user_id: "u1", prefs: TOUT, fonds: ["FR0000000001", "S000002839"] },
+    { user_id: "u2", prefs: { ...TOUT, frais: false, seuil_baisse: 20 }, fonds: ["FR0000000001", "S000002839"] },
+    { user_id: "u3", prefs: { ...TOUT, actives: false }, fonds: ["FR0000000001"] },
+    { user_id: "u4", prefs: TOUT, fonds: ["LU0000000002"] }
   ];
   const r = regrouper(alertesParFonds, abonnes);
   assert.equal(r.length, 2);
-  assert.equal(r[0].email, "a@exemple.fr");
+  assert.deepEqual(Object.keys(r[0]).sort(), ["alertes", "user_id"]);
   assert.equal(r[0].user_id, "u1");
+  assert.equal(r[1].user_id, "u2");
   assert.deepEqual(r[0].alertes.map(a => [a.cle, a.type]), [["FR0000000001", "frais"], ["FR0000000001", "nouveau_dic"], ["S000002839", "baisse"]]);
   assert.equal(r[0].alertes[0].nom, "Fonds A");
   assert.equal(r[0].alertes[0].lien, FONDS_A.lien);
@@ -145,7 +154,7 @@ test("jetonDesinscription : « userId.date.signature », signature HMAC-SHA256 d
 
 // ---------- envoi par Brevo ----------
 
-test("envoyerBrevo : requête de l'API Brevo ; 429 et 402 → quota dépassé ; autre erreur → exception", async () => {
+test("envoyerBrevo : requête de l'API Brevo ; 429 et 402 → quota ; autre 4xx → destinataire ; 401, 403, 5xx → erreur générale", async () => {
   const appels = [];
   const ok = async (url, init) => { appels.push({ url, init }); return { ok: true, status: 201 }; };
   await envoyerBrevo({ email: "a@exemple.fr", sujet: "S", texte: "T", html: "<p>H</p>" }, "cle-brevo", ok);
@@ -162,24 +171,33 @@ test("envoyerBrevo : requête de l'API Brevo ; 429 et 402 → quota dépassé ; 
     await assert.rejects(envoyerBrevo({ email: "a@exemple.fr", sujet: "S", texte: "T", html: "H" }, "k", async () => ({ ok: false, status })),
       e => e.quota === true);
   }
-  await assert.rejects(envoyerBrevo({ email: "a@exemple.fr", sujet: "S", texte: "T", html: "H" }, "k", async () => ({ ok: false, status: 500 })),
-    e => !e.quota && /500/.test(e.message));
+  for (const status of [400, 404, 422]) {
+    await assert.rejects(envoyerBrevo({ email: "a@exemple.fr", sujet: "S", texte: "T", html: "H" }, "k", async () => ({ ok: false, status })),
+      e => e.destinataire === true && !e.quota);
+  }
+  for (const status of [401, 403, 500, 503]) {
+    await assert.rejects(envoyerBrevo({ email: "a@exemple.fr", sujet: "S", texte: "T", html: "H" }, "k", async () => ({ ok: false, status })),
+      e => !e.quota && !e.destinataire && new RegExp(String(status)).test(e.message));
+  }
 });
 
 // ---------- principal ----------
 
-function monde({ etat = {}, fonds = {}, envoi } = {}) {
-  const journal = { envois: [], ecrit: null, avertissements: [] };
+const ADRESSES = { u1: "a@exemple.fr", u2: "b@exemple.fr", u3: "c@exemple.fr" };
+function monde({ etat = {}, fonds = {}, envoi, adresses = ADRESSES } = {}) {
+  const journal = { envois: [], ecrit: null, efface: null, avertissements: [], adressesLues: [] };
   const deps = {
     lireSuivis: async () => [
-      { user_id: "u1", email: "a@exemple.fr", prefs: TOUT, fonds: ["FR0000000001", "FR0000000002"] },
-      { user_id: "u2", email: "b@exemple.fr", prefs: TOUT, fonds: ["FR0000000002"] },
-      { user_id: "u3", email: "c@exemple.fr", prefs: { ...TOUT, actives: false }, fonds: ["FR0000000001"] }
+      { user_id: "u1", prefs: TOUT, fonds: ["FR0000000001", "FR0000000002"] },
+      { user_id: "u2", prefs: TOUT, fonds: ["FR0000000002"] },
+      { user_id: "u3", prefs: { ...TOUT, actives: false }, fonds: ["FR0000000001"] }
     ],
-    lireEtat: async cles => Object.fromEntries(cles.filter(c => etat[c]).map(c => [c, etat[c]])),
+    lireEtat: async () => ({ ...etat }),
     lireFonds: async cle => { const f = fonds[cle]; if (f instanceof Error) throw f; return f; },
+    lireEmail: async userId => { journal.adressesLues.push(userId); return adresses[userId] ?? null; },
     envoyer: async m => { if (envoi) await envoi(m); journal.envois.push(m); },
     ecrireEtat: async lignes => { journal.ecrit = lignes; },
+    effacerEtat: async cles => { journal.efface = cles; },
     lienDesinscription: userId => `https://exemple.supabase.co/functions/v1/alertes-desinscription?jeton=${userId}`,
     avertir: t => journal.avertissements.push(t),
     maintenant: new Date("2026-10-22T05:05:00Z")
@@ -208,7 +226,7 @@ test("principal : premier passage → aucun e-mail, état écrit pour chaque fon
 test("principal : un e-mail par personne qui regroupe ses fonds, lien de désinscription, puis état écrit", async () => {
   const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN } };
   const fonds = {
-    FR0000000001: LU({ nom: "Premier <fonds>", adresse: "fonds/premier-FR0000000001.html", frais: 0.6 }),
+    FR0000000001: LU({ nom: "Premier <fonds>", adresse: "fonds/premier-FR0000000001.html", date_dic: "2026-10-21", frais: 0.6 }),
     FR0000000002: LU({ nom: "Second", date_dic: "2026-10-20" })
   };
   const { deps, journal } = monde({ etat, fonds });
@@ -216,7 +234,8 @@ test("principal : un e-mail par personne qui regroupe ses fonds, lien de désins
   assert.equal(journal.envois.length, 2);
   const [a, b] = journal.envois;
   assert.equal(a.email, "a@exemple.fr");
-  assert.match(a.sujet, /2 alertes/);
+  assert.match(a.sujet, /3 alertes/);
+  assert.deepEqual(journal.adressesLues, ["u1", "u2"]);   // u3 (alertes désactivées) : adresse jamais lue
   assert.ok(a.html.includes("Premier &lt;fonds&gt;"));
   assert.ok(a.texte.includes(BASE_SITE + "fonds/premier-FR0000000001.html"));
   assert.ok(a.texte.includes(BASE_SITE + "decrypte.html#FR0000000002"));
@@ -227,19 +246,23 @@ test("principal : un e-mail par personne qui regroupe ses fonds, lien de désins
   assert.equal(r.envoyes, 2);
 });
 
-test("principal : échec d'un envoi → état non écrit", async () => {
+test("principal : erreur générale d'envoi (5xx, réseau, clé refusée) → arrêt, état non écrit", async () => {
   const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN } };
-  const fonds = { FR0000000001: LU({ frais: 0.6 }), FR0000000002: LU({ frais: 0.6 }) };
-  const { deps, journal } = monde({ etat, fonds, envoi: async () => { throw new Error("Brevo 500"); } });
+  const fonds = { FR0000000001: LU({ date_dic: "2026-10-20" }), FR0000000002: LU({ date_dic: "2026-10-20" }) };
+  let essais = 0;
+  const { deps, journal } = monde({ etat, fonds, envoi: async () => { essais++; throw new Error("Brevo 500"); } });
   const r = await principal(deps);
+  assert.equal(essais, 1);
+  assert.equal(r.raison, "envoi");
   assert.equal(journal.ecrit, null);
+  assert.equal(journal.efface, null);
   assert.equal(r.etatEcrit, false);
   assert.ok(journal.avertissements.length > 0);
 });
 
 test("principal : quota Brevo dépassé → arrêt immédiat, état non écrit", async () => {
   const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN } };
-  const fonds = { FR0000000001: LU({ frais: 0.6 }), FR0000000002: LU({ frais: 0.6 }) };
+  const fonds = { FR0000000001: LU({ date_dic: "2026-10-20" }), FR0000000002: LU({ date_dic: "2026-10-20" }) };
   let essais = 0;
   const { deps, journal } = monde({ etat, fonds,
     envoi: async () => { essais++; throw Object.assign(new Error("quota"), { quota: true }); } });
@@ -264,7 +287,7 @@ test("principal : GECO en maintenance (418) → rien envoyé, état inchangé", 
 
 test("principal : erreur de lecture d'un fonds → pas d'alerte ni de mise à jour pour lui, les autres continuent", async () => {
   const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN } };
-  const fonds = { FR0000000001: new Error("GECO a répondu 500"), FR0000000002: LU({ sri: 6 }) };
+  const fonds = { FR0000000001: new Error("GECO a répondu 500"), FR0000000002: LU({ date_dic: "2026-10-20" }) };
   const { deps, journal } = monde({ etat, fonds });
   await principal(deps);
   assert.equal(journal.envois.length, 2);
@@ -283,4 +306,52 @@ test("principal : une valeur absente cette fois garde l'ancienne (pas de fausse 
   assert.equal(l.frais, 0.5);
   assert.equal(l.sri, 4);
   assert.equal(l.valeur, 100);
+});
+
+test("principal : refus propre à un destinataire (4xx) → personne sautée sans son adresse dans le journal, les autres servis, état écrit", async () => {
+  const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN } };
+  const fonds = { FR0000000001: LU({ date_dic: "2026-10-20" }), FR0000000002: LU({ date_dic: "2026-10-20" }) };
+  const { deps, journal } = monde({ etat, fonds,
+    envoi: async m => { if (m.email === "a@exemple.fr") throw Object.assign(new Error("Brevo 400"), { destinataire: true }); } });
+  const r = await principal(deps);
+  assert.deepEqual(journal.envois.map(m => m.email), ["b@exemple.fr"]);
+  assert.equal(r.envoyes, 1);
+  assert.equal(r.etatEcrit, true);
+  assert.equal(journal.ecrit.length, 2);
+  assert.ok(journal.avertissements.length > 0);
+  assert.ok(journal.avertissements.every(t => !t.includes("@")));
+});
+
+test("principal : compte sans adresse (supprimé entre-temps) → sauté, les autres servis", async () => {
+  const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN } };
+  const fonds = { FR0000000001: LU({ date_dic: "2026-10-20" }), FR0000000002: LU({ date_dic: "2026-10-20" }) };
+  const { deps, journal } = monde({ etat, fonds, adresses: { u2: "b@exemple.fr" } });
+  const r = await principal(deps);
+  assert.deepEqual(journal.envois.map(m => m.email), ["b@exemple.fr"]);
+  assert.equal(r.etatEcrit, true);
+});
+
+test("principal : adresses lues seulement pour les personnes qui ont une alerte", async () => {
+  const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN } };
+  const fonds = { FR0000000001: LU({ date_dic: "2026-10-20" }), FR0000000002: LU() };   // seul u1 suit FR0000000001
+  const { deps, journal } = monde({ etat, fonds });
+  await principal(deps);
+  assert.deepEqual(journal.adressesLues, ["u1"]);
+  assert.deepEqual(journal.envois.map(m => m.email), ["a@exemple.fr"]);
+});
+
+test("principal : l'état des fonds que plus personne ne suit est retiré après un passage réussi, pas après un arrêt", async () => {
+  const etat = { FR0000000001: { ...ANCIEN }, FR0000000002: { ...ANCIEN }, LU0000000009: { ...ANCIEN } };
+  const { deps, journal } = monde({ etat, fonds: { FR0000000001: LU(), FR0000000002: LU() } });
+  await principal(deps);
+  assert.deepEqual(journal.efface, ["LU0000000009"]);
+
+  const maintenance = monde({ etat, fonds: { FR0000000001: LU(),
+    FR0000000002: Object.assign(new Error("maintenance"), { maintenance: true }) } });
+  await principal(maintenance.deps);
+  assert.equal(maintenance.journal.efface, null);
+
+  const rien = monde({ etat: { FR0000000001: { ...ANCIEN } }, fonds: { FR0000000001: LU(), FR0000000002: LU() } });
+  await principal(rien.deps);
+  assert.equal(rien.journal.efface, null);   // rien à retirer : pas d'appel
 });

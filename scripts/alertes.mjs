@@ -1,16 +1,18 @@
 /*
  * Alertes par e-mail sur les fonds suivis : tâche quotidienne (.github/workflows/alertes.yml).
  *
- *  1. lit les fonds suivis, les préférences d'alertes et l'adresse e-mail de chaque titulaire (clé « service » de Supabase),
- *     puis l'état précédent des fonds (table etat_fonds_suivis, que seule cette tâche lit et écrit) ;
+ *  1. lit les fonds suivis et les préférences d'alertes (clé « service » de Supabase), puis l'état précédent des fonds
+ *     (table etat_fonds_suivis, que seule cette tâche lit et écrit) ;
  *  2. pour chaque fonds distinct : DIC (scripts/lecture_dic.mjs, DIC de la part d'abord ; fonds français seulement) et valeurs
  *     récentes (VL GECO pour un fonds français, data/cours pour un fonds coté à Francfort/Xetra, rendements mensuels de la SEC
  *     pour un fonds américain) ;
  *  3. détecte les changements : nouveau DIC (date différente), frais courants en hausse, SRI modifié, baisse sur un mois
  *     au-delà du seuil choisi (5, 10 ou 20 %) ;
- *  4. envoie au plus un e-mail par personne (API Brevo), qui regroupe ses alertes, avec un lien de désinscription ;
- *  5. écrit le nouvel état seulement après des envois réussis. GECO en maintenance (HTTP 418) ou quota Brevo dépassé :
- *     rien n'est envoyé (ou l'envoi s'arrête), l'état reste inchangé, avec un ::warning:: ; les alertes repartent le lendemain.
+ *  4. lit l'adresse e-mail des seules personnes qui ont une alerte, puis leur envoie au plus un e-mail chacune (API Brevo),
+ *     qui regroupe leurs alertes, avec un lien de désinscription ;
+ *  5. écrit le nouvel état seulement après des envois réussis, et retire l'état des fonds que plus personne ne suit.
+ *     GECO en maintenance (HTTP 418), quota Brevo dépassé ou erreur générale d'envoi : rien n'est envoyé (ou l'envoi
+ *     s'arrête), l'état reste inchangé, avec un ::warning:: ; les alertes repartent au passage suivant.
  *
  * Premier passage d'un fonds (pas d'état précédent) : aucune alerte, seul l'état est enregistré.
  * Fonds d'une société de gestion HSBC : ignorés (données de HSBC Asset Management interdites sans accord écrit).
@@ -73,10 +75,15 @@ export function variationSurUnMois(points, { mensuel = false } = {}) {
 function alertesBrutes(ancien, nouveau) {
   if (!ancien || !nouveau) return [];
   const res = [];
-  if (nouveau.date_dic && nouveau.date_dic !== ancien.date_dic) res.push({ type: "nouveau_dic", date: nouveau.date_dic });
-  if (nombre(ancien.frais) && nombre(nouveau.frais) && nouveau.frais > ancien.frais + 1e-9)
+  // Nouveau DIC : une date connue avant et une autre date maintenant. Un fonds qui n'avait pas de DIC lu (date null) n'en
+  // déclenche pas : on ne sait pas si le document est nouveau ou s'il n'avait simplement pas pu être lu.
+  const nouveauDic = !!ancien.date_dic && !!nouveau.date_dic && nouveau.date_dic !== ancien.date_dic;
+  if (nouveauDic) res.push({ type: "nouveau_dic", date: nouveau.date_dic });
+  // Frais et SRI : seulement avec un nouveau DIC. Un changement de valeur sur le même document vient de la lecture
+  // (extraireDic amélioré, autre section du PDF), pas du fonds : il met l'état à jour sans alerte.
+  if (nouveauDic && nombre(ancien.frais) && nombre(nouveau.frais) && nouveau.frais > ancien.frais + 1e-9)
     res.push({ type: "frais", avant: ancien.frais, apres: nouveau.frais });
-  if (Number.isInteger(ancien.sri) && Number.isInteger(nouveau.sri) && nouveau.sri !== ancien.sri)
+  if (nouveauDic && Number.isInteger(ancien.sri) && Number.isInteger(nouveau.sri) && nouveau.sri !== ancien.sri)
     res.push({ type: "risque", avant: ancien.sri, apres: nouveau.sri });
   // Baisse : seulement sur une nouvelle valeur. La variation « avant » est calculée sur la même série (même échelle, après
   // correction des divisions de parts), arrêtée à la date de l'état précédent : une baisse déjà signalée ne l'est pas chaque jour.
@@ -110,19 +117,20 @@ export function detecter(ancien, nouveau, prefs) {
 }
 
 // alertesParFonds : { <clé>: { fonds: { cle, nom, lien }, alertes: [alertes brutes] } } ;
-// abonnes : [{ user_id, email, prefs, fonds: [clés] }]. Un message par personne qui a au moins une alerte :
-// [{ user_id, email, alertes: [{ cle, nom, lien, type, … }] }], dans l'ordre de ses fonds.
+// abonnes : [{ user_id, prefs, fonds: [clés] }]. Un message par personne qui a au moins une alerte :
+// [{ user_id, alertes: [{ cle, nom, lien, type, … }] }], dans l'ordre de ses fonds. L'adresse e-mail n'est lue qu'ensuite,
+// pour ces seules personnes (principal, lireEmail).
 export function regrouper(alertesParFonds, abonnes) {
   const res = [];
   for (const a of abonnes || []) {
-    if (!a || !a.email || (a.prefs && a.prefs.actives === false)) continue;
+    if (!a || (a.prefs && a.prefs.actives === false)) continue;
     const alertes = [];
     for (const cle of a.fonds || []) {
       const f = alertesParFonds[cle];
       if (!f) continue;
       for (const al of f.alertes) if (garder(al, a.prefs)) alertes.push({ cle, nom: f.fonds.nom, lien: f.fonds.lien, ...al });
     }
-    if (alertes.length) res.push({ user_id: a.user_id, email: a.email, alertes });
+    if (alertes.length) res.push({ user_id: a.user_id, alertes });
   }
   return res;
 }
@@ -182,8 +190,11 @@ export function jetonDesinscription(userId, secret, date) {
 
 // ---------- Envoi (API Brevo, comme supabase/functions/_partage/comptes.js) ----------
 
-// 429 (trop de requêtes) ou 402 (crédits d'envoi épuisés) : quota dépassé, l'erreur porte `quota: true`.
-// Seul le code HTTP de la réponse est lu.
+// Seul le code HTTP de la réponse est lu :
+//  - 429 (trop de requêtes) ou 402 (crédits d'envoi épuisés) : quota dépassé, l'erreur porte `quota: true` ;
+//  - autre 4xx, hors 401 et 403 (clé refusée : rien ne passera) : refus propre à ce destinataire (adresse invalide…),
+//    l'erreur porte `destinataire: true` ;
+//  - 401, 403, 5xx, réseau, délai : erreur générale.
 export async function envoyerBrevo({ email, sujet, texte, html }, cleApi, fetchImpl = fetch) {
   const r = await fetchImpl("https://api.brevo.com/v3/smtp/email", {
     method: "POST", headers: { "api-key": cleApi, "Content-Type": "application/json", Accept: "application/json" },
@@ -192,6 +203,8 @@ export async function envoyerBrevo({ email, sujet, texte, html }, cleApi, fetchI
   });
   if (r.ok) return;
   if (r.status === 429 || r.status === 402) throw Object.assign(new Error(`quota Brevo dépassé (HTTP ${r.status})`), { quota: true });
+  if (r.status >= 400 && r.status < 500 && r.status !== 401 && r.status !== 403)
+    throw Object.assign(new Error(`Brevo ${r.status}`), { destinataire: true });
   throw new Error(`Brevo ${r.status}`);
 }
 
@@ -222,22 +235,31 @@ function nouvelEtat(ancien, lu) {
 
 /*
  * Dépendances :
- *   lireSuivis() → [{ user_id, email, prefs, fonds: [clés] }]
- *   lireEtat(clés) → { <clé>: { date_dic, frais, sri, valeur, date_valeur, historique } }
+ *   lireSuivis() → [{ user_id, prefs, fonds: [clés] }]   (sans adresse e-mail)
+ *   lireEtat() → { <clé>: { date_dic, frais, sri, valeur, date_valeur, historique } }   (tout l'état enregistré)
  *   lireFonds(clé) → { nom, adresse (chemin de la page ou null), date_dic, frais, sri, historique: [[date, valeur]…], mensuel }
  *                    ou null (fonds introuvable ou ignoré) ; lève une erreur `maintenance: true` si GECO est en maintenance
- *   envoyer({ email, sujet, texte, html }) ; lève une erreur `quota: true` si le quota est dépassé
+ *   lireEmail(userId) → adresse e-mail, ou null (compte supprimé) : appelée seulement pour les personnes qui ont un message
+ *   envoyer({ email, sujet, texte, html }) ; erreur `quota: true` (quota dépassé), `destinataire: true` (refus propre à
+ *                    ce destinataire) ou autre (erreur générale)
  *   ecrireEtat([{ cle_fonds, date_dic, frais, sri, valeur, date_valeur, historique, maj }])
+ *   effacerEtat([clés]) : retire l'état des fonds que plus personne ne suit
  *   lienDesinscription(userId, maintenant) → adresse du lien
- *   avertir(texte) → ::warning:: dans le journal de GitHub Actions
- * Renvoie { envoyes, alertes, erreurs, etatEcrit, raison } (raison : "maintenance", "quota", "envoi" ou null).
+ *   avertir(texte) → ::warning:: dans le journal de GitHub Actions (jamais d'adresse e-mail dedans)
+ * Renvoie { envoyes, alertes, ignores, erreurs, etatEcrit, raison } (raison : "maintenance", "quota", "envoi" ou null).
+ *
+ * Arrêt sans écrire l'état (les alertes repartent au prochain passage) : GECO en maintenance (avant tout envoi), quota Brevo
+ * dépassé, erreur générale d'envoi (clé refusée, 5xx, réseau). Les personnes déjà servies avant l'arrêt recevront donc
+ * le même message au passage suivant. Un refus propre à un destinataire (4xx) : cette personne est sautée, avec un
+ * avertissement, et l'état est écrit (sinon une adresse invalide bloquerait les alertes de tout le monde chaque jour).
  */
-export async function principal({ lireSuivis, lireEtat, lireFonds, envoyer, ecrireEtat, lienDesinscription,
+export async function principal({ lireSuivis, lireEtat, lireFonds, lireEmail, envoyer, ecrireEtat, effacerEtat, lienDesinscription,
   avertir = t => console.log(`::warning::${t}`), maintenant = new Date() }) {
   const abonnes = await lireSuivis();
   const cles = [...new Set(abonnes.flatMap(a => a.fonds || []))].sort();
-  const etat = (await lireEtat(cles)) || {};
+  const etat = (await lireEtat()) || {};
   const lignes = [], alertesParFonds = {}, erreurs = [];
+  const arret = (raison, envoyes = 0, alertes = 0) => ({ envoyes, alertes, ignores: 0, erreurs: erreurs.length, etatEcrit: false, raison });
 
   for (const cle of cles) {
     let lu;
@@ -245,7 +267,7 @@ export async function principal({ lireSuivis, lireEtat, lireFonds, envoyer, ecri
     catch (e) {
       if (e && e.maintenance) {
         avertir(`${e.message} : aucune alerte envoyée aujourd'hui, état inchangé`);
-        return { envoyes: 0, alertes: 0, erreurs: erreurs.length, etatEcrit: false, raison: "maintenance" };
+        return arret("maintenance");
       }
       erreurs.push(`${cle} : ${e && e.message}`);
       continue;
@@ -260,20 +282,32 @@ export async function principal({ lireSuivis, lireEtat, lireFonds, envoyer, ecri
   }
   if (erreurs.length) avertir(`${erreurs.length} fonds non lus (état inchangé pour eux) : ${erreurs.slice(0, 5).join(" ; ")}`);
 
-  const messages = regrouper(alertesParFonds, abonnes);
-  let envoyes = 0;
+  // Adresses lues avant tout envoi (une erreur arrête tout sans avoir rien envoyé), pour les seules personnes qui ont un message
+  const messages = [];
+  let sansAdresse = 0;
+  for (const m of regrouper(alertesParFonds, abonnes)) {
+    const email = await lireEmail(m.user_id);
+    if (email) messages.push({ ...m, email }); else sansAdresse++;
+  }
+
+  let envoyes = 0, ignores = 0;
   for (const m of messages) {
     const c = courriel(m.email, m.alertes, lienDesinscription(m.user_id, maintenant));
     try { await envoyer({ email: m.email, sujet: c.sujet, texte: c.texte, html: c.html }); envoyes++; }
     catch (e) {
+      if (e && e.destinataire) { ignores++; continue; }
       const quota = !!(e && e.quota);
-      avertir(`${quota ? "quota Brevo dépassé" : "échec d'un envoi"} (${e && e.message}) après ${envoyes} e-mail(s) : `
+      avertir(`${quota ? "quota Brevo dépassé" : "échec de l'envoi"} (${e && e.message}) après ${envoyes} e-mail(s) : `
         + "envoi arrêté, état inchangé (les alertes repartiront au prochain passage)");
-      return { envoyes, alertes: messages.length, erreurs: erreurs.length, etatEcrit: false, raison: quota ? "quota" : "envoi" };
+      return arret(quota ? "quota" : "envoi", envoyes, messages.length);
     }
   }
+  if (ignores) avertir(`${ignores} e-mail(s) refusé(s) par Brevo pour leur destinataire : ces personnes sont sautées`);
   if (lignes.length) await ecrireEtat(lignes);
-  return { envoyes, alertes: messages.length, erreurs: erreurs.length, etatEcrit: true, raison: null };
+  const suivis = new Set(cles);
+  const plusSuivis = Object.keys(etat).filter(c => !suivis.has(c));
+  if (plusSuivis.length) await effacerEtat(plusSuivis);
+  return { envoyes, alertes: messages.length, ignores: ignores + sansAdresse, erreurs: erreurs.length, etatEcrit: true, raison: null };
 }
 
 // ---------- Sources réelles (Supabase, GECO, fichiers du site) ----------
@@ -335,12 +369,13 @@ export function lireFondsReel(racine = RACINE, maintenant = () => new Date()) {
     }
     if (e.source === "G") {
       // Fonds français : DIC de la part (GECO) puis VL des 60 derniers jours (/funds/chart/<idInterne de la part>), comme la fiche
-      const dic = await lireDicGeco({ cmpId: e.cmpId, prdId: e.prdId, isin });
+      // Parts du compartiment lues une seule fois : pour le DIC de la part et pour l'idInterne de ses VL
+      const parts = await (await gecoFetch(`/funds/compartment/c${e.cmpId}/shares`)).json();
+      const dic = await lireDicGeco({ cmpId: e.cmpId, prdId: e.prdId, isin }, { parts });
       if (dic) {
         const r = resumeDic(extraireDic(dic.texte));
         Object.assign(res, { date_dic: dic.date || null, frais: r.frais, sri: r.sri });
       }
-      const parts = await (await gecoFetch(`/funds/compartment/c${e.cmpId}/shares`)).json();
       const part = (Array.isArray(parts) ? parts : []).find(p => p.isin === isin);
       if (part) {
         const debut = isoDuJour(new Date(maintenant().getTime() - JOURS_VL_GECO * 864e5));
@@ -380,15 +415,18 @@ function supabase(url, env, fetchImpl) {
       const abonnes = [];
       for (const [user_id, fonds] of parPersonne) {
         const p = prefs.get(user_id) || { ...PREFERENCES_PAR_DEFAUT };
-        if (!p.actives) continue;
-        // Adresse e-mail du compte : API d'administration de Supabase (clé service), comme supabase/functions/_partage/comptes.js
-        const r = await fetchImpl(`${url}/auth/v1/admin/users/${encodeURIComponent(user_id)}`, { headers: entetes });
-        if (r.status === 404) continue;   // compte supprimé entre-temps
-        if (!r.ok) throw new Error(`compte ${r.status}`);
-        const u = await r.json();
-        if (u && u.email) abonnes.push({ user_id, email: u.email, prefs: p, fonds });
+        if (p.actives) abonnes.push({ user_id, prefs: p, fonds });
       }
       return abonnes;
+    },
+    // Adresse e-mail d'un compte : API d'administration de Supabase (clé service), comme supabase/functions/_partage/comptes.js.
+    // null pour un compte supprimé entre-temps (404).
+    async lireEmail(user_id) {
+      const r = await fetchImpl(`${url}/auth/v1/admin/users/${encodeURIComponent(user_id)}`, { headers: entetes });
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error(`compte ${r.status}`);
+      const u = await r.json();
+      return (u && u.email) || null;
     },
     async lireEtat() {
       const lignes = await toutLire("etat_fonds_suivis?select=cle_fonds,date_dic,frais,sri,valeur,date_valeur,historique", "cle_fonds");
@@ -399,6 +437,15 @@ function supabase(url, env, fetchImpl) {
       for (let i = 0; i < lignes.length; i += 500) {
         const r = await fetchImpl(`${url}/rest/v1/etat_fonds_suivis`, { method: "POST",
           headers: { ...entetes, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(lignes.slice(i, i + 500)) });
+        if (!r.ok) throw new Error(`etat_fonds_suivis ${r.status}`);
+      }
+    },
+    // Clés entre guillemets dans le filtre « in » (elles ne contiennent que [A-Z0-9._-], vérifié par la table fonds_suivis)
+    async effacerEtat(cles) {
+      for (let i = 0; i < cles.length; i += 100) {
+        const liste = cles.slice(i, i + 100).map(c => `"${c}"`).join(",");
+        const r = await fetchImpl(`${url}/rest/v1/etat_fonds_suivis?cle_fonds=in.(${encodeURIComponent(liste)})`, { method: "DELETE",
+          headers: { ...entetes, Prefer: "return=minimal" } });
         if (!r.ok) throw new Error(`etat_fonds_suivis ${r.status}`);
       }
     }

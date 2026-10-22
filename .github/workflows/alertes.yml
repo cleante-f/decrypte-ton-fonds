@@ -1,14 +1,16 @@
 # Alertes par e-mail sur les fonds suivis (scripts/alertes.mjs).
-# Chaque jour à 5 h 05 UTC : relit les fonds suivis (DIC et valeurs), détecte les changements et envoie au plus un e-mail
+# Chaque jour à 6 h 20 UTC : relit les fonds suivis (DIC et valeurs), détecte les changements et envoie au plus un e-mail
 # par personne (API Brevo). L'état des fonds est rangé dans Supabase (table etat_fonds_suivis) : rien n'est écrit dans le dépôt.
 # Secrets GitHub à créer (Settings → Secrets and variables → Actions) : SUPABASE_SERVICE_ROLE_KEY, BREVO_API_KEY, ALERTES_SECRET
 # (le même secret que la fonction Supabase alertes-desinscription). Sans eux, la tâche s'arrête avec un avertissement.
 # L'adresse du projet Supabase est lue dans js/config-compte.js (ou dans la variable SUPABASE_URL si elle est définie).
+# Après un arrêt (quota Brevo, erreur d'envoi), l'état n'est pas écrit : un nouveau lancement, même manuel le jour même,
+# renverra le même e-mail aux personnes déjà servies avant l'arrêt.
 name: Alertes par e-mail
 
 on:
   schedule:
-    - cron: "5 5 * * *"   # chaque jour à 5 h 05 UTC (7 h 05 à Paris en été), hors des créneaux de la tâche des données
+    - cron: "20 6 * * *"   # chaque jour à 6 h 20 UTC : après le relevé des cours (cours.yml, 5 h 41 UTC), pour des cours du jour
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false   # la tâche n'écrit rien dans le dépôt
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

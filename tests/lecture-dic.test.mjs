@@ -70,3 +70,17 @@ test("lireDicGeco : le DIC de la part prime sur le prospectus du fonds ; sans DI
     }
   } finally { globalThis.fetch = reel; }
 });
+
+test("lireDicGeco : parts déjà lues par l'appelant (options.parts) → /shares n'est pas redemandé", async () => {
+  const appels = [];
+  const reel = globalThis.fetch;
+  globalThis.fetch = async url => {
+    appels.push(url.replace("https://geco.amf-france.org/back-office", ""));
+    return { ok: true, status: 200, json: async () => [] };
+  };
+  try {
+    const r = await lireDicGeco({ cmpId: 5, prdId: 6, isin: "FR1" }, { parts: [{ isin: "FR1", documentEsEntities: [] }] });
+    assert.equal(r, null);
+    assert.deepEqual(appels, ["/document/byCompartAndProduct?compartCode=c5&prdCode=p6"]);
+  } finally { globalThis.fetch = reel; }
+});

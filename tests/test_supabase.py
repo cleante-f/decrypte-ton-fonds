@@ -365,6 +365,15 @@ class TestSuiviAlertes(unittest.TestCase):
             s, lignes = http(f"/rest/v1/{table}?user_id=eq.{c_['id']}&select=user_id", cle=SECRET)
             self.assertEqual(lignes, [], table)                             # rien écrit au nom de ce compte
 
+    def test_adresse_lue_par_l_api_d_administration(self):
+        # scripts/alertes.mjs (lireEmail) lit l'adresse d'un titulaire par GET /auth/v1/admin/users/<id> avec la clé service :
+        # champ « email » ; un compte inconnu (supprimé entre-temps) répond 404
+        s, u = http(f"/auth/v1/admin/users/{self.a['id']}", cle=SECRET)
+        self.assertEqual(s, 200)
+        self.assertEqual(u["email"], self.a["email"])
+        s, _ = http("/auth/v1/admin/users/00000000-0000-4000-8000-000000000000", cle=SECRET)
+        self.assertEqual(s, 404)
+
     def test_suppression_du_compte_efface_fonds_suivis_et_preferences(self):
         c = creer_compte()                     # supprimé dans le test lui-même
         self.assertEqual(suivre(c, ["FR0011871128", "LU1681043599"])[0], 201)
