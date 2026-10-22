@@ -32,12 +32,12 @@ export function candidatsResumes(annuaire) {
   return res;
 }
 
-// Les jamais tentés d'abord (dans l'ordre de l'annuaire), puis par date croissante : la plus ancienne entre la lecture
-// et le dernier essai raté (resumes.essais), pour qu'un DIC illisible ne monopolise pas le plafond à chaque lancement.
+// Les jamais tentés d'abord (dans l'ordre de l'annuaire), puis par date croissante : la plus récente entre la lecture
+// et le dernier essai raté (date du dernier passage sur le fonds) (resumes.essais), pour qu'un DIC illisible ne monopolise pas le plafond à chaque lancement.
 export function aLire(candidats, resumes, max = MAX_DEFAUT) {
   const fonds = (resumes && resumes.fonds) || {};
   const essais = (resumes && resumes.essais) || {};
-  const date = c => [fonds[c.isin] && String(fonds[c.isin][5] || ""), essais[c.isin]].filter(Boolean).sort()[0] || "";
+  const date = c => [fonds[c.isin] && String(fonds[c.isin][5] || ""), essais[c.isin]].filter(Boolean).sort().pop() || "";
   const connu = c => fonds[c.isin] || essais[c.isin];
   const jamais = candidats.filter(c => !connu(c));
   const vus = candidats.filter(connu).sort((a, b) => date(a).localeCompare(date(b)));

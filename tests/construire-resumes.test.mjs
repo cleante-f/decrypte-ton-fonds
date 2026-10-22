@@ -32,10 +32,10 @@ test("aLire : jamais lus d'abord, puis dateLecture croissante, plafonné", () =>
   assert.deepEqual(aLire(cand, null, 2).map(x => x.isin), ["a", "b"]);
 });
 
-test("aLire : les essais ratés comptent comme tentés (jamais tentés d'abord, puis le plus ancien)", () => {
+test("aLire : les essais ratés comptent comme tentés (jamais tentés d'abord, puis la date du dernier passage, lecture ou essai raté, la plus ancienne d'abord)", () => {
   const cand = ["a", "b", "c", "d"].map(isin => ({ isin }));
-  const resumes = { fonds: { a: [1, 2, "", "", "", "2026-10-05"] }, essais: { b: "2026-10-21", c: "2026-09-01", a: "2026-10-20" } };
-  assert.deepEqual(aLire(cand, resumes).map(x => x.isin), ["d", "c", "a", "b"]);
+  const resumes = { fonds: { a: [1, 2, "", "", "", "2026-10-05"] }, essais: { b: "2026-10-21", c: "2026-09-01", a: "2026-10-22" } };
+  assert.deepEqual(aLire(cand, resumes).map(x => x.isin), ["d", "c", "b", "a"]);
 });
 
 test("fusionner : essais ratés notés, effacés une fois lus, retirés si le fonds disparaît", () => {
