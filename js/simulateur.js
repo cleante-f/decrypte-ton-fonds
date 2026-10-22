@@ -685,7 +685,7 @@ zoneResultats.addEventListener("click", e => {
   if (ajout) { ajouterFonds(ajout.dataset.cible, ajout.dataset.ajouterFonds); return; }
   if (e.target.closest("#analyser-contrat")) { analyserContrat(); return; }
   const retirerContrat = e.target.closest("[data-retirer-contrat]");
-  if (retirerContrat) { S.contrat.lignes.splice(Number(retirerContrat.dataset.retirerContrat), 1); S.contrat.calc = null; rendrePanneau(); programmerEnregistrement(); return; }
+  if (retirerContrat) { if (S.contrat.enCours) return; S.contrat.perime = false; S.contrat.lignes.splice(Number(retirerContrat.dataset.retirerContrat), 1); S.contrat.calc = null; rendrePanneau(); programmerEnregistrement(); return; }
 });
 
 // ---------- Résumé en tête ----------
@@ -1278,7 +1278,7 @@ zoneResultats.addEventListener("input", e => {
   const montant = e.target.closest("[data-montant]");
   if (montant) {
     const ligne = S.contrat.lignes[Number(montant.dataset.montant)];
-    if (!ligne) return;
+    if (!ligne || S.contrat.enCours) return;   // montants figés pendant le chargement des analyses
     ligne.montant = montantContrat(montant.value);
     programmerEnregistrement();
     const el = document.getElementById("total-contrat");
@@ -1315,9 +1315,11 @@ async function ajouterFonds(cible, cle) {
   } else if (cible === "contrat") {
     // Pas de chargement ici : les analyses se chargent avec le bouton « Analyser mon contrat ». Un même fonds peut être saisi deux fois
     // (il sera signalé comme doublon).
-    if (S.contrat.lignes.length >= CONTRAT_MAX_FONDS) return;
+    // Pendant le chargement des analyses, les lignes sont figées : aucune ligne ne serait analysée ni signalée à tort « non analysé »
+    if (S.contrat.lignes.length >= CONTRAT_MAX_FONDS || S.contrat.enCours) return;
     S.contrat.lignes.push({ entree, isin, montant: 0 });
     S.contrat.calc = null;
+    S.contrat.perime = false;
     if (S.mode === "contrat") rendrePanneau();
     programmerEnregistrement();
   } else {
@@ -1560,9 +1562,10 @@ async function analyserContrat() {
 function calculContrat(lignes) {
   const valides = lignes.filter(l => l.montant > 0);
   if (!valides.length) return { erreur: "montant" };
-  const analyses = valides.filter(l => l.A), nonAnalyses = valides.filter(l => !l.A);
+  // « non analysé » = chargement tenté et en échec ; une ligne jamais tentée (impossible : lignes figées pendant le chargement) est à part
+  const analyses = valides.filter(l => l.A), nonAnalyses = valides.filter(l => !l.A && l.erreur), nonTentees = valides.filter(l => !l.A && !l.erreur);
   const somme = ls => ls.reduce((s, l) => s + l.montant, 0);
-  const base = { analyses, nonAnalyses, total: somme(valides), totalAnalyse: somme(analyses), montantNonAnalyse: somme(nonAnalyses) };
+  const base = { analyses, nonAnalyses, nonTentees, total: somme(valides), totalAnalyse: somme(analyses), montantNonAnalyse: somme(nonAnalyses) };
   if (!analyses.length) return { ...base, erreur: "aucun" };
   const cumul = cumulContrat(analyses.map(l => ({ montant: l.montant, expo: l.A.expo })));
   for (const cle of ["zones", "classes", "devises"]) {
@@ -1596,7 +1599,8 @@ function resultatContrat(R) {
   if (R.erreur === "montant") return `<p class="non-dispo">Indique au moins un montant (en euros) pour analyser ton contrat.</p>`;
   const court = n => n.length > 48 ? n.slice(0, 46) + "…" : n;
   const nonAnalyse = R.nonAnalyses.length ? `<p class="note">Non analysé : ${euros(R.montantNonAnalyse)} (${R.nonAnalyses.map(l => esc(court(l.entree.nom))).join(", ")}) : les données de ${R.nonAnalyses.length > 1 ? "ces fonds" : "ce fonds"} n'ont pas pu être chargées.${R.analyses.length ? ` Les calculs portent sur les ${euros(R.totalAnalyse)} restants.` : ""}</p>` : "";
-  if (R.erreur === "aucun") return `${nonAnalyse}<p class="non-dispo">Aucun fonds n'a pu être analysé : réessaie dans un moment.</p>`;
+  const attente = R.nonTentees && R.nonTentees.length ? `<p class="note">Pas encore analysé : ${R.nonTentees.map(l => esc(court(l.entree.nom))).join(", ")}. Clique de nouveau sur « Analyser mon contrat ».</p>` : "";
+  if (R.erreur === "aucun") return attente + (R.nonAnalyses.length ? `${nonAnalyse}<p class="non-dispo">Aucun fonds n'a pu être analysé : réessaie dans un moment.</p>` : "");
   const seuils = chargerSeuils();
   const alertes = alertesContrat(R.cumul, seuils);
   const nom = i => esc(court(R.analyses[i].entree.nom));
@@ -1608,7 +1612,7 @@ function resultatContrat(R) {
     if (l.A.sec) sources.add("SEC (EDGAR)");
     if (["E", "U", "R"].includes(l.entree.source)) sources.add("ESMA (registres des fonds)");
   }
-  return `${nonAnalyse}
+  return `${nonAnalyse}${attente}
     <h3>Exposition cumulée</h3>
     <p class="aide">Moyenne des expositions de chaque fonds, pondérée par son montant (${euros(R.totalAnalyse)} analysés).</p>
     ${alertes.length ? `<ul class="liste-alertes">${alertes.map(a => `<li class="alerte alerte-${a.niveau}">${pastille(a.niveau)}<div><strong>${esc(a.titre)}</strong><p>${esc(a.explication)}</p></div></li>`).join("")}</ul>` : ""}
@@ -1643,17 +1647,18 @@ function panneauContrat() {
   const C = S.contrat, lignes = C.lignes;
   const total = lignes.reduce((s, l) => s + l.montant, 0);
   const court = n => n.length > 40 ? n.slice(0, 38) + "…" : n;
+  const fige = C.enCours ? " disabled" : "";   // lignes figées pendant le chargement des analyses
   const etat = l => l.enCours ? " · chargement…" : l.erreur ? ` · non analysé (${esc(l.erreur)})` : total > 0 && l.montant > 0 ? ` · ${pct(l.montant / total * 100, 0)} du contrat` : "";
   return `<section class="carte">
     <h2>Radiographie de mon contrat</h2>
     <p class="aide">Tes fonds et leurs montants : exposition cumulée, doublons, frais en euros. Saisis les fonds de ton assurance-vie ou de ton PEA (${CONTRAT_MAX_FONDS} au plus) et le montant placé sur chacun.</p>
     ${lignes.length ? `<ul class="lignes-portefeuille">${lignes.map((l, i) => `<li>
       <span class="ligne-nom">${esc(court(l.entree.nom))}<small>${esc(l.isin || "")}${etat(l)}</small></span>
-      <label class="ligne-poids"><input type="number" min="0" step="1" inputmode="numeric" value="${l.montant}" data-montant="${i}" aria-label="Montant placé sur ${esc(l.entree.nom)}, en euros"> €</label>
-      <button type="button" class="retirer" data-retirer-contrat="${i}" aria-label="Retirer ${esc(l.entree.nom)}">×</button></li>`).join("")}</ul>
+      <label class="ligne-poids"><input type="number" min="0" step="1" inputmode="numeric" value="${l.montant}" data-montant="${i}"${fige} aria-label="Montant placé sur ${esc(l.entree.nom)}, en euros"> €</label>
+      <button type="button" class="retirer" data-retirer-contrat="${i}"${fige} aria-label="Retirer ${esc(l.entree.nom)}">×</button></li>`).join("")}</ul>
       <p id="total-contrat">${texteTotalContrat()}</p>` : ""}
     <div class="boutons">
-      ${lignes.length < CONTRAT_MAX_FONDS ? champAjoutFonds("contrat", "Ajouter un fonds de ton contrat (nom, ISIN, ticker)")
+      ${C.enCours ? `<p class="aide">Ajout et modification possibles à la fin de l'analyse.</p>` : lignes.length < CONTRAT_MAX_FONDS ? champAjoutFonds("contrat", "Ajouter un fonds de ton contrat (nom, ISIN, ticker)")
         : `<p class="aide">${CONTRAT_MAX_FONDS} fonds au plus : retire une ligne pour en ajouter une autre.</p>`}
       <button type="button" class="btn" id="analyser-contrat"${!lignes.length || C.enCours ? " disabled" : ""}>Analyser mon contrat</button>
     </div>

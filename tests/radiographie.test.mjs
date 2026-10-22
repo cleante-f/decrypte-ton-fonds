@@ -288,3 +288,54 @@ test("simulateur, contrat : enregistrement et relecture d'un contrat de 2 lignes
   assert.equal(S2.restauration, null);
 });
 const cleEntreeDe = (ctx, l) => ctx.cleEntree(l.entree, l.isin);
+
+test("simulateur, contrat : lignes figées pendant le chargement ; une ligne jamais tentée n'est pas « non analysé »", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  await ctx.ajouterFonds("contrat", "FR0011111111");
+  S.contrat.lignes[0].montant = 1000;
+  const attente = ctx.analyserContrat();
+  const pendant = ctx.panneauContrat();
+  assert.ok(/data-montant="0" disabled/.test(pendant), "montant figé");
+  assert.ok(/data-retirer-contrat="0" disabled/.test(pendant), "retrait figé");
+  assert.ok(!pendant.includes('data-recherche-fonds="contrat"'), "pas d'ajout pendant le chargement");
+  await ctx.ajouterFonds("contrat", "FR0033333333");
+  assert.equal(S.contrat.lignes.length, 1, "ajout refusé pendant le chargement");
+  await attente;
+  assert.ok(!/data-montant="0" disabled/.test(ctx.panneauContrat()), "lignes réactivées à la fin");
+  // Une ligne avec un montant mais jamais chargée : « pas encore analysé », jamais « non analysé »
+  await ctx.ajouterFonds("contrat", "FR0033333333");
+  S.contrat.lignes[1].montant = 500;
+  const R = ctx.calculContrat(S.contrat.lignes);
+  assert.equal(R.nonAnalyses.length, 0);
+  assert.equal(R.montantNonAnalyse, 0);
+  S.contrat.calc = R;
+  const html = sans(ctx.panneauContrat());
+  assert.ok(html.includes("Pas encore analysé : FONDS OBLIGATIONS EURO"), html);
+  assert.ok(!html.includes("Non analysé"));
+});
+
+test("simulateur, contrat : nom de fonds avec du HTML échappé", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  vm.runInContext(`FONDS_TEST.FRHTML = { source: "G", cmpId: 9, nom: "<img src=x onerror=alert(1)>", isins: ["FRHTML"], pays: "FR" };`, ctx);
+  await ctx.ajouterFonds("contrat", "FRHTML");
+  S.contrat.lignes[0].montant = 1000;
+  await ctx.analyserContrat();
+  const html = ctx.panneauContrat();
+  assert.ok(!html.includes("<img"), "aucune balise injectée");
+  assert.ok(html.includes("&lt;img"));
+});
+
+test("simulateur, contrat : simulation enregistrée sans « contrat » (ancienne) relue sans erreur", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  S.restauration = { plan: {}, mode: "contrat", comparaisons: [], portefeuille: [] };
+  await ctx.restaurerExtras(null);
+  assert.equal(S.contrat.lignes.length, 0);
+  assert.equal(S.restauration, null);
+  assert.ok(sans(ctx.panneauContrat()).includes("Radiographie de mon contrat"));
+});
