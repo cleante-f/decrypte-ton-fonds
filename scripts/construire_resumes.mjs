@@ -18,16 +18,24 @@ const ENTETE = "/* Généré par scripts/construire_resumes.mjs — ne pas modif
 const MAX_DEFAUT = 2500;
 const PAUSE_MS = 500;
 
+// Règle des fonds avec une page (js/adresses.js) et lecture des lignes de l'annuaire (lireEntree, js/geco.js) : le code du site,
+// chargé avec node:vm, pour que les résumés et les pages suivent la même règle
+const site = vm.createContext({});
+for (const f of ["js/geco.js", "js/adresses.js"]) vm.runInContext(readFileSync(join(RACINE, f), "utf8"), site, { filename: f });
+const lireEntree = vm.runInContext("lireEntree", site);
+const fondsAvecPage = vm.runInContext("fondsAvecPage", site);
+
 // Lignes de l'annuaire : [source, cmpId, prdId, nom, gestionnaire, classification, nature, isins, date, pays, tickers, marchés, devise, etf, public]
-// Fonds G ouverts à tous, avec un ISIN, hors FCPE et hors HSBC (données interdites sans accord écrit). Clé = ISIN de la première part.
+// Fonds G qui ont une page (ouverts à tous, avec un ISIN valide, hors FCPE et hors HSBC). Clé = ISIN de la première part.
 export function candidatsResumes(annuaire) {
   const res = [], vus = new Set();
   for (const l of annuaire) {
-    if (l[0] !== "G" || l[14] !== 1 || !l[7] || /FCPE/i.test(l[6]) || /HSBC/i.test(l[4])) continue;
-    const isin = l[7].split(" ")[0];
+    const e = lireEntree(l);
+    if (e.source !== "G" || !fondsAvecPage(e)) continue;
+    const isin = e.isins[0];
     if (vus.has(isin)) continue;
     vus.add(isin);
-    res.push({ isin, nom: l[3], cmpId: l[1], prdId: l[2] });
+    res.push({ isin, nom: e.nom, cmpId: e.cmpId, prdId: e.prdId });
   }
   return res;
 }

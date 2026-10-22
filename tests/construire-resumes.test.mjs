@@ -10,18 +10,19 @@ import { candidatsResumes, aLire, lireMorceau, fusionner, ecrire, garde } from "
 
 const ligne = (cmpId, nom, isins, extra = {}) =>
   ["G", cmpId, cmpId, nom, extra.gest ?? "SOCIETE", "", extra.nature ?? "FCP", isins, "", "FR", "", "", "", 0, extra.pub ?? 1];
-const A = ligne(1, "Fonds A", "FR0000000001 FR0000000011");
+const A = ligne(1, "Fonds A", "FR0000000010 FR0000000011");
 const B = ligne(2, "Fonds B", "FR0000000002");
 const FCPE = ligne(3, "Fonds FCPE", "FR0000000003", { nature: "FCPE" });
 const HSBC = ligne(4, "Fonds HSBC", "FR0000000004", { gest: "HSBC ASSET MANAGEMENT (FRANCE)" });
 const PRIVE = ligne(5, "Fonds privé", "FR0000000005", { pub: 0 });
 const SANS = ligne(6, "Fonds sans ISIN", "");
+const MASQUE = ligne(8, "Fonds à l'ISIN masqué", "XXXXXXXXXXXX");
 const ETF = ["E", 0, 0, "ETF coté", "", "", "", "LU0000000007", "", "LU", "ETF", "Paris", "EUR", 1, 1];
 
 test("candidatsResumes : G publics avec ISIN, hors FCPE, HSBC, non publics ; ISIN de la première part", () => {
-  const c = candidatsResumes([A, B, FCPE, HSBC, PRIVE, SANS, ETF, A]);
-  assert.deepEqual(c.map(x => x.isin), ["FR0000000001", "FR0000000002"]);
-  assert.deepEqual(c[0], { isin: "FR0000000001", nom: "Fonds A", cmpId: 1, prdId: 1 });
+  const c = candidatsResumes([A, B, FCPE, HSBC, PRIVE, SANS, MASQUE, ETF, A]);
+  assert.deepEqual(c.map(x => x.isin), ["FR0000000010", "FR0000000002"]);
+  assert.deepEqual(c[0], { isin: "FR0000000010", nom: "Fonds A", cmpId: 1, prdId: 1 });
 });
 
 test("aLire : jamais lus d'abord, puis dateLecture croissante, plafonné", () => {

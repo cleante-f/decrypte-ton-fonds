@@ -85,7 +85,7 @@ html:not([data-heberge-par="cloudflare"]) [data-si-hebergeur="cloudflare"] { dis
 
 /* ---------- Recherche ---------- */
 .recherche { padding: 24px 0 16px; }
-.recherche h1 { font-size: 1.6rem; margin: 0 0 4px; }
+.recherche h1, .recherche h2 { font-size: 1.6rem; margin: 0 0 4px; }
 .sous-titre { margin: 0 0 16px; color: var(--texte-2); }
 #form-recherche { display: flex; gap: 8px; }
 #champ-recherche {
