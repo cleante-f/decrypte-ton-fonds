@@ -21,6 +21,7 @@ en mode gratuit (voir « Deux modes selon l'adresse »).
 | `confidentialite.html` | **Confidentialité** : responsables, données transmises à des tiers, stockage dans le navigateur, droits (RGPD), bouton d'effacement. Deux versions du texte selon le mode (voir plus bas) |
 | `mentions-legales.html` | **Mentions légales** : éditeurs, hébergeur, contenus et sources. Deux versions du texte selon le mode |
 | `simulateur.html` | **Simulateur** : projection d'un investissement (scénarios, Monte Carlo, frais, inflation, fiscalité, crises, objectif, comparaison, portefeuille, contexte et risques). Libre et sans compte en mode gratuit ; réservé aux comptes en mode comptes |
+| `alertes-desactivees.html` | **Alertes désactivées** : page où le lien de désinscription des e-mails d'alerte renvoie (réussite, lien expiré ou erreur) ; mode comptes seulement |
 | `connexion.html`, `compte.html`, `abonnement.html`, `cgv.html` | **Pages de compte** (connexion, espace personnel, abonnement, conditions de vente) : elles ne servent qu'en mode comptes |
 
 Le fonds consulté est dans l'adresse (`#ISIN`) : les onglets et les boutons « Voir le graphique des performances » /
@@ -430,6 +431,55 @@ générées par `scripts/construire_pages.mjs`, donnent donc à chaque fonds une
 2. Choisir la vérification par balise HTML et coller la valeur fournie dans `<meta name="google-site-verification" content="">` de `index.html`, puis publier.
 3. Cliquer sur « Vérifier », puis soumettre `sitemap.xml` (menu « Sitemaps »). L'indexation prend ensuite plusieurs semaines.
 
+## Liste de suivi et alertes e-mail (mode comptes)
+
+Une personne connectée peut suivre jusqu'à 30 fonds et recevoir un e-mail quand l'un d'eux change. Tout est décrit dans la version « comptes »
+de `confidentialite.html`.
+
+**Tables Supabase** (migration `supabase/migrations/20261022000000_suivi_alertes.sql`) :
+- `fonds_suivis` : les fonds suivis par chaque personne (code du fonds, date d'ajout). Limite de 30 par personne, vérifiée par la base ;
+- `preferences_alertes` : l'interrupteur, les types d'alerte (nouveau DIC, frais, risque), le seuil de baisse (5, 10 ou 20 %) et les réglages de la fiche ;
+- `etat_fonds_suivis` : le dernier état public de chaque fonds suivi (date du DIC, frais, SRI, valeur, historique récent). Pas de données personnelles ;
+  seule la tâche quotidienne la lit et l'écrit (clé « service »).
+
+Les deux premières tables sont effacées avec le compte (cascade). Le navigateur ne voit que ses propres lignes.
+
+**Dans le site** : le bouton « ☆ Suivre ce fonds » est sur la fiche (`js/fiche-auto.js`, `js/app.js`). « Mon compte » a une section « Mes fonds suivis »
+(retirer un fonds) et une section « Alertes par e-mail » (interrupteur, types, seuil).
+
+**La tâche quotidienne** : `.github/workflows/alertes.yml` lance `scripts/alertes.mjs` chaque jour à 6 h 20 UTC (après le relevé des cours).
+Pour chaque fonds suivi, elle lit :
+- fonds français : le DIC (AMF, base GECO) et les valeurs liquidatives des 60 derniers jours (GECO) ;
+- fonds coté à Francfort (Xetra) : les cours de `data/cours/` ;
+- fonds américain : les rendements mensuels de la SEC (`data/etats-unis/`).
+
+Elle compare avec l'état de la veille, puis envoie **au plus un e-mail par personne et par jour** (API Brevo), qui regroupe ses alertes.
+L'adresse e-mail est lue dans le compte au moment de l'envoi, pour les seules personnes qui ont une alerte. Au premier passage d'un fonds,
+rien n'est envoyé : on enregistre seulement son état. Rien n'est écrit dans le dépôt.
+
+**En cas d'échec** : si GECO est en maintenance (HTTP 418) ou si le quota de Brevo est dépassé, rien n'est envoyé (ou l'envoi s'arrête),
+l'état n'est pas modifié, et les alertes repartent au passage suivant. Une adresse refusée par Brevo est simplement sautée.
+
+**Désinscription** : chaque e-mail contient un lien signé, valable 60 jours. Il appelle la fonction Supabase `alertes-desinscription`
+(`supabase/functions/alertes-desinscription/`), qui coupe les alertes du compte puis renvoie vers `alertes-desactivees.html`.
+Les personnes les réactivent dans « Mon compte ».
+
+**Secrets à créer par toi** (GitHub : Settings → Secrets and variables → Actions) :
+- `SUPABASE_SERVICE_ROLE_KEY` : clé « service » de Supabase (jamais dans le code) ;
+- `BREVO_API_KEY` : clé de l'API Brevo ;
+- `ALERTES_SECRET` : un texte secret long et aléatoire, qui signe les liens de désinscription. Il est recopié dans Supabase par
+  `supabase.yml` au prochain lancement de ce workflow.
+
+Sans ces secrets, la tâche s'arrête avec un avertissement et n'envoie rien.
+
+**Limites à connaître** :
+- l'alerte « nouveau DIC » (et celles de frais et de risque, qui en dépendent) ne marche que si GECO publie un DIC pour le fonds ;
+- fonds américains : une seule valeur par mois, donc la baisse n'est vue qu'une fois par mois ;
+- fonds d'HSBC Asset Management : aucune alerte (données interdites sans accord écrit) ;
+- Brevo gratuit : 300 e-mails par jour, donc au plus 300 personnes alertées par jour ;
+- 30 fonds suivis au plus par personne ;
+- certaines messageries ouvrent d'elles-mêmes les liens des e-mails : elles peuvent couper des alertes sans que la personne l'ait voulu.
+
 ## Données personnelles (RGPD)
 
 **Mode gratuit** (GitHub Pages, adresse principale de Cloudflare) : pas de compte, pas de cookie, pas de mesure d'audience.
@@ -440,7 +490,7 @@ récupéré par la tâche quotidienne. Stockage local (`localStorage`) :
 
 **Mode comptes** (aperçu, `localhost`) : en plus, un cookie `dtf_session` et la session `compte-session-v1` pour les visiteurs connectés ;
 le navigateur contacte aussi Supabase (comptes, simulations enregistrées), Stripe (paiement) et, sur la page de connexion, Cloudflare
-Turnstile (anti-robot). Brevo envoie les e-mails du compte. Tout est décrit dans la version « comptes » de `confidentialite.html`.
+Turnstile (anti-robot). Brevo envoie les e-mails du compte et les alertes sur les fonds suivis (voir « Liste de suivi et alertes e-mail »). Tout est décrit dans la version « comptes » de `confidentialite.html`.
 
 Toute nouvelle clé de stockage doit être ajoutée à `CLES_STOCKAGE_SITE` (`js/outils.js`) et décrite sur `confidentialite.html`.
 Tout nouveau service contacté par le navigateur doit aussi y être décrit.

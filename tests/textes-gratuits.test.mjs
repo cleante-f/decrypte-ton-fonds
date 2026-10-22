@@ -113,8 +113,8 @@ test("un seul hébergeur visible en mode gratuit", () => {
   }
 });
 
-test("dates de mise à jour (confidentialité : 11 octobre 2026, mentions légales : 7 octobre 2026), communes aux deux modes", () => {
-  for (const [nom, date] of [["confidentialite", "11 octobre 2026"], ["mentions-legales", "7 octobre 2026"]])
+test("dates de mise à jour (confidentialité : 22 octobre 2026, mentions légales : 7 octobre 2026), communes aux deux modes", () => {
+  for (const [nom, date] of [["confidentialite", "22 octobre 2026"], ["mentions-legales", "7 octobre 2026"]])
     assert.ok(texte(communATous(nom)).includes(`Page mise à jour le ${date}.`), nom);
 });
 
