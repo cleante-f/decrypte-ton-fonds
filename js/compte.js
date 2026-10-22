@@ -166,7 +166,7 @@ const Compte = (() => {
   // même à 30 fonds) et la fusion des préférences s'appuient sur la clé primaire, qui le contient.
   const cleSuivi = cle => String(cle || "").trim().toUpperCase();   // clé d'adresse du site (cleEntree), en majuscules en base
   const moi = () => { const s = session(); return s && s.user && s.user.id; };
-  const fondsSuivis = async () => ((await rest("fonds_suivis?select=cle_fonds&order=ajoute_le.asc")) || []).map(l => l.cle_fonds);
+  const fondsSuivis = async () => ((await rest("fonds_suivis?select=cle_fonds")) || []).map(l => l.cle_fonds).sort();
   const suivreFonds = cle => rest("fonds_suivis", { methode: "POST", corps: { user_id: moi(), cle_fonds: cleSuivi(cle) },
     entetes: { Prefer: "return=minimal,resolution=ignore-duplicates" } });
   const nePlusSuivre = cle => rest(`fonds_suivis?cle_fonds=eq.${encodeURIComponent(cleSuivi(cle))}`, { methode: "DELETE", entetes: { Prefer: "return=minimal" } });
@@ -185,7 +185,7 @@ const Compte = (() => {
 
   async function exporterDonnees() {
     const [u, p, sims, suivis, prefs] = await Promise.all([utilisateur(), profil(), rest("simulations?select=*&order=cree_le.asc"),
-      rest("fonds_suivis?select=*&order=ajoute_le.asc"), rest("preferences_alertes?select=*")]);
+      rest("fonds_suivis?select=*"), rest("preferences_alertes?select=*")]);
     return JSON.stringify({ exporte_le: new Date().toISOString(), site: "Décrypte ton fonds",
       compte: { id: u.id, email: u.email, cree_le: u.created_at, derniere_connexion: u.last_sign_in_at }, profil: p, simulations: sims,
       fonds_suivis: suivis, preferences_alertes: (prefs || [])[0] || null }, null, 2);

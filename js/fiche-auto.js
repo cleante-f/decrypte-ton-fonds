@@ -894,12 +894,14 @@ const TEXTE_SUIVRE = "☆ Suivre ce fonds", TEXTE_SUIVI = "★ Suivi";
 function suiviPossible() {
   return typeof modeSite === "function" && typeof location !== "undefined" && modeSite(location.hostname) === "comptes" && typeof Compte !== "undefined";
 }
+// Sans session (ou session expirée) : lien vers la connexion, qui ramène sur la fiche
+function lienConnexionSuivi(cle) {
+  return `<a class="btn btn-secondaire btn-suivre" data-seulement="comptes" title="Connecte-toi pour suivre ce fonds et recevoir ses alertes par e-mail"
+      href="${esc(racineSite())}connexion.html?vue=connexion&amp;retour=${encodeURIComponent("decrypte.html#" + cle)}">${TEXTE_SUIVRE}</a>`;
+}
 function boutonSuivi(cle) {
   if (!suiviPossible()) return "";
-  if (!Compte.session()) {
-    return `<a class="btn btn-secondaire btn-suivre" data-seulement="comptes" title="Connecte-toi pour suivre ce fonds et recevoir ses alertes par e-mail"
-      href="${esc(racineSite())}connexion.html?vue=connexion&amp;retour=${encodeURIComponent("decrypte.html#" + cle)}">${TEXTE_SUIVRE}</a>`;
-  }
+  if (!Compte.session()) return lienConnexionSuivi(cle);
   const suivi = !!FONDS_SUIVIS && FONDS_SUIVIS.has(cle);
   return `<button type="button" class="btn btn-secondaire btn-suivre" data-seulement="comptes" data-suivre="${esc(cle)}" aria-pressed="${suivi}">${suivi ? TEXTE_SUIVI : TEXTE_SUIVRE}</button>
       <span class="message-suivi" data-seulement="comptes" data-message-suivi role="status" aria-live="polite"></span>`;
@@ -916,7 +918,8 @@ async function chargerSuivis() {
   if (!suiviPossible() || !Compte.session()) return;
   try { FONDS_SUIVIS = new Set(await Compte.fondsSuivis()); majBoutonsSuivi(); } catch (e) { /* boutons laissés à « Suivre » */ }
 }
-// Clic : suit le fonds, ou ne le suit plus s'il l'est déjà. Erreur (limite de 30 fonds, session expirée…) : message près du bouton.
+// Clic : suit le fonds, ou ne le suit plus s'il l'est déjà. Erreur (limite de 30 fonds…) : message près du bouton ;
+// session expirée : le bouton redevient le lien vers la connexion.
 async function cliquerSuivi(bouton) {
   const cle = bouton.dataset.suivre, suivi = bouton.getAttribute("aria-pressed") === "true";
   const message = bouton.parentNode && bouton.parentNode.querySelector("[data-message-suivi]");
@@ -928,7 +931,8 @@ async function cliquerSuivi(bouton) {
     if (suivi) FONDS_SUIVIS.delete(cle); else FONDS_SUIVIS.add(cle);
     majBoutonsSuivi();
   } catch (err) {
-    if (message) message.textContent = err.message;
+    if (err.code === "non_connecte") bouton.outerHTML = lienConnexionSuivi(cle);   // session expirée : se reconnecter
+    else if (message) message.textContent = err.message;
   } finally {
     bouton.disabled = false;
   }

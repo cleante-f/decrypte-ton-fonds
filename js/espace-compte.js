@@ -42,17 +42,35 @@ async function entreeSuivie(cle) {
     return await entreeParCle(cle);
   } catch (e) { return null; }
 }
+// Dernières valeurs connues : résumés publics des DIC (data/resumes.js, chargé seulement s'il y a des fonds suivis),
+// RESUMES.fonds[ISIN] = [frais, sri, durée, objectif, date du DIC, date de lecture]. Aucun autre accès à la base.
+async function chargerResumes() {
+  try { if (typeof RESUMES === "undefined") await chargerScript("data/resumes.js"); } catch (e) { /* valeurs non affichées */ }
+}
+const dateJma = iso => String(iso).slice(0, 10).split("-").reverse().join("/");
+function valeursSuivi(cle) {
+  const r = typeof RESUMES !== "undefined" && RESUMES && RESUMES.fonds && Object.prototype.hasOwnProperty.call(RESUMES.fonds, cle) ? RESUMES.fonds[cle] : null;
+  if (!r) return "Pas de DIC publié sur GECO";
+  const parties = [];
+  if (typeof r[0] === "number") parties.push(`Frais ${pct(r[0], 2)}`);
+  if (typeof r[1] === "number") parties.push(`Risque ${r[1]}/7`);
+  if (/^\d{4}-\d{2}-\d{2}/.test(r[4] || "")) parties.push(`DIC du ${dateJma(r[4])}`);
+  return parties.length ? parties.join(" · ") : "Pas de DIC publié sur GECO";
+}
 function ligneSuivi(cle, e) {
   const lien = (e && adresseFonds(e)) || `decrypte.html#${encodeURIComponent(cle)}`;
   return `<li data-cle="${esc(cle)}">
     <a href="${esc(lien)}"><strong>${esc(e ? e.nom : cle)}</strong></a>
     <small>${esc(cle)}${e && e.gestionnaire ? ` · ${esc(e.gestionnaire)}` : ""}</small>
+    <small>${esc(valeursSuivi(cle))}</small>
     <span class="actions-ligne"><button type="button" class="lien-bouton" data-ne-plus-suivre>Ne plus suivre</button></span></li>`;
 }
 async function rafraichirSuivis() {
   const cles = await Compte.fondsSuivis();
-  const entrees = await Promise.all(cles.map(entreeSuivie));
-  document.getElementById("liste-suivis").innerHTML = cles.length ? cles.map((c, i) => ligneSuivi(c, entrees[i])).join("")
+  const [entrees] = await Promise.all([Promise.all(cles.map(entreeSuivie)), cles.length ? chargerResumes() : null]);
+  const nom = i => (entrees[i] ? entrees[i].nom : cles[i]);
+  const ordre = cles.map((c, i) => i).sort((a, b) => nom(a).localeCompare(nom(b), "fr"));   // par nom de fonds
+  document.getElementById("liste-suivis").innerHTML = cles.length ? ordre.map(i => ligneSuivi(cles[i], entrees[i])).join("")
     : `<li>Aucun fonds suivi pour l'instant. Ouvre la fiche d'un fonds et clique sur « ☆ Suivre ce fonds ».</li>`;
 }
 

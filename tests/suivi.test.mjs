@@ -49,9 +49,9 @@ test("suivreFonds : 31e fonds refusé avec un message clair", async () => {
 });
 
 test("fondsSuivis et nePlusSuivre", async () => {
-  const n = navigateur([{ statut: 200, corps: [{ cle_fonds: "FR0011871128" }, { cle_fonds: "S000002839" }] }, { statut: 204 }]);
-  assert.deepEqual(JSON.parse(JSON.stringify(await n.Compte.fondsSuivis())), ["FR0011871128", "S000002839"]);
-  assert.match(n.appels[0].url, /\/rest\/v1\/fonds_suivis\?select=cle_fonds&order=ajoute_le\.asc$/);
+  const n = navigateur([{ statut: 200, corps: [{ cle_fonds: "S000002839" }, { cle_fonds: "FR0011871128" }] }, { statut: 204 }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(await n.Compte.fondsSuivis())), ["FR0011871128", "S000002839"]);   // triés dans le navigateur
+  assert.match(n.appels[0].url, /\/rest\/v1\/fonds_suivis\?select=cle_fonds$/);
   await n.Compte.nePlusSuivre("s000002839");
   assert.match(n.appels[1].url, /\/rest\/v1\/fonds_suivis\?cle_fonds=eq\.S000002839$/);
   assert.equal(n.appels[1].options.method, "DELETE");
@@ -99,7 +99,7 @@ function fiche(hote, compte) {
 function fauxBouton(cle) {
   const message = { textContent: "" };
   const attributs = { "aria-pressed": "false" };
-  return { dataset: { suivre: cle }, textContent: "☆ Suivre ce fonds", disabled: false, message,
+  return { dataset: { suivre: cle }, textContent: "☆ Suivre ce fonds", disabled: false, message, outerHTML: "<button>",
     getAttribute: n => attributs[n], setAttribute: (n, v) => { attributs[n] = String(v); },
     parentNode: { querySelector: () => message } };
 }
@@ -148,6 +148,16 @@ test("bouton Suivre : limite de 30 fonds → message, bouton inchangé", async (
   assert.equal(b.disabled, false);
 });
 
+test("bouton Suivre : session expirée → le bouton devient le lien de connexion", async () => {
+  const c = fiche("localhost", { session: () => ({ user: { id: "u1" } }),
+    suivreFonds: async () => { throw Object.assign(new Error("Ta session a expiré : reconnecte-toi."), { code: "non_connecte" }); } });
+  const b = fauxBouton("FR0011871128");
+  c._boutons = [b];
+  await c.cliquerSuivi(b);
+  assert.match(b.outerHTML, /^<a [^>]*href="connexion\.html\?vue=connexion&amp;retour=decrypte\.html%23FR0011871128"[^>]*>☆ Suivre ce fonds<\/a>$/);
+  assert.equal(b.message.textContent, "");
+});
+
 test("chargerSuivis : lit la liste une fois connecté, rien en mode gratuit ni sans session", async () => {
   let lu = 0;
   const compte = s => ({ session: () => s, fondsSuivis: async () => { lu++; return ["FR0011871128"]; } });
@@ -169,8 +179,8 @@ function element(id) {
   return { id, ecouteurs, addEventListener: (t, fn) => { ecouteurs[t] = fn; }, querySelector: () => element(), querySelectorAll: () => [],
     hidden: false, textContent: "", className: "", innerHTML: "", value: "", checked: false, dataset: {} };
 }
-async function monCompte({ suivis = ["FR0011871128"], preferences, entrees = {} } = {}) {
-  const els = {}, appels = [];
+async function monCompte({ suivis = ["FR0011871128"], preferences, entrees = {}, resumes = null } = {}) {
+  const els = {}, appels = [], scripts = [];
   const el = id => (els[id] ||= element(id));
   const Compte = {
     session: () => ({ user: { id: "u1" } }), droits: async () => ({ offertes_restantes: 3 }), simulations: async () => [],
@@ -183,13 +193,15 @@ async function monCompte({ suivis = ["FR0011871128"], preferences, entrees = {} 
     console, URLSearchParams, modeSite, Compte, CONFIG_COMPTE: { simulationsOffertes: 3 },
     esc: s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
     location: { hostname: "localhost", search: "", replace() {}, href: "" },
-    entreeParCle: async cle => entrees[cle] || null, adresseFonds: e => e.page || null, chargerScript: async () => {}, zoneDeCle: () => "europe",
+    entreeParCle: async cle => entrees[cle] || null, adresseFonds: e => e.page || null, zoneDeCle: () => "europe",
+    chargerScript: async src => { scripts.push(src); if (src === "data/resumes.js" && resumes) ctx.RESUMES = resumes; },
     ANNUAIRE: [],
     document: { getElementById: el, querySelector: el, addEventListener: (t, fn) => { el("document").ecouteurs[t] = fn; } }
   });
+  vm.runInContext(lire("js/outils.js"), ctx, { filename: "js/outils.js" });   // pct
   vm.runInContext(lire("js/espace-compte.js"), ctx, { filename: "js/espace-compte.js" });
   for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
-  return { els, appels, ctx };
+  return { els, appels, ctx, scripts };
 }
 
 test("Mon compte : fonds suivis listés, nom échappé, lien vers la page du fonds sinon decrypte.html#", async () => {
@@ -206,9 +218,28 @@ test("Mon compte : fonds suivis listés, nom échappé, lien vers la page du fon
   assert.equal((html.match(/Ne plus suivre/g) || []).length, 3);
 });
 
-test("Mon compte : aucun fonds suivi → explication", async () => {
-  const { els } = await monCompte({ suivis: [] });
+test("Mon compte : aucun fonds suivi → explication, ni résumés ni annuaire chargés", async () => {
+  const { els, scripts } = await monCompte({ suivis: [] });
   assert.match(els["liste-suivis"].innerHTML, /Aucun fonds suivi/);
+  assert.deepEqual(scripts, []);
+});
+
+test("Mon compte : dernières valeurs connues lues dans data/resumes.js, fonds triés par nom", async () => {
+  const { els, scripts } = await monCompte({ suivis: ["FR0000000085", "FR0000974685", "S000002839"],
+    entrees: { FR0000000085: { nom: "ZETA" }, FR0000974685: { nom: "ALPHA" }, S000002839: { nom: "MILIEU" } },
+    resumes: { maj: "2026-10-22", fonds: { FR0000000085: [2.39, 3, "5 ans", "…", "2026-04-24", "2026-10-22"],
+      FR0000974685: [null, 4, "5 ans", "…", "2024-03-04", "2026-10-22"] } } });
+  const html = els["liste-suivis"].innerHTML;
+  assert.deepEqual(scripts, ["data/resumes.js"]);
+  assert.ok(html.includes("Frais 2,39 % · Risque 3/7 · DIC du 24/04/2026"), html);
+  assert.ok(html.includes("Risque 4/7 · DIC du 04/03/2024") && !html.includes("Frais n.d."));
+  assert.ok(html.includes("Pas de DIC publié sur GECO"));
+  assert.ok(html.indexOf("ALPHA") < html.indexOf("MILIEU") && html.indexOf("MILIEU") < html.indexOf("ZETA"));
+});
+
+test("Mon compte : résumés indisponibles → « Pas de DIC publié sur GECO », la liste s'affiche quand même", async () => {
+  const { els } = await monCompte({ suivis: ["FR0011871128"], entrees: { FR0011871128: { nom: "AMUNDI" } } });
+  assert.ok(els["liste-suivis"].innerHTML.includes("AMUNDI") && els["liste-suivis"].innerHTML.includes("Pas de DIC publié sur GECO"));
 });
 
 test("Mon compte : « Ne plus suivre » retire le fonds et met la liste à jour", async () => {
@@ -262,6 +293,31 @@ test("réglages du compte : l'emportent sur ceux du navigateur, valeurs invalide
   assert.equal(s.inconnu, undefined);
   assert.deepEqual(ecrits, []);
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.reglagesPourCompte(s))).pays, { orange: 30, rouge: 45 });
+});
+
+// Fonctions de js/app.js isolées (le script entier demande toute la page Décrypte)
+function fonctionsApp(noms) {
+  const js = lire("js/app.js");
+  return noms.map(n => { const m = js.match(new RegExp(`^(?:const ${n} = [^\\n]*;|function ${n}\\([\\s\\S]*?\\n\\})`, "m")); assert.ok(m, n); return m[0]; }).join("\n");
+}
+
+test("app.js : réglages non enregistrés dans le compte → note dans le panneau des réglages", async () => {
+  const panneau = { hidden: true, innerHTML: "" }, attributs = {};
+  const ctx = vm.createContext({ modeSite, location: { hostname: "localhost" }, panneau, seuils: {},
+    btnReglages: { setAttribute: (n, v) => { attributs[n] = v; } }, esc: s => s, reglagesPourCompte: s => s, afficherReglages: () => "<form></form>",
+    Compte: { session: () => ({}), enregistrerReglagesFiche: async () => { throw new Error("panne"); } } });
+  vm.runInContext(fonctionsApp(["NOTE_REGLAGES_LOCAUX", "connecteEnModeComptes", "enregistrerReglagesDansLeCompte"]), ctx);
+  await ctx.enregistrerReglagesDansLeCompte();
+  assert.equal(panneau.innerHTML, '<p class="note note-erreur" role="status">Réglages gardés sur cet appareil seulement : enregistrement dans ton compte impossible pour le moment.</p><form></form>');
+  assert.equal(panneau.hidden, false);
+  assert.equal(attributs["aria-expanded"], "true");
+  // Réussite, ou mode gratuit : panneau inchangé
+  const p2 = { hidden: true, innerHTML: "" };
+  Object.assign(ctx, { panneau: p2, Compte: { session: () => ({}), enregistrerReglagesFiche: async () => {} } });
+  await ctx.enregistrerReglagesDansLeCompte();
+  ctx.location = { hostname: "cleante-f.github.io" };
+  await ctx.enregistrerReglagesDansLeCompte();
+  assert.deepEqual([p2.hidden, p2.innerHTML], [true, ""]);
 });
 
 test("app.js : réglages enregistrés aussi dans le compte, et suivis lus, quand on est connecté en mode comptes", () => {

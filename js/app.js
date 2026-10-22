@@ -326,11 +326,16 @@ function connecteEnModeComptes() {
   return typeof Compte !== "undefined" && typeof modeSite === "function" && modeSite(location.hostname) === "comptes" && !!Compte.session();
 }
 
-// Réglages enregistrés aussi dans le compte ; « Valeurs par défaut » les efface du compte. En cas d'échec, ceux du navigateur restent.
+// Réglages enregistrés aussi dans le compte ; « Valeurs par défaut » les efface du compte.
+// En cas d'échec, ceux du navigateur restent, et le panneau des réglages le dit.
+const NOTE_REGLAGES_LOCAUX = "Réglages gardés sur cet appareil seulement : enregistrement dans ton compte impossible pour le moment.";
 function enregistrerReglagesDansLeCompte(parDefaut = false) {
-  if (!connecteEnModeComptes()) return;
-  Compte.enregistrerReglagesFiche(parDefaut ? {} : reglagesPourCompte(seuils))
-    .catch(err => console.warn("Réglages non enregistrés dans le compte :", err.message));
+  if (!connecteEnModeComptes()) return Promise.resolve();
+  return Compte.enregistrerReglagesFiche(parDefaut ? {} : reglagesPourCompte(seuils)).catch(() => {
+    panneau.innerHTML = `<p class="note note-erreur" role="status">${esc(NOTE_REGLAGES_LOCAUX)}</p>${afficherReglages(seuils)}`;
+    panneau.hidden = false;
+    btnReglages.setAttribute("aria-expanded", "true");
+  });
 }
 
 if (connecteEnModeComptes()) {
