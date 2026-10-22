@@ -135,7 +135,7 @@ son plan et les options avancées (inflation, frais, fiscalité française, prim
 8. **Mon contrat** (onglet « Mon contrat », calculs dans `js/radiographie.js`, panneau dans `js/simulateur.js`) : radiographie d'un contrat
    (assurance-vie, PEA, compte-titres…). L'utilisateur ajoute jusqu'à 15 fonds avec un montant en euros, puis clique sur « Analyser mon contrat ».
    Le site calcule :
-   - **l'exposition cumulée** du contrat par zone géographique, classe d'actifs et devise, pondérée par les montants, avec des alertes par zone ;
+   - **l'exposition cumulée** du contrat par zone géographique, classe d'actifs et devise, pondérée par les montants, avec des alertes par zone calculées sur la seule part en actions ;
    - **les doublons**, à deux niveaux : deux fonds qui suivent le même indice (ou le même fonds), et deux fonds dont le recouvrement zone × classe atteint 80 % ;
    - **les frais en euros par an** : frais connus lus dans le DIC, dans le résumé de prospectus SEC ou dans `data/alternatives.js`. Un fonds aux frais inconnus est
      exclu du calcul et le total est alors annoncé « au moins » ; le **coût sur 10 ans** (rendement brut supposé de 5 %, comme le simulateur) ;

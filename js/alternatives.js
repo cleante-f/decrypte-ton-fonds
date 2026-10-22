@@ -101,13 +101,16 @@ function fraisDuFondsAnalyse(d, e, isin) {
   if (dic && Number.isFinite(dic.gestion)) return dic.gestion + (Number.isFinite(dic.transaction) ? dic.transaction : 0);
   const f = d && d.sec && d.sec.frais;
   if (f && Number.isFinite(f.retenu)) return f.retenu;
-  const isins = new Set([isin, ...(e && e.isins || [])].filter(Boolean));
+  return fraisDansAlternatives([isin, ...(e && e.isins || [])]);
+}
+
+// Frais annuels (en %) de la première ligne de ALTERNATIVES dont l'ISIN figure dans `isins`, sinon null
+function fraisDansAlternatives(isins) {
+  const set = new Set((isins || []).filter(Boolean));
   const indices = typeof ALTERNATIVES !== "undefined" && ALTERNATIVES && ALTERNATIVES.indices ? ALTERNATIVES.indices : {};
-  for (const liste of Object.values(indices)) {
-    for (const row of Array.isArray(liste) ? liste : []) {
-      if (isins.has(row[1]) && Number.isFinite(row[3])) return row[3];
-    }
-  }
+  for (const liste of Object.values(indices))
+    for (const row of Array.isArray(liste) ? liste : [])
+      if (set.has(row[1]) && Number.isFinite(row[3])) return row[3];
   return null;
 }
 

@@ -1553,7 +1553,8 @@ async function analyserContrat() {
     }
   };
   try { await Promise.all(Array.from({ length: Math.min(CONTRAT_PARALLELE, file.length) }, travailleur)); } finally { C.enCours = false; }
-  C.calc = calculContrat(C.lignes);
+  try { C.calc = calculContrat(C.lignes); }
+  catch (err) { console.error(err); C.calc = { erreur: "aucun", analyses: [], nonAnalyses: [], nonTentees: [] }; }
   rendre();
 }
 
@@ -1573,6 +1574,8 @@ function calculContrat(lignes) {
     const reste = 100 - cumul[cle].reduce((s, x) => s + x.poids, 0);
     if (reste >= 0.5) cumul[cle].push({ nom: CONTRAT_NON_CLASSE, poids: Math.round(reste * 10) / 10 });   // fonds sans exposition connue
   }
+  cumul.zonesActions = zonesActionsContrat(analyses.map(l => ({ montant: l.montant, expo: l.A.expo })))
+    .map(x => ({ nom: x.nom, poids: Math.round(x.poids * 10) / 10 }));
   return { ...base, cumul,
     doublons: doublonsContrat(analyses.map(l => ({ entree: l.entree, montant: l.montant, expo: l.A.expo }))),
     frais: fraisContrat(analyses.map(l => ({ entree: l.entree, isin: l.isin, montant: l.montant, A: l.A }))) };
@@ -1582,10 +1585,11 @@ function calculContrat(lignes) {
 function alertesContrat(cumul, seuils) {
   const alertes = [];
   const niveau = (v, s) => v > s.rouge ? "rouge" : v > s.orange ? "orange" : null;
-  for (const z of cumul.zones.filter(x => x.nom !== CONTRAT_NON_CLASSE)) {
+  // Zones : seulement la part en actions (un contrat prudent en fonds euros ou obligataires de la zone euro n'est pas « concentré »)
+  for (const z of cumul.zonesActions || []) {
     const n = niveau(z.poids, seuils.pays);
-    if (n) alertes.push({ niveau: n, titre: `${z.nom} : ${Math.round(z.poids)} % du contrat`,
-      explication: "Une grande partie du contrat dépend des marchés de cette zone : s'ils baissent, ces fonds baissent ensemble." });
+    if (n) alertes.push({ niveau: n, titre: `${z.nom} : ${Math.round(z.poids)} % de la part en actions`,
+      explication: "Une grande partie de tes actions dépend des marchés de cette zone : s'ils baissent, ces fonds baissent ensemble." });
   }
   const horsEuro = cumul.devises.filter(x => x.nom !== "EUR" && x.nom !== CONTRAT_NON_CLASSE).reduce((s, x) => s + x.poids, 0);
   const n = niveau(horsEuro, seuils.devise);

@@ -226,7 +226,7 @@ test("simulateur, contrat : 2 fonds analysés et un fonds en échec -> expositio
   assert.ok(html.includes("Radiographie de mon contrat"));
   assert.ok(html.includes("Exposition cumulée"));
   assert.ok(html.includes("Amérique du Nord") && html.includes("60,0 %") && html.includes("Zone euro") && html.includes("40,0 %"), html);
-  assert.ok(html.includes("Amérique du Nord : 60 % du contrat"), "alerte au-delà du seuil d'un pays (50 %)");
+  assert.ok(html.includes("Amérique du Nord : 100 % de la part en actions"), "alerte de zone sur la part en actions (seuil d'un pays : 50 %)");
   assert.ok(html.includes("Doublons"));
   assert.ok(html.includes("Aucun doublon repéré"));
   assert.ok(html.includes("360 € par an"), "60 000 € à 0,6 %");
@@ -337,5 +337,98 @@ test("simulateur, contrat : simulation enregistrée sans « contrat » (ancienne
   await ctx.restaurerExtras(null);
   assert.equal(S.contrat.lignes.length, 0);
   assert.equal(S.restauration, null);
+  assert.ok(sans(ctx.panneauContrat()).includes("Radiographie de mon contrat"));
+});
+
+// ---------- Corrections de la revue finale ----------
+
+test("fraisDansAlternatives : frais d'après l'ISIN, null sinon", () => {
+  assert.equal(c.fraisDansAlternatives(["XX", "FR0022222222"]), 0.05);
+  assert.equal(c.fraisDansAlternatives(["XX", null]), null);
+  assert.equal(c.fraisDansAlternatives(undefined), null);
+});
+
+test("fraisContrat : coût sur 10 ans exact, fonds par fonds (pas de frais moyen)", () => {
+  const lignes = [
+    { entree: ent("FONDS CHER", 3, "FR3"), isin: "FR3", montant: 90000, A: A(2.5, "dic") },
+    { entree: ent("FONDS PEU CHER", 4, "FR4"), isin: "FR4", montant: 10000, A: A(0.1, "dic") }];
+  const attendu = Math.round([[90000, 2.5], [10000, 0.1]].reduce((s, [m, f]) => s + c.valeurFinale(m, 5, 10) - c.valeurFinale(m, 5 - f, 10), 0));
+  const r = simple(c.fraisContrat(lignes));
+  assert.equal(r.cout10ans, attendu);
+  const moyen = 0.9 * 2.5 + 0.1 * 0.1;
+  const ancien = Math.round(c.valeurFinale(100000, 5, 10) - c.valeurFinale(100000, 5 - moyen, 10));
+  assert.notEqual(r.cout10ans, ancien, "plus de frais moyen");
+  // un fonds aux frais inconnus n'entre pas dans le coût
+  const r2 = simple(c.fraisContrat([...lignes, { entree: ent("INCONNU", 5, "FR5"), isin: "FR5", montant: 5000, A: A(2, "hypothese") }]));
+  assert.equal(r2.cout10ans, attendu);
+});
+
+test("fraisContrat : alternative déjà dans le contrat -> « (déjà dans ton contrat) »", () => {
+  const e = ent("AMUNDI PEA S&P 500", 1, "FR0011111111");
+  const bnp = ent("BNP S&P 500 UCITS ETF", 2, "FR0022222222");
+  const seul = simple(c.fraisContrat([{ entree: e, isin: "FR0011111111", montant: 10000, A: A(0.6, "dic") }]));
+  assert.equal(seul.parFonds[0].alternative.nom, "BNP S&P 500 UCITS ETF");
+  const deux = simple(c.fraisContrat([
+    { entree: e, isin: "FR0011111111", montant: 10000, A: A(0.6, "dic") },
+    { entree: bnp, isin: "FR0022222222", montant: 5000, A: A(0.05, "dic") }]));
+  assert.equal(deux.parFonds[0].alternative.nom, "BNP S&P 500 UCITS ETF (déjà dans ton contrat)");
+  assert.equal(deux.parFonds[0].alternative.cle, "G2");
+});
+
+test("doublonsContrat : un fonds proche d'un seul membre d'un groupe -> une entrée avec tout le groupe", () => {
+  const r = simple(c.doublonsContrat([
+    { entree: ent("AMUNDI S&P 500", 1, "FR1"), montant: 1000, expo: [ex("usa")] },
+    { entree: ent("BNP S&P 500 UCITS", 2, "FR2"), montant: 2000, expo: [ex("usa", 50), ex("euro", 50)] },
+    { entree: ent("FONDS ACTIF X", 9, "FR9"), montant: 4000, expo: [ex("usa", 90), ex("euro", 10)] }]));
+  assert.equal(r.memes.length, 1);
+  assert.deepEqual(r.memes[0].fonds, [0, 1]);
+  assert.equal(r.proches.length, 1);
+  assert.deepEqual(r.proches[0].fonds, [0, 1, 2]);
+  assert.equal(r.proches[0].montant, 7000);
+  assert.equal(r.proches[0].recouvrement, 90);
+});
+
+test("doublonsContrat : deux fonds du même groupe ne sont jamais « proches » entre eux", () => {
+  const r = simple(c.doublonsContrat([
+    { entree: ent("AMUNDI S&P 500", 1, "FR1"), montant: 1000, expo: [ex("usa")] },
+    { entree: ent("BNP S&P 500 UCITS", 2, "FR2"), montant: 2000, expo: [ex("usa")] },
+    { entree: ent("AMUNDI S&P 500 B", 3, "FR3"), montant: 3000, expo: [ex("usa")] }]));
+  assert.equal(r.memes.length, 1);
+  assert.equal(r.proches.length, 0);
+});
+
+const contratAvec = async (fonds) => {
+  const ctx = pageSimu();
+  const lignes = fonds.map(([nom, montant, expo]) => ({ entree: { source: "G", cmpId: 1, nom, isins: [nom], pays: "FR" }, isin: nom, montant,
+    A: { expo, ter: 1, terSource: "dic" } }));
+  const R = ctx.calculContrat(lignes);
+  return { ctx, R, alertes: simple(ctx.alertesContrat(R.cumul, ctx.chargerSeuils())) };
+};
+
+test("alertes de zone sur la part en actions : contrat 100 % obligations euro -> aucune alerte de zone", async () => {
+  const { alertes } = await contratAvec([["OBLIG A", 5000, [{ cle: "oblig10", poids: 100 }]], ["OBLIG B", 5000, [{ cle: "oblig10", poids: 100 }]]]);
+  assert.deepEqual(alertes.filter(a => /Zone euro|Amérique/.test(a.titre)), []);
+});
+
+test("alertes de zone sur la part en actions : 90 % actions américaines -> alerte", async () => {
+  const { alertes } = await contratAvec([["USA", 9000, [{ cle: "usa", poids: 100 }]], ["OBLIG", 1000, [{ cle: "oblig10", poids: 100 }]]]);
+  const a = alertes.find(x => x.titre.startsWith("Amérique du Nord"));
+  assert.ok(a, JSON.stringify(alertes));
+  assert.ok(a.titre.includes("de la part en actions"), a.titre);
+});
+
+test("simulateur, contrat : calculContrat qui échoue -> champs réactivés, pas de rejet", async () => {
+  const ctx = pageSimu();
+  const S = vm.runInContext("S", ctx);
+  S.mode = "contrat";
+  await ctx.ajouterFonds("contrat", "FR0011111111");
+  S.contrat.lignes[0].montant = 1000;
+  vm.runInContext(`calculContrat = () => { throw new Error("boum"); };`, ctx);
+  const erreurs = [];
+  ctx.console = { ...console, error: (...a) => erreurs.push(a) };
+  await ctx.analyserContrat();   // ne doit pas rejeter
+  assert.equal(S.contrat.enCours, false);
+  assert.equal(S.contrat.calc.erreur, "aucun");
+  assert.ok(!/data-montant="0" disabled/.test(ctx.panneauContrat()), "champs réactivés");
   assert.ok(sans(ctx.panneauContrat()).includes("Radiographie de mon contrat"));
 });

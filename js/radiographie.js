@@ -55,6 +55,22 @@ function poidsZoneClasse(expo) {
   return m;
 }
 
+// Zones de la seule part « Actions » du contrat (poids en % de l'exposition en actions), triées par ordre décroissant
+function zonesActionsContrat(lignes) {
+  const zones = new Map();
+  let total = 0;
+  for (const l of lignes || []) {
+    if (!(l.montant > 0)) continue;
+    for (const [k, p] of poidsZoneClasse(l.expo)) {
+      const [classe, zone] = k.split("|");
+      if (classe !== "Actions") continue;
+      radioAjouter(zones, zone, p * l.montant);
+      total += p * l.montant;
+    }
+  }
+  return total > 0 ? radioTrier(new Map([...zones].map(([z, v]) => [z, v / total * 100]))) : [];
+}
+
 // Doublons : lignes = [{entree, montant, expo}]
 // memes = fonds identiques (même indice ou même fonds) ; proches = recouvrement zone × classe ≥ 80 %, hors paires des « memes »
 function doublonsContrat(lignes) {
@@ -84,50 +100,66 @@ function doublonsContrat(lignes) {
     memes.push({ fonds: g, raison: toutPareil ? "fonds" : "indice", montant: g.reduce((s, i) => s + (lignes[i].montant || 0), 0) });
   }
   const poids = lignes.map(l => poidsZoneClasse(l.expo));
-  const proches = [];
+  // Un fonds d'un groupe « memes » est traité avec tout son groupe : une proximité avec l'un de ses membres vaut pour le groupe entier
+  const unite = lignes.map((_, i) => memes.findIndex(m => m.fonds.includes(i)));   // numéro de groupe, -1 si aucun
+  const membres = i => unite[i] >= 0 ? memes[unite[i]].fonds : [i];
+  const parUnites = new Map();
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-    if (paireMeme.has(i + "," + j)) continue;
+    if (paireMeme.has(i + "," + j) || (unite[i] >= 0 && unite[i] === unite[j])) continue;
     let recouvrement = 0;
     for (const [k, p] of poids[i]) if (poids[j].has(k)) recouvrement += Math.min(p, poids[j].get(k));
     recouvrement = Math.round(recouvrement * 100) / 100;
-    if (recouvrement >= RADIO_SEUIL_PROCHES) proches.push({ fonds: [i, j], recouvrement, montant: (lignes[i].montant || 0) + (lignes[j].montant || 0) });
+    if (recouvrement < RADIO_SEUIL_PROCHES) continue;
+    const fonds = [...new Set([...membres(i), ...membres(j)])].sort((x, y) => x - y);
+    const cle = fonds.join(",");
+    const deja = parUnites.get(cle);
+    if (deja) deja.recouvrement = Math.max(deja.recouvrement, recouvrement);
+    else parUnites.set(cle, { fonds, recouvrement, montant: fonds.reduce((s, k) => s + (lignes[k].montant || 0), 0) });
   }
+  const proches = [...parUnites.values()];
   return { memes, proches };
 }
 
 // Frais annuels connus (en %) d'un fonds : DIC ou SEC (A.terSource), sinon ligne de ALTERNATIVES portant son ISIN, sinon null
 function fraisConnusContrat(entree, isin, A) {
   if (A && Number.isFinite(A.ter) && (A.terSource === "dic" || A.terSource === "sec")) return A.ter;
-  const isins = new Set([isin, ...(entree && entree.isins || [])].filter(Boolean));
+  return fraisDansAlternatives([isin, ...(entree && entree.isins || [])]);
+}
+
+// ISIN de la ligne de ALTERNATIVES portant cette clé, ou null
+function isinDeAlternative(cle) {
   const indices = typeof ALTERNATIVES !== "undefined" && ALTERNATIVES && ALTERNATIVES.indices ? ALTERNATIVES.indices : {};
   for (const liste of Object.values(indices))
-    for (const row of Array.isArray(liste) ? liste : [])
-      if (isins.has(row[1]) && Number.isFinite(row[3])) return row[3];
+    for (const row of Array.isArray(liste) ? liste : []) if (row[0] === cle) return row[1];
   return null;
 }
 
 // Frais du contrat : lignes = [{entree, isin, montant, A}]
 function fraisContrat(lignes) {
-  let totalAnnuel = 0, connus = 0, inconnus = 0, montantConnu = 0, fraisPonderes = 0;
-  const parFonds = lignes.map(l => {
+  let totalAnnuel = 0, connus = 0, inconnus = 0;
+  const parFonds = lignes.map((l, idx) => {
     const montant = l.montant > 0 ? l.montant : 0;
     const frais = fraisConnusContrat(l.entree, l.isin, l.A);
     if (frais === null) { inconnus++; return { frais: null, coutAnnuel: null, alternative: null }; }
     const coutAnnuel = montant * frais / 100;
     connus++;
     totalAnnuel += coutAnnuel;
-    montantConnu += montant;
-    fraisPonderes += montant * frais;
     let alternative = null;
     const r = choisirAlternatives(l.entree, frais, null, []);
     const meilleure = r.lignes.find(x => x.economie !== null && x.economie > 0);
-    if (meilleure) alternative = { nom: meilleure.nom, cle: meilleure.cle, frais: meilleure.frais, economieAnnuelle: montant * (frais - meilleure.frais) / 100 };
+    if (meilleure) {
+      // Si l'alternative est déjà dans le contrat (même ISIN ou même clé), on le dit : il suffit de regrouper
+      const isinAlt = isinDeAlternative(meilleure.cle);
+      const dejaDetenue = lignes.some((x, k) => k !== idx && ((x.isin && x.isin === isinAlt) || (x.entree && ((x.entree.isins || []).includes(isinAlt) || x.entree.source + x.entree.cmpId === meilleure.cle))));
+      alternative = { nom: meilleure.nom + (dejaDetenue ? " (déjà dans ton contrat)" : ""), cle: meilleure.cle, frais: meilleure.frais, economieAnnuelle: montant * (frais - meilleure.frais) / 100 };
+    }
     return { frais, coutAnnuel, alternative };
   });
+  // Coût sur 10 ans : somme, fonds par fonds, de la perte due aux frais (exacte, sans frais moyen)
   let cout10ans = null;
-  if (connus > 0 && montantConnu > 0) {
-    const moyens = fraisPonderes / montantConnu;
-    cout10ans = Math.round(valeurFinale(montantConnu, RADIO_RENDEMENT_BRUT, RADIO_ANNEES) - valeurFinale(montantConnu, RADIO_RENDEMENT_BRUT - moyens, RADIO_ANNEES));
-  } else if (connus > 0) cout10ans = 0;
+  if (connus > 0) cout10ans = Math.round(lignes.reduce((s, l, i) => {
+    const frais = parFonds[i].frais, montant = l.montant > 0 ? l.montant : 0;
+    return frais === null ? s : s + valeurFinale(montant, RADIO_RENDEMENT_BRUT, RADIO_ANNEES) - valeurFinale(montant, RADIO_RENDEMENT_BRUT - frais, RADIO_ANNEES);
+  }, 0));
   return { parFonds, totalAnnuel: connus > 0 ? totalAnnuel : null, auMoins: inconnus > 0, cout10ans, inconnus };
 }
