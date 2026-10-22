@@ -136,7 +136,7 @@ function blocAlternatives(e, d, chargement, isin) {
   if (r.dejaMoinsCher) html += `<p>C'est déjà l'un des fonds les moins chers sur cet indice : nous n'avons pas trouvé d'alternative qui coûte moins.</p>`;
   else if (!r.lignes.length) html += `<p>Nous n'avons trouvé aucune alternative moins chère dans nos données.</p>`;
   if (r.lignes.length) {
-    html += `<ul class="similaires">${r.lignes.map(l => `<li><a href="#${esc(l.cle)}">${esc(l.nom)}</a>
+    html += `<ul class="similaires">${r.lignes.map(l => `<li><a href="${esc(lienAutreFonds(l.cle))}">${esc(l.nom)}</a>
       <small>${l.etf ? "ETF" : "fonds"}${l.pea ? " · éligible au PEA (d'après le nom)" : ""} · ${l.frais !== null ? `frais ${pct(l.frais, 2)} / an` : "frais non publiés dans nos sources"}${l.economie !== null
         ? ` · Sur 10 000 € placés ${ALT_ANNEES} ans, environ ${euros(l.economie)} de plus à l'arrivée (rendement brut supposé ${ALT_RENDEMENT_BRUT} % par an)` : ""}</small></li>`).join("")}</ul>`;
   }

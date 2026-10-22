@@ -8,6 +8,13 @@
 
 // ---------- Outils ----------
 
+// Racine du site vue de la page, à placer devant les chemins construits par les scripts (data/…, decrypte.html…) :
+// "" sur les pages de la racine, "../" sur les pages rangées dans un dossier (fonds/…, classements/…).
+// Fixée par js/mode-site.js (RACINE_SITE), premier script de chaque page ; "" si elle manque.
+function racineSite() {
+  return typeof globalThis.RACINE_SITE === "string" ? globalThis.RACINE_SITE : "";
+}
+
 // Met en minuscules et enlève les accents : « Société » → « societe »
 function normaliser(texte) {
   return String(texte || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();

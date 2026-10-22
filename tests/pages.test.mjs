@@ -180,3 +180,23 @@ test("simulateur : data/alternatives.js, js/alternatives.js (après style.js, av
   assert.ok(routes.exclude.length <= 100);
   assert.ok(!routes.exclude.some(c => c.includes("*")));
 });
+
+// ---- Pages fixes des fonds (fonds/…) : adresses dans les trois outils, balise de Google sur l'accueil ----
+test("décrypte, performances, simulateur : js/adresses.js juste après js/etats-unis.js (donc après js/geco.js) et avant js/affichage.js ; _routes.json", () => {
+  for (const nom of ["decrypte", "performances", "simulateur"]) {
+    const scripts = [...lirePage(nom).matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+    const place = src => { const i = scripts.indexOf(src); assert.ok(i >= 0, `${nom} : ${src} absent`); return i; };
+    assert.equal(place("js/adresses.js"), place("js/etats-unis.js") + 1, `${nom} : js/adresses.js juste après js/etats-unis.js`);
+    assert.ok(place("js/adresses.js") > place("js/geco.js"), `${nom} : js/adresses.js après js/geco.js (lireEntree, lignesParIsin)`);
+    assert.ok(place("js/adresses.js") < place("js/affichage.js"), `${nom} : js/adresses.js avant js/affichage.js`);
+    assert.equal(place("js/mode-site.js"), 0, `${nom} : js/mode-site.js en premier (il fixe RACINE_SITE)`);
+  }
+  const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
+  assert.ok(routes.exclude.includes("/js/adresses.js"));
+  assert.ok(routes.exclude.length <= 100);
+  assert.ok(!routes.exclude.some(c => c.includes("*")));
+});
+
+test("accueil : emplacement de la balise de vérification de Google Search Console (vide)", () => {
+  assert.ok(lirePage("index").includes('<meta name="google-site-verification" content="">'));
+});

@@ -35,7 +35,10 @@ const Compte = (() => {
 
   const base = () => CONFIG_COMPTE.supabaseUrl.replace(/\/$/, "");
   const secondes = () => Math.floor(Date.now() / 1000);
-  const urlPage = page => new URL(page, location.href).href;
+  // Pages du compte, à la racine du site : RACINE_SITE (js/mode-site.js) vaut "../" sur une page rangée dans un dossier.
+  // Même règle que racineSite() (js/outils.js), que l'accueil ne charge pas.
+  const racine = () => (typeof globalThis.RACINE_SITE === "string" ? globalThis.RACINE_SITE : "");
+  const urlPage = page => new URL(racine() + page, location.href).href;
 
   function session() {
     try { return JSON.parse(localStorage.getItem(CLE_SESSION) || "null"); } catch (e) { return null; }
@@ -172,7 +175,7 @@ const Compte = (() => {
     if (!lien) return;
     const connecte = !!session();
     lien.textContent = connecte ? "Mon compte" : "Se connecter";
-    lien.href = connecte ? "compte.html" : "connexion.html";
+    lien.href = racine() + (connecte ? "compte.html" : "connexion.html");
   }
 
   return { ErreurCompte, session, jetonValide, inscrire, connecter, deconnecter, motDePasseOublie, changerMotDePasse, changerEmail,

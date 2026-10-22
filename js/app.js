@@ -1,7 +1,13 @@
 /*
  * Chef d'orchestre : recherche, navigation (#ISIN dans l'adresse), réglages et infobulles.
+ *
+ * Page fixe d'un fonds (fonds/…, scripts/construire_pages.mjs) : la page définit FICHE_FIXE (ISIN du fonds) juste avant ce script.
+ * Sans « # » dans l'adresse, elle ouvre ce fonds sous son résumé ; un « # » l'emporte. Une recherche qui trouve un autre fonds
+ * mène à decrypte.html#… (le résumé de la page ne parle que de son fonds).
  */
 let seuils = chargerSeuils();
+const ficheFixe = typeof FICHE_FIXE === "string" ? FICHE_FIXE : "";
+const titreInitial = document.title;   // titre de la page fixe, fait pour Google : gardé tant que son fonds est affiché
 
 const champ = document.getElementById("champ-recherche");
 const zoneResultat = document.getElementById("resultat");
@@ -16,7 +22,7 @@ const EXEMPLES_REELS = [
 document.getElementById("exemples").innerHTML =
   // tout le site (annuaire européen et zones) d'après data/resume.js ; à défaut, l'annuaire européen seul
   `<span>${(typeof RESUME_ANNUAIRE !== "undefined" ? RESUME_ANNUAIRE.total : ANNUAIRE.length).toLocaleString("fr-FR")} fonds référencés. Exemples :</span> ` +
-  EXEMPLES_REELS.map(([isin, nom]) => `<a href="#${isin}" class="chip">${esc(nom)}</a>`).join(" ");
+  EXEMPLES_REELS.map(([isin, nom]) => `<a href="${esc(lienAutreFonds(isin))}" class="chip">${esc(nom)}</a>`).join(" ");
 
 // ---------- Recherche et navigation ----------
 
@@ -31,10 +37,12 @@ async function lancerRecherche(texte) {
   if (recherche !== rechercheEnCours || affichage !== affichageEnCours) return; // autre recherche, ou autre fonds ouvert entre-temps
   if (reels.length === 1) {
     const adresse = location.hash;
-    location.hash = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    const cle = cleEntree(reels[0], reels[0].isins.includes(texte.trim().toUpperCase()) ? texte.trim().toUpperCase() : null);
+    if (ficheFixe && cle !== cleAffichee()) { location.href = `${racineSite()}decrypte.html#${encodeURIComponent(cle)}`; return; }
+    if (!ficheFixe || location.hash) location.hash = cle;
     if (location.hash === adresse) zoneResultat.replaceChildren(...avant); // fonds déjà ouvert : l'adresse ne change pas, on remet sa fiche
   } else {
-    zoneResultat.innerHTML = afficherListe(texte, reels);
+    zoneResultat.innerHTML = afficherListe(texte, reels, lienFiche);
   }
 }
 
@@ -43,10 +51,16 @@ document.getElementById("form-recherche").addEventListener("submit", e => {
   lancerRecherche(champ.value);
 });
 
+// Fonds à afficher : celui de l'adresse (#…), sinon celui de la page fixe
+function cleAffichee() {
+  return decodeURIComponent(location.hash.slice(1)) || ficheFixe;
+}
+
 async function afficherDepuisAdresse() {
-  const cle = decodeURIComponent(location.hash.slice(1));
+  const cle = cleAffichee();
+  const fondsDeLaPage = !!ficheFixe && !location.hash;   // page fixe ouverte sans « # » : son titre et sa position restent
   const numero = ++affichageEnCours;
-  document.title = "Décrypte ton fonds";
+  document.title = fondsDeLaPage ? titreInitial : "Décrypte ton fonds";
   if (!cle) { zoneResultat.innerHTML = ""; return; }
 
   // Fonds de l'annuaire (fiche générée automatiquement). Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste.
@@ -65,12 +79,12 @@ async function afficherDepuisAdresse() {
     return;
   }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
-  document.title = `${entree.nom} · Décrypte ton fonds`;
+  if (!fondsDeLaPage) document.title = `${entree.nom} · Décrypte ton fonds`;
   const enGeco = entree.source === "G";
   const avecSec = entree.source === "S" || (!enGeco && !!serieSecDe(entree, isin));   // fonds américain, ou fonds européen qui est aussi une série américaine
   const avecRegistre = entree.source === "R";   // fonds européen du registre de l'ESMA (hors France) : ses informations se chargent à l'ouverture
   zoneResultat.innerHTML = afficherFicheAuto(entree, isin, null, enGeco || avecSec || avecRegistre);
-  zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!fondsDeLaPage) zoneResultat.scrollIntoView({ behavior: "smooth", block: "start" });   // page fixe : son résumé reste en vue
 
   let donnees = { erreurs: [] };
   const rendre = () => {

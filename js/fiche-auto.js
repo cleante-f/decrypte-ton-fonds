@@ -777,7 +777,7 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
 
   if (chargement) corps = `<p class="chargement">Chargement des données…</p>`;
   else if (compo && compo.jumeau) corps += `<p class="note">Pas de données publiques pour ce fonds étranger. Estimation à partir d'un fonds français qui suit le <strong>même indice (${esc(compo.jumeau.indice)})</strong> :
-      <a href="#${esc(compo.jumeau.fonds.isins[0])}">${esc(compo.jumeau.fonds.nom)}</a>${/ESG|SRI|SCREENED|CLIMATE|PAB|CTB|SELECTION|PARIS/i.test(compo.jumeau.fonds.nom) ? " (version ESG ou climat de l'indice : la composition peut légèrement différer)" : ""}. Les frais et la méthode de réplication peuvent différer.</p>`;
+      <a href="${esc(lienAutreFonds(compo.jumeau.fonds.isins[0]))}">${esc(compo.jumeau.fonds.nom)}</a>${/ESG|SRI|SCREENED|CLIMATE|PAB|CTB|SELECTION|PARIS/i.test(compo.jumeau.fonds.nom) ? " (version ESG ou climat de l'indice : la composition peut légèrement différer)" : ""}. Les frais et la méthode de réplication peuvent différer.</p>`;
 
   if (!chargement && c && c.principale) {
     const seuils = chargerSeuils();
@@ -931,8 +931,8 @@ function afficherFicheAuto(e, isin, d, chargement) {
       ${types.length ? `<div class="etiquettes">${types.map(([k, t]) => `<span class="etiquette">${terme(k, t)}</span>`).join("")}</div>` : ""}
       ${enBref(e, d)}
       <div class="actions-fiche">
-        <a class="btn btn-simuler" href="simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
-        <a class="btn btn-secondaire" href="performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
+        <a class="btn btn-simuler" href="${esc(racineSite())}simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
+        <a class="btn btn-secondaire" href="${esc(racineSite())}performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
       </div>
     </header>`;
 
@@ -1039,7 +1039,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       ]) : nonDispo("Historique des valeurs liquidatives non disponible dans GECO.")}
       ${s && s.frequence !== "quotidienne" && s.frequence !== "hebdomadaire" ? `<p class="note">Valeur calculée de façon ${s.frequence} : la volatilité n'est pas calculée car elle ne serait pas significative.</p>` : ""}
       ${graphiqueVL(d.historique)}
-      ${d.historique ? `<p class="aide"><a href="performances.html#${esc(cleEntree(e, isin))}">Ouvrir le graphique interactif (périodes, comparaisons, performances par année) →</a></p>` : ""}
+      ${d.historique ? `<p class="aide"><a href="${esc(racineSite())}performances.html#${esc(cleEntree(e, isin))}">Ouvrir le graphique interactif (périodes, comparaisons, performances par année) →</a></p>` : ""}
       <p class="note">Performances calculées sur la ${terme("valeur_liquidative", "valeur liquidative")}, frais de gestion déduits. Pour une part distribuante, les revenus versés ne sont pas inclus. Les performances passées ne préjugent pas des performances futures.</p>
       <dl class="grille-risques">
         ${ligne("risque_change", "Risque de change", change)}

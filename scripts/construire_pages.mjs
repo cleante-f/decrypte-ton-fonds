@@ -22,11 +22,11 @@ const MAX_SITEMAP = 50000;
 const PAGES_PRINCIPALES = ["", "decrypte.html", "performances.html", "simulateur.html", "confidentialite.html", "mentions-legales.html"];
 const SOURCE_DIC = "AMF – DIC (base GECO)";
 
-// ---------- Code du site : lireEntree et PAYS (js/geco.js), indiceDuNom (js/style.js), règle des adresses (js/adresses.js) ----------
+// ---------- Code du site : PAYS (js/geco.js), indiceDuNom (js/style.js), fonds qui ont une page et leurs adresses (js/adresses.js) ----------
 const site = vm.createContext({ console });
 for (const f of ["js/geco.js", "js/style.js", "js/adresses.js"]) vm.runInContext(readFileSync(join(RACINE, f), "utf8"), site, { filename: f });
-const [lireEntree, PAYS, indiceDuNom, fondsAvecPage, slugFonds, adresseFonds] =
-  ["lireEntree", "PAYS", "indiceDuNom", "fondsAvecPage", "slugFonds", "adresseFonds"].map(n => vm.runInContext(n, site));
+const [PAYS, indiceDuNom, slugFonds, adresseFonds, fondsDesPagesSite] =
+  ["PAYS", "indiceDuNom", "slugFonds", "adresseFonds", "fondsDesPages"].map(n => vm.runInContext(n, site));
 
 // ---------- Outils de texte ----------
 const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -41,16 +41,10 @@ const cheminLettre = lettre => `classements/lettre-${lettre}.html`;
 const CHEMIN_PEA = "classements/etf-pea.html";
 const estPea = e => /\bPEA\b/i.test(e.nom);
 
-// Fonds qui ont une page : une seule par ISIN (celui de la première part), la première ligne de l'annuaire gardée
+// Fonds qui ont une page : une seule par ISIN (celui de la première part), celle de la ligne que le site ouvre pour cet ISIN
+// (même règle que le navigateur : fondsDesPages de js/adresses.js)
 export function fondsDesPages(annuaire) {
-  const res = [], vus = new Set();
-  for (const l of annuaire) {
-    const e = lireEntree(l);
-    if (!fondsAvecPage(e) || vus.has(e.isins[0])) continue;
-    vus.add(e.isins[0]);
-    res.push(e);
-  }
-  return res;
+  return [...fondsDesPagesSite(annuaire)];
 }
 
 // Frais des fonds indiciels (data/alternatives.js) : ISIN → { frais, dateDic, releve }

@@ -6,6 +6,9 @@
  * Fonds avec une page : fonds français (GECO, lignes « G ») ouverts à tous, avec un ISIN, hors FCPE et hors HSBC
  * (données interdites sans accord écrit) ; ETF cotés en Europe (lignes « E »). La page porte l'ISIN de la première part.
  * Le fonds est une entrée de l'annuaire lue par lireEntree (js/geco.js).
+ *
+ * Une page par ISIN : celle de la ligne que le site ouvre pour cet ISIN (lignesParIsin, js/geco.js). La fiche affichée sous
+ * le résumé de la page (FICHE_FIXE, js/app.js) est donc celle du même fonds. Les autres lignes au même ISIN n'ont pas de page.
  */
 
 // ISIN : 2 lettres, 9 caractères, 1 chiffre de contrôle (formule de Luhn sur les lettres converties en nombres A=10…Z=35).
@@ -36,7 +39,27 @@ function slugFonds(nom) {
   return slug || "fonds";
 }
 
-// Chemin de la page, relatif à la racine du site, ou null si le fonds n'a pas de page
+// Fonds qui ont une page (entrées lireEntree), dans l'ordre de l'annuaire. Sert à scripts/construire_pages.mjs.
+function fondsDesPages(lignes) {
+  const parIsin = lignesParIsin(lignes), res = [];
+  lignes.forEach((l, i) => {
+    const e = lireEntree(l);
+    if (fondsAvecPage(e) && parIsin.get(e.isins[0]) === i) res.push(e);
+  });
+  return res;
+}
+
+// Deux entrées lues de la même ligne de l'annuaire (lireEntree crée un nouvel objet à chaque lecture)
+function memeLigne(a, b) {
+  return !!a && !!b && a.source === b.source && a.cmpId === b.cmpId && a.prdId === b.prdId && a.nom === b.nom
+    && a.isins.join(" ") === b.isins.join(" ");
+}
+
+// Chemin de la page, relatif à la racine du site, ou null si le fonds n'a pas de page.
+// Dans le site (annuaire chargé), null aussi pour une ligne qui ne possède pas la page de son ISIN (voir fondsDesPages).
+// Les scripts, sans annuaire global, ne demandent que l'adresse des fonds de fondsDesPages.
 function adresseFonds(e) {
-  return fondsAvecPage(e) ? `fonds/${slugFonds(e.nom)}-${e.isins[0]}.html` : null;
+  if (!fondsAvecPage(e)) return null;
+  if (typeof ANNUAIRE !== "undefined" && !memeLigne(annuaireParIsin(e.isins[0]), e)) return null;
+  return `fonds/${slugFonds(e.nom)}-${e.isins[0]}.html`;
 }

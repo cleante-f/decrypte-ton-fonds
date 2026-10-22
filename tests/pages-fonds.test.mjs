@@ -67,10 +67,17 @@ test("adresseFonds : fonds/<slug>-<ISIN de la première part>.html ; deux fonds 
   assert.notEqual(a, b);
 });
 
-test("fondsDesPages : une page par ISIN, la première ligne gardée, fonds sans page écartés", () => {
+test("fondsDesPages : une page par ISIN, celle de la ligne que le site ouvre (GECO d'abord), fonds sans page écartés", () => {
+  // Deux lignes GECO au même ISIN : le site ouvre la dernière (lignesParIsin, js/geco.js), c'est elle qui a la page
   const doublon = [...CARMIGNAC]; doublon[3] = "CARMIGNAC PATRIMOINE BIS";
   const f = fondsDesPages([CARMIGNAC, doublon, CW8, ligne("G", "FCPE", "FR0000000010", { nature: "FCPE" })]);
-  assert.deepEqual(f.map(e => e.nom), ["CARMIGNAC PATRIMOINE", "Amundi MSCI World Swap UCITS ETF EUR Acc"]);
+  assert.deepEqual(f.map(e => e.nom), ["CARMIGNAC PATRIMOINE BIS", "Amundi MSCI World Swap UCITS ETF EUR Acc"]);
+  // ETF coté au même ISIN qu'un fonds GECO, placé avant lui : la page est celle du fonds GECO
+  const cote = ["E", 0, 0, "Carmignac coté", "", "", "", "FR0010135103", "", "FR", "", "Paris", "EUR", 1, 1];
+  assert.deepEqual(fondsDesPages([cote, CARMIGNAC]).map(e => e.nom), ["CARMIGNAC PATRIMOINE"]);
+  // Fonds étranger (N, sans page) que le site ouvre pour cet ISIN : l'ETF coté au même ISIN n'a pas de page
+  const etranger = ["N", 5, 0, "Fonds étranger", "", "", "", "LU1681043599", "", "LU", "", "", "", 0, 1];
+  assert.deepEqual(fondsDesPages([CW8, etranger]).map(e => e.nom), []);
 });
 
 test("page d'un fonds : titre, description, canonique, résumé du DIC et source datée", () => {

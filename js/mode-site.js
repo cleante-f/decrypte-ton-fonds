@@ -53,6 +53,15 @@
   globalThis.hebergeurSite = hebergeurSite;
   globalThis.estPageCompte = estPageCompte;
 
+  // Racine du site vue de la page : "" pour les pages de la racine, "../" pour les pages rangées dans un dossier (fonds/…,
+  // classements/…). Déduite du chemin de ce script, écrit « js/mode-site.js » ou « ../js/mode-site.js » dans la page.
+  // Les scripts du site la placent devant les chemins qu'ils construisent (data/…, pages du site). Jamais une autre adresse.
+  globalThis.RACINE_SITE = "";
+  if (typeof document !== "undefined" && document.currentScript) {
+    const m = String(document.currentScript.getAttribute("src") || "").match(/^((?:\.\.\/)*)js\/mode-site\.js(?:[?#].*)?$/);
+    if (m) globalThis.RACINE_SITE = m[1];
+  }
+
   // Effets dans un navigateur seulement (ni document ni location côté serveur ni dans les tests sans page simulée).
   if (typeof document !== "undefined") {
     const mode = modeSite(location.hostname);
