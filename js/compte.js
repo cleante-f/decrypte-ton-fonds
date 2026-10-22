@@ -21,7 +21,8 @@ const Compte = (() => {
     limite_simulations: "Tu as atteint 200 simulations enregistrées : supprimes-en avant d'en créer de nouvelles.",
     non_connecte: "Ta session a expiré : reconnecte-toi.",
     deja_abonne: "Tu es déjà abonné.",
-    execution_immediate_requise: "Coche d'abord la case d'accès immédiat."
+    execution_immediate_requise: "Coche d'abord la case d'accès immédiat.",
+    limite_fonds_suivis: "Tu suis déjà 30 fonds : retires-en un pour en ajouter."
   };
 
   const PANNE = "Le service de comptes ne répond pas correctement pour l'instant. Réessaie dans quelques minutes ; si le problème continue, écris-nous.";
@@ -160,10 +161,34 @@ const Compte = (() => {
   const supprimerSimulation = id => rest(`simulations?id=eq.${encodeURIComponent(id)}`, { methode: "DELETE", entetes: { Prefer: "return=minimal" } });
   const profil = async () => (await rest("profils?select=*"))[0] || null;
 
+  // Liste de suivi et préférences d'alertes (tables fonds_suivis et preferences_alertes, chacun ses lignes).
+  // La ligne porte l'identifiant de la personne connectée : l'ajout « ignore les doublons » (re-suivre un fonds déjà suivi,
+  // même à 30 fonds) et la fusion des préférences s'appuient sur la clé primaire, qui le contient.
+  const cleSuivi = cle => String(cle || "").trim().toUpperCase();   // clé d'adresse du site (cleEntree), en majuscules en base
+  const moi = () => { const s = session(); return s && s.user && s.user.id; };
+  const fondsSuivis = async () => ((await rest("fonds_suivis?select=cle_fonds&order=ajoute_le.asc")) || []).map(l => l.cle_fonds);
+  const suivreFonds = cle => rest("fonds_suivis", { methode: "POST", corps: { user_id: moi(), cle_fonds: cleSuivi(cle) },
+    entetes: { Prefer: "return=minimal,resolution=ignore-duplicates" } });
+  const nePlusSuivre = cle => rest(`fonds_suivis?cle_fonds=eq.${encodeURIComponent(cleSuivi(cle))}`, { methode: "DELETE", entetes: { Prefer: "return=minimal" } });
+  // Sans ligne enregistrée : les valeurs par défaut de la base
+  const PREFERENCES_PAR_DEFAUT = { actives: true, nouveau_dic: true, frais: true, risque: true, seuil_baisse: null, reglages_fiche: {} };
+  const SEUILS_BAISSE = [5, 10, 20];
+  async function preferencesAlertes() {
+    const l = ((await rest("preferences_alertes?select=actives,nouveau_dic,frais,risque,seuil_baisse,reglages_fiche")) || [])[0];
+    return { ...PREFERENCES_PAR_DEFAUT, ...(l || {}) };
+  }
+  const majPreferences = champs => rest("preferences_alertes", { methode: "POST", corps: { user_id: moi(), ...champs },
+    entetes: { Prefer: "return=minimal,resolution=merge-duplicates" } });
+  const enregistrerPreferences = p => majPreferences({ actives: !!p.actives, nouveau_dic: !!p.nouveau_dic, frais: !!p.frais, risque: !!p.risque,
+    seuil_baisse: SEUILS_BAISSE.includes(Number(p.seuil_baisse)) ? Number(p.seuil_baisse) : null });
+  const enregistrerReglagesFiche = r => majPreferences({ reglages_fiche: r && typeof r === "object" ? r : {} });
+
   async function exporterDonnees() {
-    const [u, p, sims] = await Promise.all([utilisateur(), profil(), rest("simulations?select=*&order=cree_le.asc")]);
+    const [u, p, sims, suivis, prefs] = await Promise.all([utilisateur(), profil(), rest("simulations?select=*&order=cree_le.asc"),
+      rest("fonds_suivis?select=*&order=ajoute_le.asc"), rest("preferences_alertes?select=*")]);
     return JSON.stringify({ exporte_le: new Date().toISOString(), site: "Décrypte ton fonds",
-      compte: { id: u.id, email: u.email, cree_le: u.created_at, derniere_connexion: u.last_sign_in_at }, profil: p, simulations: sims }, null, 2);
+      compte: { id: u.id, email: u.email, cree_le: u.created_at, derniere_connexion: u.last_sign_in_at }, profil: p, simulations: sims,
+      fonds_suivis: suivis, preferences_alertes: (prefs || [])[0] || null }, null, 2);
   }
 
   // Fonctions serveur Supabase (paiement, portail, supprimer-compte)
@@ -180,7 +205,8 @@ const Compte = (() => {
 
   return { ErreurCompte, session, jetonValide, inscrire, connecter, deconnecter, motDePasseOublie, changerMotDePasse, changerEmail,
     lireRetourEmail, utilisateur, droits, demarrerSimulation, demanderExecutionImmediate, simulations, simulation, enregistrerSimulation,
-    renommerSimulation, supprimerSimulation, profil, exporterDonnees, fonction, majNavigation };
+    renommerSimulation, supprimerSimulation, profil, exporterDonnees, fonction, majNavigation,
+    fondsSuivis, suivreFonds, nePlusSuivre, preferencesAlertes, enregistrerPreferences, enregistrerReglagesFiche };
 })();
 
 Compte.majNavigation();

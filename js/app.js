@@ -304,6 +304,7 @@ panneau.addEventListener("submit", e => {
     seuils[cle].rouge = rouge;
   }
   sauverSeuils(seuils);
+  enregistrerReglagesDansLeCompte();
   panneau.hidden = true;
   btnReglages.setAttribute("aria-expanded", "false");
   afficherDepuisAdresse();
@@ -313,7 +314,38 @@ panneau.addEventListener("click", e => {
   if (e.target.id === "btn-reinit") {
     reinitialiserSeuils();
     seuils = chargerSeuils();
+    enregistrerReglagesDansLeCompte(true);
     panneau.innerHTML = afficherReglages(seuils);
     afficherDepuisAdresse();
   }
+});
+
+// ---------- Compte (mode comptes, personne connectée) : réglages des alertes et fonds suivis ----------
+// En mode gratuit ou sans session : rien n'est lu ni envoyé (aucun appel à Supabase).
+function connecteEnModeComptes() {
+  return typeof Compte !== "undefined" && typeof modeSite === "function" && modeSite(location.hostname) === "comptes" && !!Compte.session();
+}
+
+// Réglages enregistrés aussi dans le compte ; « Valeurs par défaut » les efface du compte. En cas d'échec, ceux du navigateur restent.
+function enregistrerReglagesDansLeCompte(parDefaut = false) {
+  if (!connecteEnModeComptes()) return;
+  Compte.enregistrerReglagesFiche(parDefaut ? {} : reglagesPourCompte(seuils))
+    .catch(err => console.warn("Réglages non enregistrés dans le compte :", err.message));
+}
+
+if (connecteEnModeComptes()) {
+  // Réglages du compte : ils l'emportent sur ceux du navigateur (fiche redessinée s'ils changent les seuils)
+  Compte.preferencesAlertes().then(p => {
+    const avant = JSON.stringify(seuils);
+    appliquerSeuilsCompte(p && p.reglages_fiche);
+    seuils = chargerSeuils();
+    if (JSON.stringify(seuils) !== avant) afficherDepuisAdresse();
+  }).catch(() => { /* réglages du navigateur gardés */ });
+  chargerSuivis();
+}
+
+// Bouton « ☆ Suivre ce fonds » de la fiche (rendu par js/fiche-auto.js en mode comptes seulement)
+zoneResultat.addEventListener("click", e => {
+  const bouton = e.target && e.target.closest ? e.target.closest("[data-suivre]") : null;
+  if (bouton) cliquerSuivi(bouton);
 });

@@ -400,6 +400,8 @@ body.createur-actif { overflow: hidden; }
 }
 .btn-onglet:hover { background: var(--piste); color: var(--texte); }
 .actions-fiche { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 12px; }
+.message-suivi { flex-basis: 100%; font-size: .9rem; color: var(--rouge-texte); }
+.message-suivi:empty { display: none; }
 
 /* ---------- Page d'accueil ---------- */
 .accueil { padding-top: 8px; }

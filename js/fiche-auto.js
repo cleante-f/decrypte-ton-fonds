@@ -885,6 +885,55 @@ function sectionConcentrationAuto(e, d, chargement) {
   </section>`;
 }
 
+// ---------- Suivre ce fonds (mode comptes seulement, js/mode-site.js) ----------
+// En mode gratuit, aucun bouton n'est rendu (et data-seulement="comptes" le masquerait de toute façon).
+// Sans session : lien vers la connexion, qui ramène sur la fiche. Connecté : bouton « ☆ Suivre ce fonds » / « ★ Suivi ».
+// Liste des fonds suivis (clés), lue une fois dans le compte par chargerSuivis() (js/app.js) ; null tant qu'elle n'est pas lue.
+let FONDS_SUIVIS = null;
+const TEXTE_SUIVRE = "☆ Suivre ce fonds", TEXTE_SUIVI = "★ Suivi";
+function suiviPossible() {
+  return typeof modeSite === "function" && typeof location !== "undefined" && modeSite(location.hostname) === "comptes" && typeof Compte !== "undefined";
+}
+function boutonSuivi(cle) {
+  if (!suiviPossible()) return "";
+  if (!Compte.session()) {
+    return `<a class="btn btn-secondaire btn-suivre" data-seulement="comptes" title="Connecte-toi pour suivre ce fonds et recevoir ses alertes par e-mail"
+      href="${esc(racineSite())}connexion.html?vue=connexion&amp;retour=${encodeURIComponent("decrypte.html#" + cle)}">${TEXTE_SUIVRE}</a>`;
+  }
+  const suivi = !!FONDS_SUIVIS && FONDS_SUIVIS.has(cle);
+  return `<button type="button" class="btn btn-secondaire btn-suivre" data-seulement="comptes" data-suivre="${esc(cle)}" aria-pressed="${suivi}">${suivi ? TEXTE_SUIVI : TEXTE_SUIVRE}</button>
+      <span class="message-suivi" data-seulement="comptes" data-message-suivi role="status" aria-live="polite"></span>`;
+}
+// Met tous les boutons de la page à l'état de FONDS_SUIVIS
+function majBoutonsSuivi() {
+  document.querySelectorAll("[data-suivre]").forEach(b => {
+    const suivi = !!FONDS_SUIVIS && FONDS_SUIVIS.has(b.dataset.suivre);
+    b.setAttribute("aria-pressed", String(suivi));
+    b.textContent = suivi ? TEXTE_SUIVI : TEXTE_SUIVRE;
+  });
+}
+async function chargerSuivis() {
+  if (!suiviPossible() || !Compte.session()) return;
+  try { FONDS_SUIVIS = new Set(await Compte.fondsSuivis()); majBoutonsSuivi(); } catch (e) { /* boutons laissés à « Suivre » */ }
+}
+// Clic : suit le fonds, ou ne le suit plus s'il l'est déjà. Erreur (limite de 30 fonds, session expirée…) : message près du bouton.
+async function cliquerSuivi(bouton) {
+  const cle = bouton.dataset.suivre, suivi = bouton.getAttribute("aria-pressed") === "true";
+  const message = bouton.parentNode && bouton.parentNode.querySelector("[data-message-suivi]");
+  if (message) message.textContent = "";
+  bouton.disabled = true;
+  try {
+    if (suivi) await Compte.nePlusSuivre(cle); else await Compte.suivreFonds(cle);
+    if (!FONDS_SUIVIS) FONDS_SUIVIS = new Set();
+    if (suivi) FONDS_SUIVIS.delete(cle); else FONDS_SUIVIS.add(cle);
+    majBoutonsSuivi();
+  } catch (err) {
+    if (message) message.textContent = err.message;
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
 function afficherFicheAuto(e, isin, d, chargement) {
   const nomIdx = indicesDuNom(e.nom);
   const dic = d && d.dic;
@@ -935,6 +984,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
       <div class="actions-fiche">
         <a class="btn btn-simuler" href="${esc(racineSite())}simulateur.html#${esc(cleEntree(e, isin))}">${ICONE_SIMULER} Simuler mon investissement</a>
         <a class="btn btn-secondaire" href="${esc(racineSite())}performances.html#${esc(cleEntree(e, isin))}">Voir le graphique des performances →</a>
+        ${boutonSuivi(cleEntree(e, isin))}
       </div>
     </header>`;
 
