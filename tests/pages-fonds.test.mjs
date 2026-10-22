@@ -45,6 +45,14 @@ test("slugFonds : minuscules sans accents, « - » entre les mots, 60 caractère
   assert.equal(slugFonds("%%%"), "fonds");
 });
 
+test("slugFonds : un nom qui commence comme un fichier de publicité (ads, tracker…) est préfixé de « fonds- »", () => {
+  assert.equal(slugFonds("ADS Venn Collective Alpha Europe"), "fonds-ads-venn-collective-alpha-europe");
+  assert.equal(slugFonds("Tracker Fund of Hong Kong"), "fonds-tracker-fund-of-hong-kong");
+  assert.equal(slugFonds("Pub"), "fonds-pub");
+  assert.equal(slugFonds("Adagio"), "adagio");
+  assert.equal(slugFonds("Statera"), "statera");
+});
+
 test("fondsAvecPage : G public avec ISIN, hors FCPE, HSBC et réservés ; ETF E ; jamais S, R, U", () => {
   const e = l => lireEntree(l);
   assert.equal(fondsAvecPage(e(CARMIGNAC)), true);

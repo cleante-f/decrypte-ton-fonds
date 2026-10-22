@@ -31,12 +31,17 @@ function fondsAvecPage(e) {
   return e.source === "G" && e.public === true && !/FCPE/i.test(e.nature || "") && !/HSBC/i.test(e.gestionnaire || "");
 }
 
-// Nom en minuscules, sans accents, « - » à la place de tout autre caractère, 60 caractères au plus, sans tiret au bout
+// Premiers mots qui font bloquer un fichier par les bloqueurs de publicité (même liste que le vérificateur de publication)
+const DEBUTS_BLOQUES = /^(analyse|analyses|analytics|analytic|tracking|tracker|track|ads|ad|advert|adverts|advertising|pub|pubs|banner|banners|pixel|beacon|stats|statistics|counter|telemetry|metrics)(-|$)/;
+
+// Nom en minuscules, sans accents, « - » à la place de tout autre caractère, 60 caractères au plus, sans tiret au bout ;
+// « fonds- » devant un nom qui commence comme un fichier de publicité (« ads-… », « tracker-… »)
 function slugFonds(nom) {
   const slug = String(nom || "").replace(/[œŒ]/g, "oe").replace(/[æÆ]/g, "ae").replace(/ß/g, "ss")
     .normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").slice(0, 60).replace(/^-+|-+$/g, "");
-  return slug || "fonds";
+  if (!slug) return "fonds";
+  return DEBUTS_BLOQUES.test(slug) ? ("fonds-" + slug).slice(0, 60).replace(/-+$/, "") : slug;
 }
 
 // Fonds qui ont une page (entrées lireEntree), dans l'ordre de l'annuaire. Sert à scripts/construire_pages.mjs.
