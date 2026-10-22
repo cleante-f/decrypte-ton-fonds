@@ -109,17 +109,18 @@ function classementsDuFonds(e) {
 const lireGabarit = () => readFileSync(join(RACINE, "decrypte.html"), "utf8");
 
 // Chemins relatifs des balises (src, href, data-page) précédés de « ../ » : la page est rangée un dossier plus bas.
-// Les adresses absolues, les ancres (#…) et les chemins déjà remontés ne bougent pas.
+// Les adresses absolues, les ancres (#…) et les chemins déjà remontés ne bougent pas. Guillemets doubles ou simples acceptés.
 function remonter(html) {
-  return html.replace(/<[^>]+>/g, balise => balise.replace(/\b(src|href|data-page)="([^"]*)"/g, (m, attr, val) =>
-    (!val || /^(#|\/|\.\.\/|[a-z][a-z0-9+.-]*:)/i.test(val) ? m : `${attr}="../${val}"`)));
+  return html.replace(/<[^>]+>/g, balise => balise.replace(/\b(src|href|data-page)=(["'])(.*?)\2/g, (m, attr, q, val) =>
+    (!val || /^(#|\/|\.\.\/|[a-z][a-z0-9+.-]*:)/i.test(val) ? m : `${attr}=${q}../${val}${q}`)));
 }
 
 // Remplace le titre et la description, ajoute l'adresse canonique
 function entete(html, titre, description, canonique) {
-  let h = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(titre)}</title>`);
+  // Remplacements par des fonctions : un « $& » ou « $' » dans un nom de fonds ne doit pas être interprété par String.replace
+  let h = html.replace(/<title>[\s\S]*?<\/title>/, () => `<title>${esc(titre)}</title>`);
   h = h.replace(/<meta name="description" content="[^"]*">/,
-    `<meta name="description" content="${esc(description)}">\n  <link rel="canonical" href="${esc(canonique)}">`);
+    () => `<meta name="description" content="${esc(description)}">\n  <link rel="canonical" href="${esc(canonique)}">`);
   return h;
 }
 
@@ -162,7 +163,7 @@ export function pageFonds(e, resume, extras = {}) {
   const c = chiffres(resume, alternative);
   let html = entete(remonter(gabarit), titreFonds(e.nom, c), descriptionFonds(e, c), base + adresseFonds(e));
   // Un seul titre principal : le nom du fonds ; la recherche passe en sous-titre
-  html = html.replace(/<h1>([^<]*)<\/h1>/, "<h2>$1</h2>");
+  html = html.replace(/<h1>([^<]*)<\/h1>/, (m, texte) => `<h2>${texte}</h2>`);
   html = remplacer(html, '<div id="resultat"', resumeFixe(e, c) + '<div id="resultat"');
   html = remplacer(html, '<script src="../js/app.js"></script>',
     `<script>var FICHE_FIXE = ${JSON.stringify(e.isins[0])};</script>\n  <script src="../js/app.js"></script>`);

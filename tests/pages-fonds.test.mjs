@@ -204,3 +204,28 @@ test("supprimerDisparues : les pages des fonds sortis de l'annuaire sont supprim
     assert.ok(!existsSync(join(dossier, "absent")));
   } finally { rmSync(dossier, { recursive: true, force: true }); }
 });
+
+test("noms avec « $' » ou « $& » : titre, description, h1 et classements intacts (aucun motif de String.replace)", () => {
+  for (const nom of ["A$'B", "A$&B", "US$`s $$ fund"]) {
+    const l = ["G", 9, 9, nom, "SOCIETE", "Fonds mixtes", "FCP", "FR0000000002", "", "FR", "", "", "", 0, 1];
+    const e = lireEntree(l);
+    const html = pageFonds(e, RESUMES.fonds.FR0010135103);
+    const nomEsc = nom.replace(/&/g, "&amp;").replace(/'/g, "&#39;");
+    assert.equal((html.match(/<title>/g) || []).length, 1, nom);
+    assert.equal(titre(html), `${nomEsc} : frais 1,5 %, risque 3/7 · Décrypte ton fonds`);
+    assert.ok(html.includes(`<meta name="description" content="${nomEsc} (FR0000000002)`), nom);
+    assert.equal((html.match(/<meta name="description"/g) || []).length, 1, nom);
+    assert.ok(html.includes(`<h1>${nomEsc}</h1>`), nom);
+    const pages = pagesClassement([e], RESUMES, {});
+    const mixtes = pages["classements/categorie-fonds-mixtes.html"];
+    assert.equal((mixtes.match(/<title>/g) || []).length, 1, nom);
+    assert.ok(mixtes.includes(`>${nomEsc}</a>`), nom);
+    assert.ok(pages["classements/lettre-a.html"] || pages["classements/lettre-u.html"]);
+  }
+});
+
+test("remonter : attributs entre guillemets simples aussi", () => {
+  const gabarit = lire("decrypte.html").replace('<link rel="stylesheet" href="css/style.css">', "<link rel='stylesheet' href='css/style.css'>");
+  const html = pageFonds(lireEntree(CARMIGNAC), null, { gabarit });
+  assert.ok(html.includes("href='../css/style.css'"));
+});
