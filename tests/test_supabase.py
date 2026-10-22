@@ -186,6 +186,11 @@ class TestBase(unittest.TestCase):
         self.assertNotIn(c["id"], [l["id"] for l in lignes])     # un abonné n'est jamais supprimé
 
 
+# Refus observés sur le projet de test (PostgREST) : droits ou RLS → code Postgres 42501, 403 si connecté, 401 si anonyme
+REFUS_CONNECTE = (403, "42501")
+REFUS_ANONYME = (401, "42501")
+
+
 def suivre(compte, cles, prefer="return=minimal"):
     corps = [{"user_id": compte["id"], "cle_fonds": c} for c in cles]
     return http("/rest/v1/fonds_suivis", "POST", corps, jeton=compte["jeton"], prefer=prefer)
@@ -219,9 +224,9 @@ class TestSuiviAlertes(unittest.TestCase):
         self.assertEqual((s, lignes), (200, [{"user_id": self.a["id"], "cle_fonds": "FR0011871128"}]))
         s, lignes = http("/rest/v1/fonds_suivis?select=cle_fonds", jeton=self.b["jeton"])
         self.assertEqual(lignes, [])                                    # B ne voit pas les fonds de A
-        s, _ = http("/rest/v1/fonds_suivis", "POST", {"user_id": self.a["id"], "cle_fonds": "LU1681043599"},
-                    jeton=self.b["jeton"], prefer="return=minimal")
-        self.assertIn(s, (401, 403))                                    # B ne peut pas ajouter un fonds au nom de A
+        s, err = http("/rest/v1/fonds_suivis", "POST", {"user_id": self.a["id"], "cle_fonds": "LU1681043599"},
+                      jeton=self.b["jeton"], prefer="return=minimal")
+        self.assertEqual((s, err["code"]), REFUS_CONNECTE)                                    # B ne peut pas ajouter un fonds au nom de A
         http(f"/rest/v1/fonds_suivis?user_id=eq.{self.a['id']}", "PATCH", {"cle_fonds": "PIRATE"},
              jeton=self.b["jeton"], prefer="return=minimal")
         http(f"/rest/v1/fonds_suivis?user_id=eq.{self.a['id']}", "DELETE", jeton=self.b["jeton"], prefer="return=minimal")
@@ -240,7 +245,7 @@ class TestSuiviAlertes(unittest.TestCase):
         self.assertEqual(lignes, [{"user_id": c["id"], "cle_fonds": "S000000123"}])
         s, _ = http("/rest/v1/fonds_suivis", "POST", {"cle_fonds": "FR0010135103", "ajoute_le": "2000-01-01T00:00:00Z"},
                     jeton=c["jeton"], prefer="return=minimal")
-        self.assertIn(s, (401, 403))                                    # ajoute_le n'est pas modifiable par le navigateur
+        self.assertEqual(s, REFUS_CONNECTE[0])                          # ajoute_le n'est pas modifiable par le navigateur
 
     def test_preferences_ses_lignes_seulement(self):
         s, _ = http("/rest/v1/preferences_alertes", "POST", {"user_id": self.a["id"], "seuil_baisse": 10},
@@ -252,8 +257,8 @@ class TestSuiviAlertes(unittest.TestCase):
                          {"actives": True, "nouveau_dic": True, "frais": True, "risque": True, "seuil_baisse": 10, "reglages_fiche": {}})
         s, lignes = http("/rest/v1/preferences_alertes?select=*", jeton=self.b["jeton"])
         self.assertEqual(lignes, [])                                    # B ne voit pas les préférences de A
-        s, _ = http("/rest/v1/preferences_alertes", "POST", {"user_id": self.a["id"]}, jeton=self.b["jeton"], prefer="return=minimal")
-        self.assertIn(s, (401, 403))                                    # ni ne les crée au nom de A
+        s, err = http("/rest/v1/preferences_alertes", "POST", {"user_id": self.a["id"]}, jeton=self.b["jeton"], prefer="return=minimal")
+        self.assertEqual((s, err["code"]), REFUS_CONNECTE)                                    # ni ne les crée au nom de A
         http(f"/rest/v1/preferences_alertes?user_id=eq.{self.a['id']}", "PATCH", {"actives": False},
              jeton=self.b["jeton"], prefer="return=minimal")
         http(f"/rest/v1/preferences_alertes?user_id=eq.{self.a['id']}", "DELETE", jeton=self.b["jeton"], prefer="return=minimal")
@@ -271,14 +276,14 @@ class TestSuiviAlertes(unittest.TestCase):
         for seuil in (15, 0, -10, 100):
             s, err = http("/rest/v1/preferences_alertes", "POST", {"user_id": c["id"], "seuil_baisse": seuil},
                           jeton=c["jeton"], prefer="return=minimal")
-            self.assertEqual(s, 400, seuil)
-        for seuil in (5, 20):
+            self.assertEqual((s, err["code"]), (400, "23514"), seuil)     # contrainte check
+        for seuil, statut in ((5, 201), (20, 200)):                    # création puis mise à jour (upsert)
             s, _ = http("/rest/v1/preferences_alertes", "POST", {"user_id": c["id"], "seuil_baisse": seuil},
                         jeton=c["jeton"], prefer="return=minimal,resolution=merge-duplicates")
-            self.assertIn(s, (200, 201), seuil)
+            self.assertEqual(s, statut, seuil)
         s, err = http(f"/rest/v1/preferences_alertes?user_id=eq.{c['id']}", "PATCH", {"seuil_baisse": 7},
                       jeton=c["jeton"], prefer="return=minimal")
-        self.assertEqual(s, 400)
+        self.assertEqual((s, err["code"]), (400, "23514"))
         s, lignes = http(f"/rest/v1/preferences_alertes?user_id=eq.{c['id']}&select=seuil_baisse", cle=SECRET)
         self.assertEqual(lignes, [{"seuil_baisse": 20}])
 
@@ -290,7 +295,7 @@ class TestSuiviAlertes(unittest.TestCase):
         s, err = suivre(c, ["LU1681043599"])
         self.assertEqual((s, err["message"]), (400, "limite_fonds_suivis"))
         s, _ = suivre(c, [cles[0]], prefer="return=minimal,resolution=ignore-duplicates")
-        self.assertIn(s, (200, 201))                                    # re-suivre un fonds déjà suivi : pas une 31e ligne
+        self.assertEqual(s, 201)                                        # re-suivre un fonds déjà suivi : pas une 31e ligne
         s, lignes = http(f"/rest/v1/fonds_suivis?user_id=eq.{c['id']}&select=cle_fonds", cle=SECRET)
         self.assertEqual(len(lignes), 30)
         http(f"/rest/v1/fonds_suivis?cle_fonds=eq.{cles[0]}", "DELETE", jeton=c["jeton"], prefer="return=minimal")
@@ -303,7 +308,7 @@ class TestSuiviAlertes(unittest.TestCase):
         for cle in ("FR0000000000", "LU1681043599"):                    # fonds déjà suivi par c, puis un nouveau
             s, err = http("/rest/v1/fonds_suivis", "POST", {"user_id": c["id"], "cle_fonds": cle},
                           jeton=intrus["jeton"], prefer="return=minimal")
-            self.assertIn(s, (401, 403), (cle, err))                    # jamais 400 « limite_fonds_suivis » ni 409 (doublon)
+            self.assertEqual((s, err["code"]), REFUS_CONNECTE, cle)                    # jamais 400 « limite_fonds_suivis » ni 409 (doublon)
         s, lignes = http(f"/rest/v1/fonds_suivis?user_id=eq.{c['id']}&select=cle_fonds", cle=SECRET)
         self.assertEqual(len(lignes), 30)
 
@@ -313,16 +318,16 @@ class TestSuiviAlertes(unittest.TestCase):
         s, _ = http("/rest/v1/preferences_alertes", "POST", {"user_id": c["id"]}, jeton=c["jeton"], prefer="return=minimal")
         self.assertEqual(s, 201)
         for table in ("fonds_suivis", "preferences_alertes"):
-            s, _ = http(f"/rest/v1/{table}?user_id=eq.{c['id']}", "PATCH", {"user_id": self.a["id"]},
-                        jeton=c["jeton"], prefer="return=minimal")
-            self.assertIn(s, (401, 403), table)
+            s, err = http(f"/rest/v1/{table}?user_id=eq.{c['id']}", "PATCH", {"user_id": self.a["id"]},
+                          jeton=c["jeton"], prefer="return=minimal")
+            self.assertEqual((s, err["code"]), REFUS_CONNECTE, table)
             s, lignes = http(f"/rest/v1/{table}?user_id=eq.{c['id']}&select=user_id", cle=SECRET)
             self.assertEqual(lignes, [{"user_id": c["id"]}], table)    # ligne inchangée
 
     def test_cle_de_fonds_en_majuscules(self):
         c = self.nouveau()
-        s, _ = suivre(c, ["fr0011871128"])
-        self.assertEqual(s, 400)
+        s, err = suivre(c, ["fr0011871128"])
+        self.assertEqual((s, err["code"]), (400, "23514"))
         s, _ = suivre(c, ["FR0011871128"])
         self.assertEqual(s, 201)
 
@@ -339,24 +344,26 @@ class TestSuiviAlertes(unittest.TestCase):
                     cle=SECRET, prefer="return=minimal")
         self.assertEqual(s, 201)                                        # la tâche quotidienne (clé service) écrit
         self.cles_etat.append(cle)
-        for qui in ({"jeton": self.a["jeton"]}, {}):                    # connecté puis anonyme
-            s, lignes = http(f"/rest/v1/etat_fonds_suivis?cle_fonds=eq.{cle}&select=*", **qui)
-            self.assertIn(s, (401, 403), qui.keys())
-            s, _ = http("/rest/v1/etat_fonds_suivis", "POST", {"cle_fonds": cle + "X"}, prefer="return=minimal", **qui)
-            self.assertIn(s, (401, 403))
-            s, _ = http(f"/rest/v1/etat_fonds_suivis?cle_fonds=eq.{cle}", "PATCH", {"sri": 7}, prefer="return=minimal", **qui)
-            self.assertIn(s, (401, 403))
-            s, _ = http(f"/rest/v1/etat_fonds_suivis?cle_fonds=eq.{cle}", "DELETE", prefer="return=minimal", **qui)
-            self.assertIn(s, (401, 403))
+        for qui, refus in (({"jeton": self.a["jeton"]}, REFUS_CONNECTE), ({}, REFUS_ANONYME)):     # connecté puis anonyme
+            for methode, chemin, corps in (("GET", f"?cle_fonds=eq.{cle}&select=*", None), ("POST", "", {"cle_fonds": cle + "X"}),
+                                           ("PATCH", f"?cle_fonds=eq.{cle}", {"sri": 7}), ("DELETE", f"?cle_fonds=eq.{cle}", None)):
+                s, err = http("/rest/v1/etat_fonds_suivis" + chemin, methode, corps, prefer="return=minimal", **qui)
+                self.assertEqual((s, err["code"]), refus, (methode, list(qui)))
         s, lignes = http(f"/rest/v1/etat_fonds_suivis?cle_fonds=eq.{cle}&select=sri", cle=SECRET)
         self.assertEqual(lignes, [{"sri": 4}])
 
     def test_anonyme_ne_lit_ni_n_ecrit_rien(self):
+        c_ = self.nouveau()                     # compte neuf : les autres tests écrivent pour A
+        corps = {"fonds_suivis": {"user_id": c_["id"], "cle_fonds": "FR0011871128"},
+                 "preferences_alertes": {"user_id": c_["id"], "seuil_baisse": 10}}
         for table in ("fonds_suivis", "preferences_alertes"):
-            s, _ = http(f"/rest/v1/{table}?select=*")
-            self.assertIn(s, (401, 403), table)
-            s, _ = http(f"/rest/v1/{table}", "POST", {"user_id": self.a["id"], "cle_fonds": "FR0011871128"}, prefer="return=minimal")
-            self.assertIn(s, (401, 403), table)
+            for methode, chemin, c in (("GET", "?select=*", None), ("POST", "", corps[table]),
+                                       ("PATCH", f"?user_id=eq.{c_['id']}", {"user_id": c_["id"]}),
+                                       ("DELETE", f"?user_id=eq.{c_['id']}", None)):
+                s, err = http(f"/rest/v1/{table}{chemin}", methode, c, prefer="return=minimal")
+                self.assertEqual((s, err["code"]), REFUS_ANONYME, (table, methode))
+            s, lignes = http(f"/rest/v1/{table}?user_id=eq.{c_['id']}&select=user_id", cle=SECRET)
+            self.assertEqual(lignes, [], table)                             # rien écrit au nom de ce compte
 
     def test_suppression_du_compte_efface_fonds_suivis_et_preferences(self):
         c = creer_compte()                     # supprimé dans le test lui-même
@@ -364,7 +371,7 @@ class TestSuiviAlertes(unittest.TestCase):
         s, _ = http("/rest/v1/preferences_alertes", "POST", {"user_id": c["id"], "seuil_baisse": 5}, jeton=c["jeton"], prefer="return=minimal")
         self.assertEqual(s, 201)
         s, _ = http(f"/auth/v1/admin/users/{c['id']}", "DELETE", cle=SECRET)
-        self.assertIn(s, (200, 204))
+        self.assertEqual(s, 200)
         for table in ("profils?id", "fonds_suivis?user_id", "preferences_alertes?user_id"):
             s, lignes = http(f"/rest/v1/{table}=eq.{c['id']}&select=*", cle=SECRET)
             self.assertEqual((s, lignes), (200, []), table)
