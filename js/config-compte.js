@@ -6,7 +6,7 @@
 globalThis.CONFIG_COMPTE = {
   supabaseUrl: "https://njykqalgjwhcuosrpaje.supabase.co",                 // https://<ref>.supabase.co
   supabaseCle: "sb_publishable_1PPEjooDcNTXyISuiTvnxQ_M32p6qa1",     // clé publique (sb_publishable_…)
-  turnstileCle: "1x00000000000000000000AA",        // clé de TEST Turnstile (toujours valide) ; la vraie clé à la tâche 11
+  turnstileCle: "0x4AAAAAAFiDyVcxeNSD_Ewd",        // clé de site Turnstile (publique), widget decrypte-ton-fonds.fr + aperçu comptes
   prixAffiche: "[[PRIX]]",                         // ex. « 4,99 € par mois »
   versionCgv: "2026-10",
   simulationsOffertes: 3,
