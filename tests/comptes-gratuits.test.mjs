@@ -313,6 +313,18 @@ test("Mon compte, paiement coupé : simulateur ouvert, ni offertes, ni abonnemen
   assert.doesNotMatch(ctx.ligneSimulation({ id: "1", nom: "A", fonds: "FR1", maj_le: "2026-10-01", offerte: true }), /offerte/);
 });
 
+test("Mon compte, paiement coupé : pas de portail Stripe, même pour un ancien abonné (Stripe absent de la page Confidentialité)", () => {
+  for (const [config, d] of [[{ paiementActif: false }, { abonne: true, abonnement_statut: "actif", paiement_actif: false }],
+    [{ paiementActif: false }, { abonne: true, abonnement_statut: "resilie_fin_periode", paiement_actif: true }],
+    [{ paiementActif: true }, { abonne: true, abonnement_statut: "actif", paiement_actif: false }]]) {
+    const html = espaceCompte({ simulationsOffertes: 3, ...config }).blocAcces(d);
+    assert.doesNotMatch(html, /portail|abonnement/i, JSON.stringify([config, d]));
+    assert.ok(html.includes('href="simulateur.html"'));
+  }
+  // Paiement actif : l'abonné garde son bouton « Gérer ou résilier »
+  assert.match(espaceCompte({ simulationsOffertes: 3, paiementActif: true }).blocAcces({ abonne: true, abonnement_statut: "actif", paiement_actif: true }), /id="portail"/);
+});
+
 test("Mon compte, paiement actif : bloc d'aujourd'hui (offertes, lien vers l'abonnement)", () => {
   const ctx = espaceCompte({ simulationsOffertes: 3, paiementActif: true });
   const html = ctx.blocAcces({ abonne: false, offertes_restantes: 2, paiement_actif: true });
@@ -336,4 +348,37 @@ test("simulateur.js : sans session et paiement coupé, renvoi vers la création 
 test("plan du site : simulateur.html retiré des pages principales", () => {
   assert.ok(!PAGES_PRINCIPALES.includes("simulateur.html"));
   assert.deepEqual(PAGES_PRINCIPALES, ["", "decrypte.html", "performances.html", "confidentialite.html", "mentions-legales.html"]);
+});
+
+// confidentialite.html : blocs d'une version (data-seulement="…"), div équilibrées
+function blocsVersion(html, version) {
+  const blocs = [], ouverture = `<div data-seulement="${version}">`;
+  for (let i = html.indexOf(ouverture); i >= 0; i = html.indexOf(ouverture, i + 1)) {
+    let profondeur = 0, j = i;
+    for (const balise = /<\/?div\b/g; ; ) {
+      balise.lastIndex = j;
+      const m = balise.exec(html);
+      if (!m) break;
+      profondeur += m[0] === "<div" ? 1 : -1;
+      j = m.index + m[0].length;
+      if (profondeur === 0) break;
+    }
+    blocs.push(html.slice(i, j));
+  }
+  return blocs;
+}
+
+test("confidentialité : Supabase contacté aussi à l'inscription et à la connexion ; date de dernière activité déclarée", () => {
+  const html = lire("confidentialite.html");
+  const comptes = blocsVersion(html, "comptes").join("\n");
+  assert.ok(comptes.includes("<td>Quand tu crées ton compte, te connectes ou es connecté, ou quand tu cliques sur le lien de désinscription d'un e-mail d'alerte</td>"));
+  assert.match(comptes, /date d'inscription, date de dernière activité/);
+});
+
+test("confidentialité, version gratuite : pas de decrypte-ton-fonds.fr (adresse en mode comptes) ; commentaire des versions à jour", () => {
+  const html = lire("confidentialite.html");
+  const gratuit = blocsVersion(html, "gratuit");
+  assert.ok(gratuit.length >= 3);
+  for (const bloc of gratuit) assert.doesNotMatch(bloc, /decrypte-ton-fonds\.fr/);
+  assert.match(html, /<!-- Deux versions : data-seulement="comptes" \(decrypte-ton-fonds\.fr et www, aperçu des comptes, localhost\b/);
 });

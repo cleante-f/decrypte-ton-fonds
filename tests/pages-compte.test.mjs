@@ -102,3 +102,62 @@ test("scripts des pages de compte : démarrage dans un bloc modeSite(location.ho
     }
   }
 });
+
+// ---- connexion.js : adresse de retour et boucle connexion ↔ simulateur ----
+
+// connexion.js chargé en mode gratuit (aucun démarrage) : seulement ses fonctions, dont retourSur
+function fonctionsConnexion() {
+  const element = () => ({ addEventListener() {}, querySelector: element, querySelectorAll: () => [], hidden: false, dataset: {} });
+  const ctx = vm.createContext({ console, URLSearchParams, setTimeout, modeSite: () => "gratuit", Compte: {}, history: { replaceState() {} }, window: {},
+    location: { hostname: "cleante-f.github.io", search: "" }, CONFIG_COMPTE: {},
+    document: { getElementById: element, querySelector: element, querySelectorAll: () => [], addEventListener() {}, createElement: () => ({}), head: { appendChild() {} } } });
+  vm.runInContext(lire("js/connexion.js"), ctx, { filename: "js/connexion.js" });
+  return ctx;
+}
+
+test("connexion : retour vers une page du site seulement (adresse propre de Cloudflare avec paramètres comprise)", () => {
+  const { retourSur } = fonctionsConnexion();
+  const acceptes = { "/simulateur?sim=abc": "simulateur?sim=abc", "/simulateur": "simulateur", "simulateur": "simulateur",
+    "/simulateur#FR0011871128": "simulateur#FR0011871128", "/simulateur?sim=a#FR1": "simulateur?sim=a#FR1",
+    "/simulateur.html?sim=abc": "simulateur.html?sim=abc", "simulateur.html#FR1": "simulateur.html#FR1", "compte.html": "compte.html",
+    "/simulateur?retour=https://ailleurs.example": "simulateur?retour=https://ailleurs.example" };
+  for (const [r, attendu] of Object.entries(acceptes)) assert.equal(retourSur(r), attendu, r);
+  for (const r of ["", "//evil.example", "//evil.example/simulateur", "/\\evil.example", "\\\\evil.example", "/\\/simulateur",
+    "https://evil.example/simulateur", "javascript:alert(1)", "simulateur:alert(1)", "a.html:x", "/simulateurs", "simulateur/../x",
+    "/simulateur.htmlx", "/Simulateur", "//simulateur", "/simulateur\\x", " /simulateur", "/simulateur\n", "fonds/x.html"])
+    assert.equal(retourSur(r), "compte.html", JSON.stringify(r));
+});
+
+// Démarrage de connexion.js en mode comptes avec une session déjà enregistrée, à l'adresse « search »
+async function connexionAvecSession(search, jetonNeuf) {
+  const appels = [], renvois = [];
+  const Compte = { session: () => ({ access_token: "ancien" }), lireRetourEmail: async () => null,
+    jetonValide: async forcer => { appels.push(["jetonValide", forcer === true]); return forcer === true ? jetonNeuf : "ancien"; },
+    deconnecter: async () => { appels.push(["deconnecter"]); } };
+  const element = () => ({ addEventListener() {}, querySelector: element, querySelectorAll: () => [], hidden: false, textContent: "", dataset: {} });
+  const location = { hostname: "decrypte-ton-fonds.fr", pathname: "/connexion.html", search, hash: "", replace: u => renvois.push(u) };
+  Object.defineProperty(location, "href", { get: () => "", set: u => renvois.push(u) });
+  const ctx = vm.createContext({ console, URLSearchParams, setTimeout, modeSite, Compte, location, history: { replaceState() {} }, window: {},
+    CONFIG_COMPTE: { turnstileCle: "cle" },
+    document: { getElementById: element, querySelector: element, querySelectorAll: () => [], addEventListener() {}, title: "",
+      createElement: () => ({}), head: { appendChild() {} } } });
+  vm.runInContext(lire("js/connexion.js"), ctx, { filename: "js/connexion.js" });
+  for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
+  return { appels, renvois };
+}
+
+test("connexion : arrivée avec vue=connexion et un retour (jeton refusé par le serveur) → jeton renouvelé avant le retour", async () => {
+  const r = await connexionAvecSession("?vue=connexion&retour=%2Fsimulateur%3Fsim%3Dabc", "neuf");
+  assert.deepEqual(r, { appels: [["jetonValide", true]], renvois: ["simulateur?sim=abc"] });
+});
+
+test("connexion : renouvellement refusé → session effacée et formulaire de connexion, sans renvoi (pas de boucle)", async () => {
+  const r = await connexionAvecSession("?vue=connexion&retour=%2Fsimulateur%3Fsim%3Dabc", null);
+  assert.deepEqual(r, { appels: [["jetonValide", true], ["deconnecter"]], renvois: [] });
+});
+
+test("connexion : déjà connecté sans retour demandé par le serveur → jeton habituel, pas de renouvellement forcé", async () => {
+  assert.deepEqual(await connexionAvecSession("", "neuf"), { appels: [["jetonValide", false]], renvois: ["compte.html"] });
+  assert.deepEqual(await connexionAvecSession("?vue=inscription&retour=simulateur.html", "neuf"),
+    { appels: [["jetonValide", false]], renvois: ["simulateur.html"] });
+});

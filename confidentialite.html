@@ -24,8 +24,9 @@
     </div>
   </header>
 
-  <!-- Deux versions : data-seulement="comptes" (aperçu des comptes, localhost) et data-seulement="gratuit" (GitHub Pages, adresse
-       principale de Cloudflare) ; data-si-hebergeur choisit GitHub ou Cloudflare. Ce qui n'a pas de marque vaut pour les deux. -->
+  <!-- Deux versions : data-seulement="comptes" (decrypte-ton-fonds.fr et www, aperçu des comptes, localhost : liste HOTES_COMPTES
+       de js/mode-site.js) et data-seulement="gratuit" (GitHub Pages, adresse principale de Cloudflare decrypte-ton-fonds.pages.dev) ;
+       data-si-hebergeur choisit GitHub ou Cloudflare, data-si-paiement suit CONFIG_COMPTE.paiementActif. Ce qui n'a pas de marque vaut pour les deux. -->
   <main class="page-texte">
     <h1>Confidentialité</h1>
     <div data-seulement="comptes">
@@ -72,7 +73,7 @@
         <div class="cadre-tableau"><table class="tableau-texte">
           <thead><tr><th scope="col">Données</th><th scope="col">Pourquoi</th><th scope="col">Base légale (RGPD)</th><th scope="col">Durée</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Adresse e-mail, mot de passe (enregistré sous une forme chiffrée irréversible), date d'inscription, confirmation d'avoir 18 ans<span data-si-paiement="actif"> et d'accepter les CGV</span></th>
+            <tr><th scope="row">Adresse e-mail, mot de passe (enregistré sous une forme chiffrée irréversible), date d'inscription, date de dernière activité (pour supprimer un compte inutilisé depuis 2 ans), confirmation d'avoir 18 ans<span data-si-paiement="actif"> et d'accepter les CGV</span></th>
               <td>Créer et sécuriser ton compte</td><td>Exécution du contrat (art. 6.1 b)</td>
               <td>Tant que le compte existe. Suppression automatique après 2 ans sans connexion, avec un e-mail d'avertissement 30 jours avant.</td></tr>
             <tr><th scope="row">Simulations enregistrées (fonds, montants, durée, portefeuille)<span data-si-paiement="actif">, compteur des simulations offertes</span></th>
@@ -118,7 +119,7 @@
               <td>Envoyer les pages du site, contrôler l'accès au simulateur, vérifier que tu n'es pas un robot (Turnstile) à l'inscription et à la connexion.</td>
               <td>À chaque visite ; Turnstile seulement sur la page de connexion</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
             <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, fonds suivis et préférences d'alerte<span data-si-paiement="actif">, état de l'abonnement</span>.</td>
-              <td>Quand tu es connecté, ou quand tu cliques sur le lien de désinscription d'un e-mail d'alerte</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
+              <td>Quand tu crées ton compte, te connectes ou es connecté, ou quand tu cliques sur le lien de désinscription d'un e-mail d'alerte</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
             <tr data-si-paiement="actif"><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
               <td>Quand tu t'abonnes ou gères ton abonnement</td><td>Irlande (Stripe Payments Europe)</td></tr>
             <tr><th scope="row">Brevo <small>(liens des e-mails : sendibt2.com, sendibt3.com)</small></th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité) et les alertes sur les fonds suivis.
@@ -142,7 +143,7 @@
             <tr data-si-hebergeur="github"><th scope="row">GitHub (hébergeur) <small>(cleante-f.github.io)</small></th><td>Envoyer les pages du site. GitHub indique enregistrer et conserver l'adresse IP de chaque visiteur pour des raisons de sécurité.</td><td>À chaque visite</td>
               <td>États-Unis. GitHub adhère au cadre de protection des données UE–États-Unis, reconnu par la Commission européenne (décision d'adéquation du 10 juillet 2023).
                 <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">Politique de GitHub</a></td></tr>
-            <tr data-si-hebergeur="cloudflare"><th scope="row">Cloudflare (hébergeur) <small>(decrypte-ton-fonds.fr, decrypte-ton-fonds.pages.dev)</small></th><td>Envoyer les pages du site.</td>
+            <tr data-si-hebergeur="cloudflare"><th scope="row">Cloudflare (hébergeur) <small>(decrypte-ton-fonds.pages.dev)</small></th><td>Envoyer les pages du site.</td>
               <td>À chaque visite</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis).
                 <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Politique de Cloudflare</a></td></tr>
             <tr><th scope="row">AMF, base GECO <small>(geco.amf-france.org)</small></th><td>Lire les données officielles d'un fonds : valeurs liquidatives, documents, rapports.</td><td>Quand tu consultes un fonds</td><td>France</td></tr>

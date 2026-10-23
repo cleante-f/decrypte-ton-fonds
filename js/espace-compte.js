@@ -8,14 +8,14 @@ const protege = fn => async e => { try { await fn(e); } catch (err) { annoncer(e
 const action = fn => protege(e => { e.preventDefault(); return fn(e); });
 
 // Paiement coupé (réglage du site, ou base : champ paiement_actif de droit_acces) : comptes gratuits, simulateur ouvert,
-// ni simulations offertes ni abonnement. Seul un ancien abonné garde le bouton du portail Stripe, pour gérer ou résilier.
+// ni simulations offertes ni abonnement, et pas de bouton du portail Stripe (même pour un ancien abonné) : dans cet état,
+// la page Confidentialité ne mentionne pas Stripe, donc la page ne doit pas y mener.
 const PAIEMENT_SITE = CONFIG_COMPTE.paiementActif !== false;
 function blocAcces(d) {
   if (!PAIEMENT_SITE || d.paiement_actif === false) {
     return `<h2>Compte gratuit</h2>
       <p>Avec ton compte, le simulateur est ouvert : tes simulations sont enregistrées ici, retrouvables sur tous tes appareils.</p>
-      <p class="actions-compte"><a class="btn" href="simulateur.html">Lancer une simulation</a>
-        ${d.abonne ? `<button type="button" class="btn btn-secondaire" id="portail">Gérer mon ancien abonnement</button>` : ""}</p>`;
+      <p class="actions-compte"><a class="btn" href="simulateur.html">Lancer une simulation</a></p>`;
   }
   if (d.abonne) {
     return `<h2>Abonnement actif</h2>

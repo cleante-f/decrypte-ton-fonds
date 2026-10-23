@@ -1,8 +1,10 @@
 /*
  * Mode du site : décide, d'après l'adresse, si cette copie du site garde les comptes (mode « comptes ») ou les cache (mode « gratuit »).
  * Un seul code sert les deux sites : GitHub Pages et l'adresse principale de Cloudflare sont en mode gratuit ;
- * le domaine (decrypte-ton-fonds.fr, www compris), l'aperçu « comptes » de Cloudflare et localhost gardent les comptes.
- * Toute adresse inconnue est en mode gratuit.
+ * le domaine (decrypte-ton-fonds.fr et www.decrypte-ton-fonds.fr), l'aperçu « comptes » de Cloudflare et localhost gardent les comptes.
+ * Toute adresse inconnue est en mode gratuit. Sur le domaine, les comptes sont gratuits tant que le paiement est coupé :
+ * l'interrupteur est CONFIG_COMPTE.paiementActif (js/config-compte.js), à remettre à true pour rouvrir l'abonnement
+ * (avec, dans la base, reglages_site.paiement_actif : voir supabase/migrations/20261023000000_paiement.sql).
  *
  * Pour passer un nouveau domaine en mode comptes, il faut l'ajouter à HOTES_COMPTES : c'est la seule liste des adresses
  * en mode comptes. Il faut aussi ajouter l'adresse à ORIGINES dans .github/workflows/supabase.yml (adresses autorisées à appeler
