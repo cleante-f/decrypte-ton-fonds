@@ -39,7 +39,7 @@ DOSSIER = DATA / "cours"
 API = "https://mfs.deutsche-boerse.com/api"
 SOURCES = [("X", "DETR-posttrade"), ("F", "DFRA-posttrade")]   # Xetra d'abord, puis Börse Frankfurt
 FRAGMENTS = 32
-ENTETES = {"User-Agent": "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)"}
+ENTETES = {"User-Agent": "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://decrypte-ton-fonds.fr/)"}
 
 
 def telecharger(url, essais=4):

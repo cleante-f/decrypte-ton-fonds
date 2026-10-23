@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 const GECO_API = "https://geco.amf-france.org/back-office";
-const UA = "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)";
+const UA = "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://decrypte-ton-fonds.fr/)";
 const PAUSE_MS = 500;            // politesse envers GECO, entre deux fonds
 const PAGES_MAX = 40;            // pages lues au plus dans un prospectus (les DIC sont au début)
 const PAGES_DIC = 4;             // un DIC tient en 3 pages (4 au plus)

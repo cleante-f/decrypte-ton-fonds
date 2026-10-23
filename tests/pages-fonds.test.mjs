@@ -6,7 +6,7 @@ import vm from "node:vm";
 import { readFileSync, mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, statSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pageFonds, pagesClassement, sitemaps, ecrireSiChange, supprimerDisparues, fondsDesPages, nomsDesPages, pagesDesFonds, fraisAlternatives, BASE } from "../scripts/construire_pages.mjs";
+import { pageFonds, pagesClassement, sitemaps, robotsTxt, ecrireSiChange, supprimerDisparues, fondsDesPages, nomsDesPages, pagesDesFonds, fraisAlternatives, BASE } from "../scripts/construire_pages.mjs";
 
 const lire = f => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 
@@ -94,7 +94,7 @@ test("page d'un fonds : titre, description, canonique, résumé du DIC et source
   assert.match(html, /<meta name="description" content="CARMIGNAC PATRIMOINE \(FR0010135103\)[^"]*frais courants 1,5 %[^"]*">/i);
   assert.equal((html.match(/<meta name="description"/g) || []).length, 1);
   assert.ok(html.includes(`<link rel="canonical" href="${BASE}fonds/carmignac-patrimoine-FR0010135103.html">`));
-  assert.equal(BASE, "https://cleante-f.github.io/decrypte-ton-fonds/");
+  assert.equal(BASE, "https://decrypte-ton-fonds.fr/");
   const resume = html.match(/<section class="fiche-entete resume-fixe"[\s\S]*?<\/section>/)[0];
   for (const t of ["<h1>CARMIGNAC PATRIMOINE</h1>", "FR0010135103", "CARMIGNAC GESTION", "Fonds mixtes", "08/11/2004", "France",
     "1,5 %", "3/7", "3 ans", "Surperformer son indicateur de référence sur 3 ans.",
@@ -114,7 +114,7 @@ test("page d'un fonds : nom avec < & \" échappé partout", () => {
   assert.ok(!html.includes("A<b>") && !html.includes("<X>"));
   assert.ok(html.includes("<h1>A&lt;b&gt;&amp;&quot;</h1>"));
   assert.ok(html.includes("SOCIETE &lt;X&gt;"));
-  assert.ok(html.includes('href="https://cleante-f.github.io/decrypte-ton-fonds/fonds/a-b-FR0000000002.html"'));
+  assert.ok(html.includes('href="https://decrypte-ton-fonds.fr/fonds/a-b-FR0000000002.html"'));
 });
 
 test("page d'un fonds sans DIC lu : identité seule, sans « undefined »", () => {
@@ -188,7 +188,7 @@ test("noms en double : « (ISIN) » ajouté au titre et au h1 ; description qui 
   assert.equal(titre(html), "CARMIGNAC PATRIMOINE (FR0010135103) : frais 1,5 %, risque 3/7 · Décrypte ton fonds");
   assert.ok(html.includes("<h1>CARMIGNAC PATRIMOINE (FR0010135103)</h1>"));
   assert.match(html, /<meta name="description" content="CARMIGNAC PATRIMOINE \(FR0010135103\) : /);
-  assert.ok(html.includes('href="https://cleante-f.github.io/decrypte-ton-fonds/fonds/carmignac-patrimoine-FR0010135103.html"'), "adresse inchangée");
+  assert.ok(html.includes('href="https://decrypte-ton-fonds.fr/fonds/carmignac-patrimoine-FR0010135103.html"'), "adresse inchangée");
   // pagesDesFonds applique la règle
   const titres = [...pagesDesFonds(fonds, RESUMES, {})].map(p => titre(p.html));
   assert.ok(titres[0].startsWith("CARMIGNAC PATRIMOINE (FR0010135103) : "), titres[0]);
@@ -283,4 +283,8 @@ test("remonter : attributs entre guillemets simples aussi", () => {
   const gabarit = lire("decrypte.html").replace('<link rel="stylesheet" href="css/style.css">', "<link rel='stylesheet' href='css/style.css'>");
   const html = pageFonds(lireEntree(CARMIGNAC), null, { gabarit });
   assert.ok(html.includes("href='../css/style.css'"));
+});
+
+test("robots.txt : tout est permis et le plan du site est donné en adresse absolue", () => {
+  assert.equal(robotsTxt("https://decrypte-ton-fonds.fr/"), "User-agent: *\nAllow: /\n\nSitemap: https://decrypte-ton-fonds.fr/sitemap.xml\n");
 });

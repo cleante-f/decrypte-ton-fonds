@@ -41,7 +41,7 @@ OPENFIGI = "https://api.openfigi.com/v3/mapping"
 ISO_MIC = "https://www.iso20022.org/sites/default/files/ISO10383_MIC/ISO10383_MIC.csv"
 DATA = Path(__file__).resolve().parent.parent / "data"
 SORTIE = DATA / "annuaire.js"
-ENTETES = {"User-Agent": "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)"}
+ENTETES = {"User-Agent": "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://decrypte-ton-fonds.fr/)"}
 
 # Natures GECO réservées aux professionnels ou sans intérêt pour un particulier
 NATURES_EXCLUES = {"FCT", "ST", "SFS", "FFS", "SLP", "SPPPICAV"}

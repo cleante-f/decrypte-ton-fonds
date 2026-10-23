@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
-export const BASE = "https://cleante-f.github.io/decrypte-ton-fonds/";
+export const BASE = "https://decrypte-ton-fonds.fr/";   // adresse officielle (DOMAINE_SITE dans js/mode-site.js)
 const MAX_SITEMAP = 50000;
 // Pages principales du site déclarées dans le plan du site ("" = accueil)
 const PAGES_PRINCIPALES = ["", "decrypte.html", "performances.html", "simulateur.html", "confidentialite.html", "mentions-legales.html"];
@@ -283,6 +283,11 @@ export function pagesClassement(fonds, resumes, alternatives, { gabarit = lireGa
 // ---------- Plan du site ----------
 
 // adresses : chemins relatifs à la racine ("" = accueil) ou { chemin, lastmod }. Retourne { "sitemap.xml": index, "sitemap-N.xml": … }
+// robots.txt : tout est permis ; donne l'adresse du plan du site (sert à la racine du domaine, ignoré sur GitHub Pages)
+export function robotsTxt(base = BASE) {
+  return `User-agent: *\nAllow: /\n\nSitemap: ${base}sitemap.xml\n`;
+}
+
 export function sitemaps(adresses, base = BASE, max = MAX_SITEMAP) {
   const xml = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
   const liste = adresses.map(a => (typeof a === "string" ? { chemin: a } : a));
@@ -357,6 +362,7 @@ function principal() {
   const plans = sitemaps(adresses);
   for (const [nom, xml] of Object.entries(plans)) ecrireSiChange(join(RACINE, nom), xml);
   supprimerDisparues(RACINE, new Set(Object.keys(plans)), /^sitemap-\d+\.xml$/);
+  ecrireSiChange(join(RACINE, "robots.txt"), robotsTxt());
 
   console.log(`${fonds.length} pages de fonds (${ecrites} écrites, ${supprimees.length} supprimées), `
     + `${Object.keys(classements).length} classements (${ecritsClassements} écrits, ${classementsSupprimes.length} supprimés), `

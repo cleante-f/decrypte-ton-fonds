@@ -130,11 +130,22 @@ test("réglages par défaut : adresse et clé publique lues dans js/config-compt
   assert.equal(r.status, 200);
 });
 
-test("_routes.json : tout passe par le contrôle, sauf des fichiers publics nommés exactement", () => {
+// Dossiers publics exclus en entier (pages des fonds, classements, cours) : sans eux, Google et les visiteurs useraient
+// le quota gratuit des Functions de Cloudflare (100 000 appels par jour). Aucun fichier protégé n'y est rangé, et Cloudflare
+// ne résout pas une adresse déguisée (/fonds/%2e%2e/simulateur.html → page par défaut, vérifié en ligne le 23/10/2026).
+const DOSSIERS_PUBLICS = ["/fonds/*", "/classements/*", "/data/cours/*", "/data/etats-unis/*"];
+
+test("_routes.json : tout passe par le contrôle, sauf des fichiers publics nommés exactement et des dossiers publics", () => {
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   assert.deepEqual(routes.include, ["/*"]);
   assert.ok(routes.include.length + routes.exclude.length <= 100);
   for (const c of routes.exclude) {
+    if (DOSSIERS_PUBLICS.includes(c)) {
+      const dossier = c.slice(0, -1);
+      assert.ok(existsSync(new URL(".." + dossier, import.meta.url)), `${c} : dossier introuvable`);
+      assert.ok(!CHEMINS_PROTEGES.some(p => p.toLowerCase().startsWith(dossier)), `${c} : contient un fichier protégé`);
+      continue;
+    }
     assert.ok(!c.includes("*"), `${c} : pas de joker dans les exclusions (une adresse déguisée pourrait s'y glisser)`);
     assert.ok(existsSync(new URL(".." + c, import.meta.url)), `${c} : fichier introuvable`);
     assert.ok(!estProtege(c), `${c} : fichier protégé exclu du contrôle`);

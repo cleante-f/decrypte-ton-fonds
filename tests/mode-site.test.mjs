@@ -91,3 +91,34 @@ test("attribut hidden tout de suite si la page est déjà chargée", () => {
   assert.deepEqual(page.masques(), ["comptes", "github"]);
   assert.equal(page.ecouteurs.DOMContentLoaded, undefined);
 });
+
+test("adresseSurDomaine : une page de GitHub Pages a la même adresse sur decrypte-ton-fonds.fr (fonds, recherche et # gardés)", () => {
+  const { adresseSurDomaine, DOMAINE_SITE } = charger(["js/mode-site.js"]);
+  assert.equal(DOMAINE_SITE, "https://decrypte-ton-fonds.fr/");
+  const loc = (pathname, search = "", hash = "") => ({ hostname: "cleante-f.github.io", pathname, search, hash });
+  assert.equal(adresseSurDomaine(loc("/decrypte-ton-fonds/")), "https://decrypte-ton-fonds.fr/");
+  assert.equal(adresseSurDomaine(loc("/decrypte-ton-fonds/decrypte.html", "", "#FR0010135103")), "https://decrypte-ton-fonds.fr/decrypte.html#FR0010135103");
+  assert.equal(adresseSurDomaine(loc("/decrypte-ton-fonds/index.html", "?q=amundi")), "https://decrypte-ton-fonds.fr/index.html?q=amundi");
+  assert.equal(adresseSurDomaine(loc("/decrypte-ton-fonds/fonds/carmignac-patrimoine-FR0010135103.html")),
+    "https://decrypte-ton-fonds.fr/fonds/carmignac-patrimoine-FR0010135103.html");
+  assert.equal(adresseSurDomaine(loc("/decrypte-ton-fonds")), "https://decrypte-ton-fonds.fr/");
+  // Ni une autre adresse, ni un autre site de github.io, ni une adresse qui ressemble
+  for (const l of [{ hostname: "decrypte-ton-fonds.fr", pathname: "/decrypte-ton-fonds/" }, { hostname: "localhost", pathname: "/" },
+    loc("/autre-site/"), loc("/decrypte-ton-fonds-bis/"), { hostname: "autre.github.io", pathname: "/decrypte-ton-fonds/" }])
+    assert.equal(adresseSurDomaine(l), null, JSON.stringify(l));
+});
+
+test("GitHub Pages : redirection vers le domaine seulement quand REDIRIGER_VERS_DOMAINE est vrai", () => {
+  const source = lire("js/mode-site.js");
+  const vers = [];
+  const page = actif => {
+    const code = source.replace(/const REDIRIGER_VERS_DOMAINE = (true|false);/, `const REDIRIGER_VERS_DOMAINE = ${actif};`);
+    const ctx = vm.createContext({ console, document: { documentElement: { dataset: {} }, readyState: "complete", querySelectorAll: () => [], currentScript: null },
+      location: { hostname: "cleante-f.github.io", pathname: "/decrypte-ton-fonds/decrypte.html", search: "", hash: "#X", replace: a => vers.push(a) } });
+    vm.runInContext(code, ctx);
+  };
+  page(false);
+  assert.deepEqual(vers, []);
+  page(true);
+  assert.deepEqual(vers, ["https://decrypte-ton-fonds.fr/decrypte.html#X"]);
+});

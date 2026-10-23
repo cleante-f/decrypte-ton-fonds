@@ -18,7 +18,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 RACINE = Path(__file__).resolve().parents[2]
-AGENT = "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)"
+AGENT = "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://decrypte-ton-fonds.fr/)"
 DELAI = 8  # secondes au maximum par appel
 
 

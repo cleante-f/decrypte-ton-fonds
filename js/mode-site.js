@@ -20,6 +20,12 @@
   // Adresses en mode comptes (en minuscules). Toute autre adresse est en mode gratuit.
   const HOTES_COMPTES = ["comptes.decrypte-ton-fonds.pages.dev", "localhost"];
 
+  // Adresse officielle du site. Quand REDIRIGER_VERS_DOMAINE est vrai, une page ouverte sur GitHub Pages
+  // (cleante-f.github.io/decrypte-ton-fonds/…) renvoie vers la même page sur ce domaine : Google ne voit qu'un seul site.
+  const DOMAINE_SITE = "https://decrypte-ton-fonds.fr/";
+  const REDIRIGER_VERS_DOMAINE = false;
+  const CHEMIN_GITHUB = "/decrypte-ton-fonds";
+
   // Pages qui n'existent qu'en mode comptes : nom de fichier sans « .html ».
   // GitHub les sert avec « .html » (connexion.html), Cloudflare sans (connexion).
   const PAGES_COMPTE = ["connexion", "compte", "abonnement", "cgv", "alertes-desactivees"];
@@ -48,7 +54,17 @@
     return PAGES_COMPTE.includes(dernier.replace(/\.html$/, ""));
   }
 
+  // Même page sur DOMAINE_SITE (recherche et # gardés) pour une page de GitHub Pages de ce site ; sinon null.
+  function adresseSurDomaine(loc) {
+    if (hebergeurSite(loc.hostname) !== "github" || enMinuscules(loc.hostname) !== "cleante-f.github.io") return null;
+    const chemin = String(loc.pathname || "");
+    if (chemin !== CHEMIN_GITHUB && !chemin.startsWith(CHEMIN_GITHUB + "/")) return null;
+    return DOMAINE_SITE + chemin.slice(CHEMIN_GITHUB.length).replace(/^\//, "") + (loc.search || "") + (loc.hash || "");
+  }
+
   globalThis.HOTES_COMPTES = HOTES_COMPTES;
+  globalThis.DOMAINE_SITE = DOMAINE_SITE;
+  globalThis.adresseSurDomaine = adresseSurDomaine;
   globalThis.modeSite = modeSite;
   globalThis.hebergeurSite = hebergeurSite;
   globalThis.estPageCompte = estPageCompte;
@@ -64,6 +80,8 @@
 
   // Effets dans un navigateur seulement (ni document ni location côté serveur ni dans les tests sans page simulée).
   if (typeof document !== "undefined") {
+    const ailleurs = REDIRIGER_VERS_DOMAINE ? adresseSurDomaine(location) : null;
+    if (ailleurs) { location.replace(ailleurs); return; }
     const mode = modeSite(location.hostname);
     const hebergeur = hebergeurSite(location.hostname);
     document.documentElement.dataset.site = mode;

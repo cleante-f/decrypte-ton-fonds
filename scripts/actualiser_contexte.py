@@ -30,7 +30,7 @@ from xml.etree import ElementTree
 
 RACINE = Path(__file__).resolve().parent.parent
 SORTIE = RACINE / "data" / "contexte.js"
-AGENT = "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://cleante-f.github.io/decrypte-ton-fonds/)"
+AGENT = "Mozilla/5.0 (compatible; decrypte-ton-fonds/1.0; +https://decrypte-ton-fonds.fr/)"
 BCE = "https://data-api.ecb.europa.eu/service/data/"
 AUJOURDHUI = date.today()
 
