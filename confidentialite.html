@@ -39,9 +39,15 @@
     <section class="carte">
       <h2>Qui est responsable de tes données ?</h2>
       <div data-seulement="comptes">
-        <p>« Décrypte ton fonds » est édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>, directeurs de la publication.
+        <p data-si-paiement="actif">« Décrypte ton fonds » est édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>, directeurs de la publication.
           L'abonnement est vendu par la micro-entreprise indiquée dans les <a href="mentions-legales.html">mentions légales</a>, responsable des traitements décrits ci-dessous.</p>
-        <p><strong>Nous contacter</strong> (questions, demandes sur tes données) : <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+        <p data-si-paiement="actif"><strong>Nous contacter</strong> (questions, demandes sur tes données) : <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+        <p data-si-paiement="coupe">« Décrypte ton fonds » (<span translate="no">decrypte-ton-fonds.fr</span>) est un site gratuit, édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>,
+          directeurs de la publication et responsables des traitements décrits ci-dessous. Les comptes sont gratuits : rien n'y est vendu et aucune donnée de paiement n'est demandée.</p>
+        <p data-si-paiement="coupe"><strong>Nous contacter</strong> (questions, demandes sur tes données) : depuis « Mon compte », tu peux télécharger tes données et supprimer ton compte toi-même.
+          Pour toute autre demande, ouvre un ticket sur la
+          <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a> (bouton « New issue », compte GitHub gratuit nécessaire).
+          Les tickets sont publics : n'y écris pas d'informations personnelles (ni ton adresse e-mail).</p>
         <p><strong>Hébergeur</strong> : Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis.</p>
       </div>
       <div data-seulement="gratuit">
@@ -59,17 +65,19 @@
     <div data-seulement="comptes">
       <section class="carte">
         <h2>Si tu crées un compte</h2>
-        <p>Le compte est facultatif : l'accueil, les fiches des fonds et les performances restent accessibles sans compte. Il sert au simulateur
+        <p data-si-paiement="actif">Le compte est facultatif : l'accueil, les fiches des fonds et les performances restent accessibles sans compte. Il sert au simulateur
           (3 simulations offertes, puis abonnement).</p>
+        <p data-si-paiement="coupe">Le compte est <strong>gratuit</strong> et facultatif : l'accueil, les fiches des fonds et les performances restent accessibles sans compte. Il sert au simulateur,
+          à enregistrer tes simulations, à suivre des fonds et à recevoir des alertes. Aucune donnée de paiement n'est demandée ni conservée.</p>
         <div class="cadre-tableau"><table class="tableau-texte">
           <thead><tr><th scope="col">Données</th><th scope="col">Pourquoi</th><th scope="col">Base légale (RGPD)</th><th scope="col">Durée</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Adresse e-mail, mot de passe (enregistré sous une forme chiffrée irréversible), date d'inscription, confirmation d'avoir 18 ans et d'accepter les CGV</th>
+            <tr><th scope="row">Adresse e-mail, mot de passe (enregistré sous une forme chiffrée irréversible), date d'inscription, confirmation d'avoir 18 ans<span data-si-paiement="actif"> et d'accepter les CGV</span></th>
               <td>Créer et sécuriser ton compte</td><td>Exécution du contrat (art. 6.1 b)</td>
               <td>Tant que le compte existe. Suppression automatique après 2 ans sans connexion, avec un e-mail d'avertissement 30 jours avant.</td></tr>
-            <tr><th scope="row">Simulations enregistrées (fonds, montants, durée, portefeuille), compteur des simulations offertes</th>
+            <tr><th scope="row">Simulations enregistrées (fonds, montants, durée, portefeuille)<span data-si-paiement="actif">, compteur des simulations offertes</span></th>
               <td>Retrouver tes simulations sur tous tes appareils</td><td>Exécution du contrat</td><td>Comme le compte</td></tr>
-            <tr><th scope="row">Abonnement : état, date de fin, référence client du prestataire de paiement, factures</th>
+            <tr data-si-paiement="actif"><th scope="row">Abonnement : état, date de fin, référence client du prestataire de paiement, factures</th>
               <td>Gérer l'abonnement et la comptabilité</td><td>Exécution du contrat ; obligation légale pour les factures (art. 6.1 c)</td>
               <td>Factures : 10 ans (Code de commerce), conservées par Stripe. Tes données de carte ne passent jamais par ce site.</td></tr>
             <tr><th scope="row">Liste de suivi : codes des fonds que tu suis, date d'ajout</th>
@@ -106,12 +114,12 @@
         <div class="cadre-tableau"><table class="tableau-texte">
           <thead><tr><th scope="col">Prestataire</th><th scope="col">Pourquoi</th><th scope="col">Quand</th><th scope="col">Où</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Cloudflare (hébergeur) <small>(pages du site ; challenges.cloudflare.com)</small></th>
+            <tr><th scope="row">Cloudflare (hébergeur) <small>(decrypte-ton-fonds.fr, decrypte-ton-fonds.pages.dev ; challenges.cloudflare.com)</small></th>
               <td>Envoyer les pages du site, contrôler l'accès au simulateur, vérifier que tu n'es pas un robot (Turnstile) à l'inscription et à la connexion.</td>
               <td>À chaque visite ; Turnstile seulement sur la page de connexion</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
-            <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, fonds suivis et préférences d'alerte, état de l'abonnement.</td>
+            <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, fonds suivis et préférences d'alerte<span data-si-paiement="actif">, état de l'abonnement</span>.</td>
               <td>Quand tu es connecté, ou quand tu cliques sur le lien de désinscription d'un e-mail d'alerte</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
-            <tr><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
+            <tr data-si-paiement="actif"><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
               <td>Quand tu t'abonnes ou gères ton abonnement</td><td>Irlande (Stripe Payments Europe)</td></tr>
             <tr><th scope="row">Brevo <small>(liens des e-mails : sendibt2.com, sendibt3.com)</small></th><td>Envoyer les e-mails du compte (confirmation, mot de passe oublié, avertissement d'inactivité) et les alertes sur les fonds suivis.
               Brevo note, pour chaque e-mail, s'il a été ouvert (petite image invisible) et si un lien a été cliqué (les liens passent par une adresse de Brevo avant d'arriver sur le site).
@@ -187,7 +195,8 @@
       <div data-seulement="comptes">
         <p>Tu peux accéder à tes données, les rectifier, les effacer, t'opposer à leur traitement, en demander la limitation ou les récupérer (RGPD, articles 15 à 21).
           Depuis « Mon compte » : <strong>Télécharger mes données</strong> (fichier JSON), <strong>Supprimer mon compte</strong>, changer d'adresse e-mail.
-          Pour toute autre demande, écris-nous à <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+          <span data-si-paiement="actif">Pour toute autre demande, écris-nous à <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</span>
+          <span data-si-paiement="coupe">Pour toute autre demande, ouvre un ticket sur la <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a> (sans y écrire d'informations personnelles).</span></p>
       </div>
       <div data-seulement="gratuit">
         <p>Tu peux demander l'accès à tes données, leur rectification ou leur effacement, t'opposer à leur traitement ou en demander la limitation (RGPD, articles 15 à 21).
@@ -196,7 +205,7 @@
           Pour toute autre demande, ouvre un ticket sur la <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a>.</p>
       </div>
       <p>Si tu estimes que tes droits ne sont pas respectés, tu peux adresser une réclamation à la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">cnil.fr</a>), RGPD article 77.</p>
-      <p class="source">Page mise à jour le 22 octobre 2026.</p>
+      <p class="source">Page mise à jour le 23 octobre 2026.</p>
     </section>
   </main>
 

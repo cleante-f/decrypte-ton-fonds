@@ -113,8 +113,8 @@ test("un seul hébergeur visible en mode gratuit", () => {
   }
 });
 
-test("dates de mise à jour (confidentialité : 22 octobre 2026, mentions légales : 7 octobre 2026), communes aux deux modes", () => {
-  for (const [nom, date] of [["confidentialite", "22 octobre 2026"], ["mentions-legales", "7 octobre 2026"]])
+test("dates de mise à jour (23 octobre 2026), communes aux deux modes", () => {
+  for (const [nom, date] of [["confidentialite", "23 octobre 2026"], ["mentions-legales", "23 octobre 2026"]])
     assert.ok(texte(communATous(nom)).includes(`Page mise à jour le ${date}.`), nom);
 });
 
@@ -200,4 +200,25 @@ test("inscription, paiement coupé : case « majeur » gardée, case CGV absente
   assert.match(form, /href="confidentialite\.html"/);
   // La case CGV est dans un élément data-si-paiement="actif" que connexion.js retire (cachée, elle bloquerait l'envoi)
   assert.match(lirePage("connexion"), /<label class="case" data-si-paiement="actif"><input type="checkbox" name="cgv" required>/);
+});
+
+test("pages légales, paiement coupé : rien de payant, pas de valeur à compléter, adresse du site et services d'un compte décrits", () => {
+  for (const nom of ["confidentialite", "mentions-legales"]) {
+    const html = visibleCoupe(nom);
+    const visible = texte(html);
+    assert.ok(!html.includes("[["), `${nom} : valeur [[…]] visible avec le paiement coupé`);
+    assert.doesNotMatch(visible, /abonn|\bcgv\b|conditions générales de vente|offerte|stripe|facture/i, `${nom} : texte payant visible`);
+    assert.doesNotMatch(html, /mailto:/, `${nom} : adresse e-mail visible`);
+    assert.ok(visible.includes("decrypte-ton-fonds.fr"), `${nom} : adresse du site absente`);
+    assert.ok(visible.includes("gratuit"), `${nom} : « gratuit » absent`);
+  }
+  const visible = texte(visibleCoupe("confidentialite"));
+  for (const attendu of ["Simulations enregistrées", "Liste de suivi", "Préférences d'alerte", "Brevo", "Supabase", "Turnstile", "GitHub Actions", "dtf_session", "Télécharger mes données"])
+    assert.ok(visible.includes(attendu), `confidentialité (paiement coupé) : « ${attendu} » absent`);
+});
+
+test("pages légales, paiement actif : Stripe, abonnement et valeurs à compléter toujours là", () => {
+  const conf = texte(visibleActif("confidentialite"));
+  for (const attendu of ["Stripe", "Abonnement : état", "accepter les CGV", "simulations offertes"]) assert.ok(conf.includes(attendu), `confidentialité : « ${attendu} »`);
+  assert.ok(visibleActif("mentions-legales").includes("[[SIRET]]"), "mentions légales : [[SIRET]]");
 });

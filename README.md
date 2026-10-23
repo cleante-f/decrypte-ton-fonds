@@ -45,11 +45,11 @@ Un seul code sert deux sites. Le navigateur choisit le mode d'après l'adresse d
 
 | Mode | Adresses | Ce que voit le visiteur |
 |---|---|---|
-| **Comptes** | celles de la liste `HOTES_COMPTES` : `comptes.decrypte-ton-fonds.pages.dev` (aperçu Cloudflare) et `localhost` | Pages de compte, bouton « Se connecter », simulateur réservé aux comptes (3 simulations offertes, puis abonnement) |
-| **Gratuit** | toute autre adresse : le domaine `decrypte-ton-fonds.fr`, GitHub Pages (`cleante-f.github.io`), adresse principale de Cloudflare (`decrypte-ton-fonds.pages.dev`), aperçus par commit (`abc123.decrypte-ton-fonds.pages.dev`), `127.0.0.1`, adresse inconnue, fichier ouvert directement | Même design et même contenu, mais simulateur libre et sans aucune trace de compte |
+| **Comptes** | celles de la liste `HOTES_COMPTES` : le domaine `decrypte-ton-fonds.fr` (et son `www`), `comptes.decrypte-ton-fonds.pages.dev` (aperçu Cloudflare) et `localhost` | Pages de compte, bouton « Se connecter », simulateur réservé aux comptes. Paiement coupé (état actuel) : comptes **gratuits** ; paiement actif : 3 simulations offertes, puis abonnement (voir « Comptes gratuits ») |
+| **Gratuit** | toute autre adresse : GitHub Pages (`cleante-f.github.io`), adresse principale de Cloudflare (`decrypte-ton-fonds.pages.dev`), aperçus par commit (`abc123.decrypte-ton-fonds.pages.dev`), `127.0.0.1`, adresse inconnue, fichier ouvert directement | Même design et même contenu, mais simulateur libre et sans aucune trace de compte |
 
 ```js
-const HOTES_COMPTES = ["comptes.decrypte-ton-fonds.pages.dev", "localhost"];   // js/mode-site.js : la seule liste des adresses en mode comptes
+const HOTES_COMPTES = ["decrypte-ton-fonds.fr", "www.decrypte-ton-fonds.fr", "comptes.decrypte-ton-fonds.pages.dev", "localhost"];   // js/mode-site.js : la seule liste des adresses en mode comptes
 ```
 
 - `modeSite(hote)` renvoie `"comptes"` si l'adresse est dans la liste, sinon `"gratuit"`. Les majuscules, les espaces autour et un point
@@ -87,6 +87,43 @@ sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Une fois la pa
 - Les pages légales contiennent les deux versions du texte dans leur code source ; sans JavaScript, seule la version gratuite s'affiche.
 - Une adresse oubliée dans la liste reste en mode gratuit : sans danger, puisqu'aucune fonction de compte n'y est active.
 
+## Comptes gratuits (decrypte-ton-fonds.fr)
+
+Depuis le 23/10/2026, le domaine `decrypte-ton-fonds.fr` est en mode comptes **avec le paiement coupé** : créer un compte est gratuit, et il donne
+accès au simulateur sans limite, aux simulations enregistrées, à la liste de suivi et aux alertes e-mail. Aucune donnée de paiement n'est demandée
+(plus de Stripe, d'abonnement, de CGV ni de « simulations offertes » à l'écran). Le code de l'abonnement reste en place, dormant.
+GitHub Pages (`cleante-f.github.io`) et l'adresse principale `decrypte-ton-fonds.pages.dev` restent en mode gratuit, sans compte.
+
+**Les deux interrupteurs du paiement** : ils doivent toujours dire la même chose.
+- `CONFIG_COMPTE.paiementActif` dans `js/config-compte.js` (côté site : textes, pages, contrôle d'accès de Cloudflare). Valeur actuelle : `false`.
+- `reglages_site.paiement_actif` dans Supabase (côté base : `droit_acces()`, fonction de paiement). Valeur actuelle : `false`.
+  La base est la même pour le domaine et pour l'aperçu `comptes.decrypte-ton-fonds.pages.dev` : l'aperçu suit donc le même réglage.
+
+Pour changer la base (éditeur SQL de Supabase, ou clé « service role » ; jamais depuis le navigateur) :
+```sql
+update public.reglages_site set paiement_actif = true;   -- false pour recouper le paiement
+```
+Une table `reglages_site` absente ou sans ligne vaut « paiement actif » (comme `paiement_actif()` en SQL).
+Texte du site : les éléments `data-si-paiement="actif"` ou `data-si-paiement="coupe"` ne s'affichent que dans l'état correspondant
+(`<html data-paiement="…">`, posé par `js/mode-site.js`) ; `confidentialite.html` et `mentions-legales.html` ont les deux versions.
+
+**Avant de rallumer le paiement** :
+1. Ajouter l'acceptation **explicite** des CGV à l'inscription (la case CGV de `connexion.html` est déjà prévue en `data-si-paiement="actif"` ;
+   vérifier qu'elle est bien envoyée à l'inscription), et que les comptes déjà créés gratuitement acceptent les CGV avant leur premier achat.
+2. Compléter les valeurs `[[…]]` des textes légaux (`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`).
+3. Passer `paiementActif` à `true` dans `js/config-compte.js` ET exécuter la commande SQL ci-dessus, puis publier.
+
+**À faire par l'utilisateur** :
+1. Domaine `decrypte-ton-fonds.fr` relié à Cloudflare Pages : fait.
+2. Cloudflare Turnstile : créer un widget pour `decrypte-ton-fonds.fr` ; la **clé de site** (publique) va dans `js/config-compte.js`,
+   la **clé secrète** dans Supabase → Authentication → Attack Protection (captcha, fournisseur Turnstile). Jamais dans `.env`.
+3. Supabase → Authentication → URL Configuration : *Site URL* `https://decrypte-ton-fonds.fr` et *Redirect URLs* `https://decrypte-ton-fonds.fr/**`
+   (en gardant l'aperçu `https://comptes.decrypte-ton-fonds.pages.dev/**` tant qu'il sert).
+4. Google Search Console : voir « À faire par l'utilisateur » de la section « Pages des fonds pour Google » (propriété « Domaine », sitemap).
+5. Les adresses autorisées à appeler les fonctions (`ORIGINES` de `.github/workflows/supabase.yml`) commencent par `https://decrypte-ton-fonds.fr` :
+   la première sert de lien vers le site dans les e-mails et de redirection après une désinscription. Le workflow les applique au prochain envoi
+   touchant `supabase/**` ou à un lancement manuel (« Run workflow »).
+
 **Au lancement payant** : ajouter le nouveau domaine à `HOTES_COMPTES` (la seule liste des adresses en mode comptes), ajouter aussi son adresse
 EN PREMIÈRE position de `ORIGINES` dans `.github/workflows/supabase.yml` (adresses autorisées à appeler les fonctions Supabase ; la première sert
 de lien vers le site dans les e-mails, elle doit donc être en mode comptes), retirer le `noindex` de `cgv.html` et `abonnement.html`
@@ -94,8 +131,8 @@ de lien vers le site dans les e-mails, elle doit donc être en mode comptes), re
 (`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`). Le contrôle avant publication admet les `[[…]]` seulement
 dans les pages de compte, dans `js/config-compte.js` et dans les éléments `data-seulement="comptes"`.
 
-**Essayer les deux modes en local** : servir le site sur un port (par exemple 8770). `http://127.0.0.1:8770/` est en mode gratuit,
-`http://localhost:8770/` en mode comptes. Les tests (`node --test "tests/*.test.mjs"`) vérifient la règle de bascule, le contrôle d'accès,
+**Essayer les deux modes en local** : servir le site sur un port (par exemple 8771). `http://127.0.0.1:8771/` est en mode gratuit,
+`http://localhost:8771/` en mode comptes. Les tests (`node --test "tests/*.test.mjs"`) vérifient la règle de bascule, le contrôle d'accès,
 le marquage des pages et les textes de la version gratuite.
 
 ## Le simulateur (méthode)
