@@ -17,6 +17,7 @@ const Compte = (() => {
     captcha_failed: "La vérification anti-robot a échoué. Réessaie.",
     same_password: "Choisis un mot de passe différent de l'ancien.",
     quota_atteint: "Tes 3 simulations offertes sont utilisées. Abonne-toi pour en lancer de nouvelles.",
+    paiement_coupe: "L'abonnement n'est pas proposé pour l'instant : ton compte est gratuit.",
     email_non_confirme: "Confirme d'abord ton adresse e-mail.",
     limite_simulations: "Tu as atteint 200 simulations enregistrées : supprimes-en avant d'en créer de nouvelles.",
     non_connecte: "Ta session a expiré : reconnecte-toi.",
@@ -109,7 +110,8 @@ const Compte = (() => {
   async function inscrire(email, motDePasse, captcha) {
     const r = await requete(`/auth/v1/signup?redirect_to=${encodeURIComponent(urlPage("connexion.html"))}`, { methode: "POST", corps: {
       email: nettoyer(email), password: motDePasse,
-      data: { majeur: true, cgv_version: CONFIG_COMPTE.versionCgv },
+      // CGV acceptées seulement si le paiement existe (case absente sinon) ; la majorité, toujours
+      data: CONFIG_COMPTE.paiementActif === false ? { majeur: true } : { majeur: true, cgv_version: CONFIG_COMPTE.versionCgv },
       gotrue_meta_security: { captcha_token: captcha } } });
     if (r && r.access_token) ecrireSession(depuisJeton(r));   // si la confirmation par e-mail était désactivée
     return { confirmationEnvoyee: !(r && r.access_token) };

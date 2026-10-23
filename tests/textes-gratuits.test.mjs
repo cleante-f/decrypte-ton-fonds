@@ -164,3 +164,40 @@ test("pages de compte en mode comptes : tout le contenu de <main> dans un seul b
   for (const [nom, attendus] of Object.entries(reperes))
     for (const attendu of attendus) assert.ok(contenuMain(enComptes(nom)).includes(attendu), `${nom} : « ${attendu} » absent en mode comptes`);
 });
+
+// ---- Comptes gratuits (plan du 23/10/2026) : textes visibles sur le domaine (mode comptes) quand le paiement est coupé ----
+
+const PIED_CGV = '<span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span>';   // caché par mode-site.js et le CSS
+const visibleCoupe = nom => {
+  let html = lirePage(nom).replace(/<head>[\s\S]*?<\/head>/, "");
+  html = retirerBlocs(retirerBlocs(html, "data-seulement", "gratuit"), "data-si-paiement", "actif").split(PIED_CGV).join("");
+  return html;
+};
+const visibleActif = nom => retirerBlocs(retirerBlocs(lirePage(nom), "data-seulement", "gratuit"), "data-si-paiement", "coupe");
+const PAYANT = /abonn|\bcgv\b|conditions générales de vente|offerte|stripe|\[\[PRIX\]\]|€ par mois|3 simulations/i;
+
+test("paiement coupé : aucun texte payant visible sur les pages du site (hors pages légales, tâche 3)", () => {
+  for (const nom of ["index", "decrypte", "performances", "simulateur", "connexion", "compte", "alertes-desactivees"]) {
+    const html = visibleCoupe(nom);
+    const m = html.replace(/<[^>]+>/g, " ").match(PAYANT) || html.match(/href="(?:\.\.\/)?(?:cgv|abonnement)\.html"/);
+    assert.equal(m, null, `${nom} : « ${m && m[0]} » visible avec le paiement coupé`);
+  }
+});
+
+test("paiement actif : textes d'aujourd'hui toujours là (pastille, inscription)", () => {
+  assert.ok(visibleActif("index").includes(">3 simulations offertes<"));
+  const connexion = visibleActif("connexion");
+  assert.ok(connexion.includes("<strong>3 simulations offertes</strong>"));
+  assert.match(connexion, /<input type="checkbox" name="cgv" required>/);
+  assert.match(connexion, /<input type="checkbox" name="majeur" required>/);
+});
+
+test("inscription, paiement coupé : case « majeur » gardée, case CGV absente, politique de confidentialité citée", () => {
+  const html = visibleCoupe("connexion");
+  const form = html.match(/<form id="form-inscription"[\s\S]*?<\/form>/)[0];
+  assert.match(form, /<input type="checkbox" name="majeur" required>/);
+  assert.doesNotMatch(form, /name="cgv"/);
+  assert.match(form, /href="confidentialite\.html"/);
+  // La case CGV est dans un élément data-si-paiement="actif" que connexion.js retire (cachée, elle bloquerait l'envoi)
+  assert.match(lirePage("connexion"), /<label class="case" data-si-paiement="actif"><input type="checkbox" name="cgv" required>/);
+});

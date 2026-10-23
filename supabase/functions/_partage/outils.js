@@ -38,4 +38,13 @@ export async function majProfil(env, id, champs, fetchImpl = fetch) {
   if (!r.ok) throw new Error(`mise à jour du profil ${r.status}`);
 }
 
+// Interrupteur « paiement » (table reglages_site, fermée au navigateur : lue avec la clé service). Ligne absente : actif,
+// comme public.paiement_actif() ; réponse en erreur : exception (jamais de décision par défaut).
+export async function lirePaiementActif(env, fetchImpl = fetch) {
+  const r = await fetchImpl(`${env.SUPABASE_URL}/rest/v1/reglages_site?id=eq.true&select=paiement_actif`, { headers: entetesService(env) });
+  if (!r.ok) throw new Error(`réglages ${r.status}`);
+  const ligne = (await r.json())[0];
+  return !ligne || ligne.paiement_actif !== false;
+}
+
 export const estAbonne = p => !!p && ["actif", "resilie_fin_periode"].includes(p.abonnement_statut) && !!p.abonnement_fin && new Date(p.abonnement_fin) > new Date();

@@ -18,8 +18,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 export const BASE = "https://decrypte-ton-fonds.fr/";   // adresse officielle (DOMAINE_SITE dans js/mode-site.js)
 const MAX_SITEMAP = 50000;
-// Pages principales du site déclarées dans le plan du site ("" = accueil)
-const PAGES_PRINCIPALES = ["", "decrypte.html", "performances.html", "simulateur.html", "confidentialite.html", "mentions-legales.html"];
+// Pages principales du site déclarées dans le plan du site ("" = accueil). Pas simulateur.html : sur le domaine, il est réservé
+// aux comptes (le contrôle d'accès renvoie vers la connexion), Google n'en verrait que la redirection.
+export const PAGES_PRINCIPALES = ["", "decrypte.html", "performances.html", "confidentialite.html", "mentions-legales.html"];
 const SOURCE_DIC = "AMF – DIC (base GECO)";
 
 // ---------- Code du site : PAYS (js/geco.js), indiceDuNom (js/style.js), fonds qui ont une page et leurs adresses (js/adresses.js) ----------

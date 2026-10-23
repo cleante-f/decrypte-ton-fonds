@@ -68,11 +68,13 @@ test("webhook : abonnement actif appliqué au bon profil", async () => {
   assert.deepEqual(maj, { abonnement_statut: "actif", abonnement_fin: "2027-02-14T08:00:00.000Z", stripe_abonnement: "sub_1", stripe_client: "cus_1", abonnement_evenement: "2027-01-15T08:00:00.000Z" });
 });
 
+// Interrupteur « paiement » de la base (reglages_site) : actif dans ces tests ; coupé : tests/comptes-gratuits.test.mjs
+const REGLAGE_ACTIF = ["/rest/v1/reglages_site", { corps: [{ paiement_actif: true }] }];
 const requeteNavigateur = () => new Request("https://p.supabase.co/functions/v1/paiement", { method: "POST", headers: { Authorization: "Bearer jeton", Origin: "http://localhost:8770" }, body: "{}" });
 
 test("paiement : refusé pour un abonné (pas de second abonnement)", async () => {
   const { f, appels } = reseau([
-    ["/auth/v1/user", { corps: { id: "u1", email: "a@b.fr" } }],
+    ["/auth/v1/user", { corps: { id: "u1", email: "a@b.fr" } }], REGLAGE_ACTIF,
     ["/rest/v1/profils?id=eq.u1", { corps: [{ id: "u1", abonnement_statut: "actif", abonnement_fin: "2999-01-01T00:00:00Z", execution_immediate_demandee_le: "2026-10-01T00:00:00Z" }] }]]);
   const r = await creerPaiement(requeteNavigateur(), env, f);
   assert.equal(r.status, 409);
@@ -81,7 +83,7 @@ test("paiement : refusé pour un abonné (pas de second abonnement)", async () =
 
 test("paiement : client créé une seule fois (idempotence), puis session Checkout", async () => {
   const { f, appels } = reseau([
-    ["/auth/v1/user", { corps: { id: "u1", email: "a@b.fr" } }],
+    ["/auth/v1/user", { corps: { id: "u1", email: "a@b.fr" } }], REGLAGE_ACTIF,
     ["/rest/v1/profils?id=eq.u1", (url, o) => (o.method === "PATCH" ? { statut: 204 } : { corps: [{ id: "u1", abonnement_statut: "aucun", stripe_client: null, execution_immediate_demandee_le: "2026-10-01T00:00:00Z" }] })],
     ["api.stripe.com/v1/customers", { corps: { id: "cus_9" } }],
     ["api.stripe.com/v1/checkout/sessions", { corps: { url: "https://checkout.stripe.com/c/pay/cs_test_1" } }]]);
@@ -98,7 +100,7 @@ test("paiement : client créé une seule fois (idempotence), puis session Checko
 
 test("paiement : l'exécution immédiate doit avoir été demandée", async () => {
   const { f } = reseau([
-    ["/auth/v1/user", { corps: { id: "u1", email: "a@b.fr" } }],
+    ["/auth/v1/user", { corps: { id: "u1", email: "a@b.fr" } }], REGLAGE_ACTIF,
     ["/rest/v1/profils?id=eq.u1", { corps: [{ id: "u1", abonnement_statut: "aucun", execution_immediate_demandee_le: null }] }]]);
   const r = await creerPaiement(requeteNavigateur(), env, f);
   assert.equal(r.status, 400);

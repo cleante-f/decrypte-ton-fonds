@@ -103,7 +103,8 @@ test("éléments réservés au mode comptes", () => {
   for (const nom of PAGES)
     assert.match(bloc(lirePage(nom), "header"), /<a class="btn-compte" id="lien-compte"[^>]*data-seulement="comptes"/, `${nom} : #lien-compte sans data-seulement="comptes"`);
   assert.ok(bloc(index, "footer").includes('<span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span>'));
-  assert.ok(index.includes('<span class="pilule" data-seulement="comptes">3 simulations offertes</span>'));
+  assert.ok(index.includes('<span class="pilule" data-seulement="comptes" data-si-paiement="actif">3 simulations offertes</span>'));
+  assert.ok(index.includes('<span class="pilule" data-seulement="comptes" data-si-paiement="coupe">Avec un compte gratuit</span>'));
   assert.ok(index.includes('<span class="pilule" data-seulement="gratuit">Gratuit</span>'));
   assert.match(lirePage("simulateur"), /<p class="aide"[^>]*data-seulement="comptes"[^>]*><a href="compte\.html#simulations">/);
 });

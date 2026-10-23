@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { controlerAcces, lireCookie, CHEMINS_PROTEGES } from "../serveur/acces.js";
+// Les tests qui mènent à abonnement.html fixent paiementActif: true (paiement coupé : tests/comptes-gratuits.test.mjs)
 
 const env = { SUPABASE_URL: "https://projet.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test" };
 const requete = (chemin, cookie) => new Request("https://comptes.decrypte-ton-fonds.pages.dev" + chemin, { headers: cookie ? { Cookie: cookie } : {} });
@@ -24,7 +25,7 @@ test("chemins protégés : page et scripts du simulateur", () => {
 });
 
 test("sans cookie : page de présentation, et 403 pour un script", async () => {
-  const r = await controlerAcces(requete("/simulateur.html"), env, fichier, { fetchImpl: supabase(200, {}) });
+  const r = await controlerAcces(requete("/simulateur.html"), env, fichier, { fetchImpl: supabase(200, {}), paiementActif: true });
   assert.equal(r.status, 302);
   assert.equal(r.headers.get("Location"), "https://comptes.decrypte-ton-fonds.pages.dev/abonnement.html");
   const js = await controlerAcces(requete("/js/simulateur.js"), env, fichier, { fetchImpl: supabase(200, {}) });
@@ -44,7 +45,7 @@ test("mode gratuit : tout passe sans cookie", async () => {
 });
 
 test("hôte écrit avec un point final : toujours en mode comptes, donc protégé", async () => {
-  const r = await controlerAcces(new Request("https://comptes.decrypte-ton-fonds.pages.dev./simulateur.html"), env, fichier, { fetchImpl: supabase(200, {}) });
+  const r = await controlerAcces(new Request("https://comptes.decrypte-ton-fonds.pages.dev./simulateur.html"), env, fichier, { fetchImpl: supabase(200, {}), paiementActif: true });
   assert.equal(r.status, 302);
   assert.equal(new URL(r.headers.get("Location")).pathname, "/abonnement.html");
 });
@@ -64,7 +65,7 @@ test("droit d'accès : fichier envoyé, jamais mis en cache public", async () =>
 });
 
 test("connecté sans droit : page d'abonnement", async () => {
-  const r = await controlerAcces(requete("/simulateur.html", "dtf_session=bon"), env, fichier, { fetchImpl: supabase(200, { acces: false }) });
+  const r = await controlerAcces(requete("/simulateur.html", "dtf_session=bon"), env, fichier, { fetchImpl: supabase(200, { acces: false }), paiementActif: true });
   assert.equal(r.headers.get("Location"), "https://comptes.decrypte-ton-fonds.pages.dev/abonnement.html");
 });
 

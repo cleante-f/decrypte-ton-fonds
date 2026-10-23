@@ -45,6 +45,12 @@ function chargerTurnstile() {
   }
 }
 chargerTurnstile();
+// Paiement coupé : pas de CGV à accepter. La case est retirée de la page : simplement cachée, elle resterait obligatoire
+// et bloquerait l'envoi du formulaire. La case « J'ai 18 ans ou plus » reste.
+if (CONFIG_COMPTE.paiementActif === false) {
+  const caseCgv = document.querySelector("#form-inscription [name=cgv]");
+  if (caseCgv) caseCgv.closest("label").remove();
+}
 function captcha(form) {
   const jeton = jetonsCaptcha.get(form.id);
   if (!jeton) throw new Compte.ErreurCompte("captcha_absent", "Patiente une seconde : la vérification anti-robot se charge.");
