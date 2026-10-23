@@ -4,7 +4,7 @@ Site statique (HTML + CSS + JavaScript, sans framework) qui explique un fonds d'
 (OPCVM, SICAV, FCP, ETF) : où est investi l'argent, les risques et les pièges, et ce que pourrait devenir un investissement.
 
 **Site en ligne : https://decrypte-ton-fonds.fr/** (Cloudflare Pages, branche `main`). Copie de secours : https://cleante-f.github.io/decrypte-ton-fonds/ (GitHub Pages),
-qui renvoie vers le domaine quand `REDIRIGER_VERS_DOMAINE` vaut `true` dans `js/mode-site.js`.
+qui renvoie vers la même page du domaine (`REDIRIGER_VERS_DOMAINE = true` dans `js/mode-site.js`, actif depuis le 23/10/2026).
 
 ## Lancer le site
 
@@ -474,7 +474,7 @@ générées par `scripts/construire_pages.mjs`, donnent donc à chaque fonds une
    puis, sur le domaine, Règles → modèle « Redirect from WWW to root ».
 2. Google Search Console : propriété « Domaine » `decrypte-ton-fonds.fr`, vérifiée par un enregistrement TXT chez Cloudflare (sans toucher aux TXT de Brevo) ;
    puis soumettre `https://decrypte-ton-fonds.fr/sitemap.xml` (menu « Sitemaps »). L'indexation prend ensuite plusieurs semaines.
-3. Quand le domaine répond : passer `REDIRIGER_VERS_DOMAINE` à `true` dans `js/mode-site.js` et publier (GitHub Pages renvoie alors vers le domaine).
+3. Fait le 23/10/2026 : `REDIRIGER_VERS_DOMAINE` à `true` dans `js/mode-site.js` (GitHub Pages renvoie vers le domaine).
 
 ## Liste de suivi et alertes e-mail (mode comptes)
 

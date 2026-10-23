@@ -52,8 +52,16 @@ function naviguer(hostname, pathname, readyState = "loading") {
   return { document, ecouteurs, renvois, masques };
 }
 
+// GitHub Pages de ce site (cleante-f.github.io/decrypte-ton-fonds) renvoie vers le domaine : les comportements du mode gratuit
+// chez GitHub sont donc simulés sur une autre copie (copie.github.io), qui n'est pas renvoyée.
+test("cleante-f.github.io : renvoi immédiat vers decrypte-ton-fonds.fr, rien d'autre", () => {
+  const page = naviguer("cleante-f.github.io", "/decrypte-ton-fonds/compte.html");
+  assert.deepEqual(page.renvois, ["https://decrypte-ton-fonds.fr/compte.html"]);
+  assert.deepEqual({ ...page.document.documentElement.dataset }, {});
+});
+
 test("marquage de la page et renvoi des pages de compte (navigateur simulé)", () => {
-  const github = naviguer("cleante-f.github.io", "/decrypte-ton-fonds/compte.html");
+  const github = naviguer("copie.github.io", "/decrypte-ton-fonds/compte.html");
   assert.deepEqual({ ...github.document.documentElement.dataset }, { site: "gratuit", hebergePar: "github" });
   assert.deepEqual(github.renvois, ["index.html"]);
   const local = naviguer("localhost", "/compte.html");
@@ -63,7 +71,7 @@ test("marquage de la page et renvoi des pages de compte (navigateur simulé)", (
 
 test("page publique en mode gratuit : aucun renvoi", () => {
   for (const chemin of ["/decrypte-ton-fonds/index.html", "/simulateur.html", "/decrypte-ton-fonds/"])
-    assert.deepEqual(naviguer("cleante-f.github.io", chemin).renvois, [], chemin);
+    assert.deepEqual(naviguer("copie.github.io", chemin).renvois, [], chemin);
 });
 
 test("Cloudflare, /connexion sans .html, en mode gratuit : renvoi vers l'accueil, hébergeur Cloudflare", () => {
@@ -74,7 +82,7 @@ test("Cloudflare, /connexion sans .html, en mode gratuit : renvoi vers l'accueil
 
 // Le mode lecture des navigateurs ignore la feuille de style : l'attribut « hidden » cache aussi l'autre version
 test("attribut hidden au chargement de la page : gratuit chez GitHub", () => {
-  const page = naviguer("cleante-f.github.io", "/decrypte-ton-fonds/confidentialite.html");
+  const page = naviguer("copie.github.io", "/decrypte-ton-fonds/confidentialite.html");
   assert.equal(typeof page.ecouteurs.DOMContentLoaded, "function", "rien n'attend DOMContentLoaded");
   page.ecouteurs.DOMContentLoaded();
   assert.deepEqual(page.masques(), ["comptes", "cloudflare"]);

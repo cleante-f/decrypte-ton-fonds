@@ -118,7 +118,7 @@ test("paiement coupé : <html data-paiement=\"coupe\">, éléments payants et li
 });
 
 test("mode gratuit, paiement coupé : les pages de compte vont toujours vers l'accueil", () => {
-  const page = naviguer("cleante-f.github.io", "/decrypte-ton-fonds/abonnement.html", { paiementActif: false });
+  const page = naviguer("copie.github.io", "/decrypte-ton-fonds/abonnement.html", { paiementActif: false });
   assert.deepEqual(page.renvois, ["index.html"]);
 });
 

@@ -30,7 +30,7 @@
   // Adresse officielle du site. Quand REDIRIGER_VERS_DOMAINE est vrai, une page ouverte sur GitHub Pages
   // (cleante-f.github.io/decrypte-ton-fonds/…) renvoie vers la même page sur ce domaine : Google ne voit qu'un seul site.
   const DOMAINE_SITE = "https://decrypte-ton-fonds.fr/";
-  const REDIRIGER_VERS_DOMAINE = false;
+  const REDIRIGER_VERS_DOMAINE = true;
   const CHEMIN_GITHUB = "/decrypte-ton-fonds";
 
   // Pages qui n'existent qu'en mode comptes : nom de fichier sans « .html ».
