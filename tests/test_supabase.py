@@ -1,9 +1,14 @@
 """
-Tests de la base Supabase (RLS, quota de 3 simulations, abonnement, concurrence) contre le projet de TEST.
+Tests de la base Supabase (RLS, quota de 3 simulations, abonnement, interrupteur paiement, concurrence) contre le projet de TEST.
     python3 -m unittest tests/test_supabase.py -v
-Crée des comptes jetables (…@example.com) avec la clé secrète du .env, et les supprime à la fin.
+Crée des comptes jetables (…@example.com) par l'API d'administration (clé secrète du .env, e-mail déjà confirmé),
+et ne supprime à la fin que ces comptes-là.
+Les tests du quota et de l'abonnement allument le paiement le temps du test (reglages_site, clé secrète),
+puis remettent la valeur trouvée au départ : l'aperçu « comptes », qui partage ce projet, le voit pendant ce temps.
 """
+import contextlib
 import json
+import re
 import secrets
 import sys
 import threading
@@ -21,6 +26,9 @@ C = config_publique()
 SECRET = cle_api("SUPABASE_SECRET_KEY")
 # Jeton factice accepté par la clé secrète de TEST de Turnstile (1x000…AA) configurée dans Supabase
 CAPTCHA_TEST = "XXXX.DUMMY.TOKEN.XXXX"
+# Clé de site Turnstile du site : une clé de test (1x…, 2x…, 3x…) va avec la clé secrète de test dans Supabase
+_config = (Path(__file__).resolve().parent.parent / "js" / "config-compte.js").read_text(encoding="utf-8")
+TURNSTILE_DE_TEST = re.search(r'turnstileCle:\s*"([^"]*)"', _config).group(1).startswith(("1x0000", "2x0000", "3x0000"))
 
 
 def http(chemin, methode="GET", corps=None, cle=None, jeton=None, prefer=None):
@@ -40,19 +48,30 @@ def http(chemin, methode="GET", corps=None, cle=None, jeton=None, prefer=None):
         return e.code, json.loads(brut) if brut else None
 
 
+def ouvrir_session(email, mdp):
+    """Jeton d'accès d'un compte confirmé. Connexion par mot de passe avec le jeton anti-robot factice (clé secrète
+    Turnstile de test) ; si Supabase le refuse (vraie clé en place), lien de connexion généré par l'API d'administration
+    puis vérifié, sans anti-robot."""
+    s, t = http("/auth/v1/token?grant_type=password", "POST", {"email": email, "password": mdp,
+                                                                 "gotrue_meta_security": {"captcha_token": CAPTCHA_TEST}})
+    if s == 200:
+        return t["access_token"]
+    s, lien = http("/auth/v1/admin/generate_link", "POST", {"type": "magiclink", "email": email}, cle=SECRET)
+    assert s == 200, (s, lien)
+    s, t = http("/auth/v1/verify", "POST", {"type": "magiclink", "token_hash": lien["hashed_token"]})
+    assert s == 200, (s, t)
+    return t["access_token"]
+
+
 def creer_compte(confirme=True):
+    """Compte d'essai créé par l'API d'administration (clé service), e-mail confirmé d'office : pas d'inscription,
+    donc ni jeton anti-robot ni e-mail envoyé."""
     email = f"test-{secrets.token_hex(6)}@example.com"
     mdp = secrets.token_urlsafe(16)
     s, u = http("/auth/v1/admin/users", "POST", {"email": email, "password": mdp, "email_confirm": confirme,
                                                   "user_metadata": {"majeur": True, "cgv_version": "2026-10"}}, cle=SECRET)
     assert s in (200, 201), (s, u)
-    jeton = None
-    if confirme:
-        s, t = http("/auth/v1/token?grant_type=password", "POST", {"email": email, "password": mdp,
-                                                                     "gotrue_meta_security": {"captcha_token": CAPTCHA_TEST}})
-        assert s == 200, (s, t)
-        jeton = t["access_token"]
-    return {"id": u["id"], "email": email, "jeton": jeton}
+    return {"id": u["id"], "email": email, "jeton": ouvrir_session(email, mdp) if confirme else None}
 
 
 def rpc(nom, compte, corps=None):
@@ -62,6 +81,28 @@ def rpc(nom, compte, corps=None):
 def admin_profil(id_, champs):
     s, _ = http(f"/rest/v1/profils?id=eq.{id_}", "PATCH", champs, cle=SECRET, prefer="return=minimal")
     assert s == 204, s
+
+
+def lire_paiement():
+    s, lignes = http("/rest/v1/reglages_site?select=paiement_actif", cle=SECRET)
+    assert s == 200 and len(lignes) == 1, (s, lignes)
+    return lignes[0]["paiement_actif"]
+
+
+def ecrire_paiement(valeur):
+    s, _ = http("/rest/v1/reglages_site?id=eq.true", "PATCH", {"paiement_actif": valeur}, cle=SECRET, prefer="return=minimal")
+    assert s == 204, s
+
+
+@contextlib.contextmanager
+def paiement(valeur):
+    """Met l'interrupteur paiement à « valeur » le temps du bloc, puis remet la valeur trouvée (même en cas d'échec)."""
+    avant = lire_paiement()
+    ecrire_paiement(valeur)
+    try:
+        yield
+    finally:
+        ecrire_paiement(avant)
 
 
 class TestBase(unittest.TestCase):
@@ -90,9 +131,13 @@ class TestBase(unittest.TestCase):
         self.assertEqual(lignes[0]["cgv_version"], "2026-10")
 
     def test_quota_de_trois_puis_refus_et_compteur_monotone(self):
+        with paiement(True):
+            self._quota_de_trois()
+
+    def _quota_de_trois(self):
         c = self.nouveau()
         s, d = rpc("droit_acces", c)
-        self.assertEqual((s, d["offertes_restantes"], d["acces"], d["abonne"]), (200, 3, True, False))
+        self.assertEqual((s, d["offertes_restantes"], d["acces"], d["abonne"], d["paiement_actif"]), (200, 3, True, False, True))
         for i in range(3):
             s, _ = rpc("demarrer_simulation", c, {"p_fonds": "FR0011871128", "p_nom": f"Essai {i}"})
             self.assertEqual(s, 200)
@@ -136,6 +181,10 @@ class TestBase(unittest.TestCase):
         self.assertEqual(s, 204)
 
     def test_abonne_illimite_puis_abonnement_expire(self):
+        with paiement(True):
+            self._abonne_puis_expire()
+
+    def _abonne_puis_expire(self):
         c = self.nouveau()
         admin_profil(c["id"], {"offertes_utilisees": 3, "abonnement_statut": "actif",
                                "abonnement_fin": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()})
@@ -150,6 +199,10 @@ class TestBase(unittest.TestCase):
         self.assertEqual(err["message"], "quota_atteint")
 
     def test_deux_lancements_simultanes_ne_consomment_qu_une_simulation(self):
+        with paiement(True):
+            self._lancements_simultanes()
+
+    def _lancements_simultanes(self):
         c = self.nouveau()
         admin_profil(c["id"], {"offertes_utilisees": 2})
         resultats = []
@@ -168,6 +221,24 @@ class TestBase(unittest.TestCase):
         s, err = http("/rest/v1/rpc/demarrer_simulation", "POST", {"p_fonds": "FR0011871128", "p_nom": "x"})
         self.assertIn(s, (400, 401))            # anonyme : refusé
 
+    def test_inscription_enregistre_les_consentements(self):
+        # Le seul test qui passe par l'inscription du site (/auth/v1/signup) : il lui faut la clé anti-robot de test
+        if not TURNSTILE_DE_TEST:
+            self.skipTest("vraie clé Turnstile en place : l'inscription demande un vrai jeton anti-robot")
+        email = f"test-{secrets.token_hex(6)}@example.com"
+        s, u = http("/auth/v1/signup", "POST", {"email": email, "password": secrets.token_urlsafe(16),
+                                                "data": {"majeur": True, "cgv_version": "2026-10"},
+                                                "gotrue_meta_security": {"captcha_token": CAPTCHA_TEST}})
+        if s != 200 and "captcha" in json.dumps(u).lower():
+            self.skipTest("Supabase refuse le jeton anti-robot factice : vraie clé secrète Turnstile en place")
+        self.assertEqual(s, 200, u)
+        id_ = u.get("id") or (u.get("user") or {}).get("id")
+        self.comptes.append({"id": id_, "email": email, "jeton": None})     # supprimé à la fin
+        s, lignes = http(f"/rest/v1/profils?id=eq.{id_}&select=majeur_confirme_le,cgv_version,offertes_utilisees", cle=SECRET)
+        self.assertEqual(len(lignes), 1)
+        self.assertIsNotNone(lignes[0]["majeur_confirme_le"])
+        self.assertEqual((lignes[0]["cgv_version"], lignes[0]["offertes_utilisees"]), ("2026-10", 0))
+
     def test_entretien_reserve_au_role_service(self):
         s, _ = rpc("comptes_a_entretenir", self.a)
         self.assertIn(s, (401, 403, 404))
@@ -184,6 +255,14 @@ class TestBase(unittest.TestCase):
         admin_profil(c["id"], {"abonnement_statut": "actif", "abonnement_fin": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()})
         s, lignes = http("/rest/v1/rpc/comptes_a_entretenir", "POST", {}, cle=SECRET)
         self.assertNotIn(c["id"], [l["id"] for l in lignes])     # un abonné n'est jamais supprimé
+
+    def test_entretien_fonctionne_paiement_coupe(self):
+        c = self.nouveau(confirme=False)
+        vieux = (datetime.now(timezone.utc) - timedelta(days=740)).isoformat()
+        admin_profil(c["id"], {"cree_le": vieux, "derniere_activite": vieux})
+        with paiement(False):
+            s, lignes = http("/rest/v1/rpc/comptes_a_entretenir", "POST", {}, cle=SECRET)
+        self.assertIn({"id": c["id"], "email": c["email"], "action": "avertir"}, lignes)
 
 
 # Refus observés sur le projet de test (PostgREST) : droits ou RLS → code Postgres 42501, 403 si connecté, 401 si anonyme
@@ -384,6 +463,84 @@ class TestSuiviAlertes(unittest.TestCase):
         for table in ("profils?id", "fonds_suivis?user_id", "preferences_alertes?user_id"):
             s, lignes = http(f"/rest/v1/{table}=eq.{c['id']}&select=*", cle=SECRET)
             self.assertEqual((s, lignes), (200, []), table)
+
+
+class TestPaiement(unittest.TestCase):
+    """Interrupteur paiement (migration 20261023000000_paiement.sql) : coupé = comptes gratuits, simulations illimitées."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.comptes = []
+
+    @classmethod
+    def tearDownClass(cls):
+        for c in cls.comptes:
+            http(f"/auth/v1/admin/users/{c['id']}", "DELETE", cle=SECRET)
+
+    def nouveau(self):
+        c = creer_compte()
+        self.comptes.append(c)
+        return c
+
+    def test_paiement_coupe_a_l_installation(self):
+        self.assertFalse(lire_paiement())
+
+    def test_paiement_coupe_acces_et_simulations_illimitees(self):
+        with paiement(False):
+            c = self.nouveau()
+            s, d = rpc("droit_acces", c)
+            self.assertEqual((s, d["acces"], d["paiement_actif"], d["abonne"]), (200, True, False, False))
+            ids = []
+            for i in range(4):                                          # une 4e simulation : acceptée
+                s, id_ = rpc("demarrer_simulation", c, {"p_fonds": "FR0011871128", "p_nom": f"Gratuit {i}"})
+                self.assertEqual(s, 200, id_)
+                ids.append(id_)
+            s, lignes = http(f"/rest/v1/simulations?user_id=eq.{c['id']}&select=offerte", cle=SECRET)
+            self.assertEqual(lignes, [{"offerte": False}] * 4)          # jamais « offerte »
+            s, lignes = http(f"/rest/v1/profils?id=eq.{c['id']}&select=offertes_utilisees", cle=SECRET)
+            self.assertEqual(lignes, [{"offertes_utilisees": 0}])        # compteur inchangé
+            # même un compte qui a épuisé ses simulations offertes, sans simulation enregistrée, garde l'accès
+            admin_profil(c["id"], {"offertes_utilisees": 3})
+            http(f"/rest/v1/simulations?user_id=eq.{c['id']}", "DELETE", jeton=c["jeton"], prefer="return=minimal")
+            s, d = rpc("droit_acces", c)
+            self.assertEqual((d["acces"], d["nb_simulations"]), (True, 0))
+            s, _ = rpc("demarrer_simulation", c, {"p_fonds": "FR0011871128", "p_nom": "Encore"})
+            self.assertEqual(s, 200)
+
+    def test_paiement_coupe_plafond_de_200_conserve(self):
+        with paiement(False):
+            c = self.nouveau()
+            lignes = [{"user_id": c["id"], "nom": f"S{i}", "fonds": "FR0011871128"} for i in range(200)]
+            s, _ = http("/rest/v1/simulations", "POST", lignes, cle=SECRET, prefer="return=minimal")
+            self.assertEqual(s, 201)
+            s, err = rpc("demarrer_simulation", c, {"p_fonds": "FR0011871128", "p_nom": "201e"})
+            self.assertEqual((s, err["message"]), (400, "limite_simulations"))
+
+    def test_paiement_actif_retablit_le_quota(self):
+        with paiement(True):
+            c = self.nouveau()
+            s, d = rpc("droit_acces", c)
+            self.assertEqual((d["paiement_actif"], d["offertes_restantes"], d["acces"]), (True, 3, True))
+            for i in range(3):
+                s, _ = rpc("demarrer_simulation", c, {"p_fonds": "FR0011871128", "p_nom": f"Payant {i}"})
+                self.assertEqual(s, 200)
+            s, err = rpc("demarrer_simulation", c, {"p_fonds": "FR0011871128", "p_nom": "Quatrième"})
+            self.assertEqual((s, err["message"]), (400, "quota_atteint"))
+        s, _ = rpc("demarrer_simulation", c, {"p_fonds": "FR0011871128", "p_nom": "Coupé"})
+        if not lire_paiement():                                          # valeur d'origine : coupé
+            self.assertEqual(s, 200)                                     # paiement recoupé : de nouveau illimité
+
+    def test_reglages_site_illisible_et_non_modifiable_depuis_le_navigateur(self):
+        c = self.nouveau()
+        avant = lire_paiement()
+        for qui, refus in (({"jeton": c["jeton"]}, REFUS_CONNECTE), ({}, REFUS_ANONYME)):     # connecté puis anonyme
+            for methode, chemin, corps in (("GET", "?select=*", None), ("POST", "", {"id": True, "paiement_actif": not avant}),
+                                           ("PATCH", "?id=eq.true", {"paiement_actif": not avant}), ("DELETE", "?id=eq.true", None)):
+                s, err = http("/rest/v1/reglages_site" + chemin, methode, corps, prefer="return=minimal", **qui)
+                self.assertEqual((s, err["code"]), refus, (methode, list(qui)))
+            s, _ = http("/rest/v1/rpc/paiement_actif", "POST", {}, prefer=None, **qui)
+            self.assertIn(s, (401, 403, 404), list(qui))                # fonction réservée à la base
+        self.assertEqual(lire_paiement(), avant)                         # intact
 
 
 if __name__ == "__main__":
