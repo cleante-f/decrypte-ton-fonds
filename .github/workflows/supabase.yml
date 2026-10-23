@@ -33,11 +33,11 @@ jobs:
         run: supabase db push
       - name: Adresses autorisées à appeler les fonctions (valeur publique, pas un secret)
         env:
-          # La première adresse sert aussi de lien vers le site dans les e-mails (avertissement d'inactivité) : elle doit être
-          # en mode comptes (HOTES_COMPTES de js/mode-site.js), d'où l'aperçu « comptes » de Cloudflare Pages ; l'adresse principale
-          # decrypte-ton-fonds.pages.dev est en mode gratuit. Au lancement payant, mettre le domaine EN PREMIÈRE position.
-          # Ensuite : l'adresse principale, l'adresse de test de la branche « refonte » (Cloudflare Pages) et le serveur local.
-          ORIGINES: "https://comptes.decrypte-ton-fonds.pages.dev,https://decrypte-ton-fonds.pages.dev,https://refonte.decrypte-ton-fonds.pages.dev,http://localhost:8770"
+          # La première adresse sert aussi de lien vers le site dans les e-mails (avertissement d'inactivité) et de redirection après
+          # la désinscription d'une alerte : elle doit être en mode comptes (HOTES_COMPTES de js/mode-site.js), d'où le domaine
+          # decrypte-ton-fonds.fr en tête (le www renvoie vers lui : inutile ici). Ensuite : l'aperçu « comptes » de Cloudflare Pages,
+          # l'adresse principale decrypte-ton-fonds.pages.dev, l'adresse de test de la branche « refonte » et le serveur local.
+          ORIGINES: "https://decrypte-ton-fonds.fr,https://comptes.decrypte-ton-fonds.pages.dev,https://decrypte-ton-fonds.pages.dev,https://refonte.decrypte-ton-fonds.pages.dev,http://localhost:8771"
         run: supabase secrets set ORIGINES="$ORIGINES" --project-ref "$PROJET"
       - name: Secret des liens de désinscription des alertes (le même que celui de la tâche alertes.yml)
         env:

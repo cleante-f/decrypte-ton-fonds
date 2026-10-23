@@ -103,7 +103,8 @@ test("éléments réservés au mode comptes", () => {
   for (const nom of PAGES)
     assert.match(bloc(lirePage(nom), "header"), /<a class="btn-compte" id="lien-compte"[^>]*data-seulement="comptes"/, `${nom} : #lien-compte sans data-seulement="comptes"`);
   assert.ok(bloc(index, "footer").includes('<span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span>'));
-  assert.ok(index.includes('<span class="pilule" data-seulement="comptes">3 simulations offertes</span>'));
+  assert.ok(index.includes('<span class="pilule" data-seulement="comptes" data-si-paiement="actif">3 simulations offertes</span>'));
+  assert.ok(index.includes('<span class="pilule" data-seulement="comptes" data-si-paiement="coupe">Avec un compte gratuit</span>'));
   assert.ok(index.includes('<span class="pilule" data-seulement="gratuit">Gratuit</span>'));
   assert.match(lirePage("simulateur"), /<p class="aide"[^>]*data-seulement="comptes"[^>]*><a href="compte\.html#simulations">/);
 });
@@ -178,7 +179,6 @@ test("simulateur : data/alternatives.js, js/alternatives.js (après style.js, av
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   for (const chemin of ["/data/alternatives.js", "/js/alternatives.js", "/js/radiographie.js"]) assert.ok(routes.exclude.includes(chemin), chemin);
   assert.ok(routes.exclude.length <= 100);
-  assert.ok(!routes.exclude.some(c => c.includes("*")));
 });
 
 // ---- Pages fixes des fonds (fonds/…) : adresses dans les trois outils, balise de Google sur l'accueil ----
@@ -194,7 +194,6 @@ test("décrypte, performances, simulateur : js/adresses.js juste après js/etats
   const routes = JSON.parse(readFileSync(new URL("../_routes.json", import.meta.url), "utf8"));
   assert.ok(routes.exclude.includes("/js/adresses.js"));
   assert.ok(routes.exclude.length <= 100);
-  assert.ok(!routes.exclude.some(c => c.includes("*")));
 });
 
 test("accueil : emplacement de la balise de vérification de Google Search Console (vide)", () => {

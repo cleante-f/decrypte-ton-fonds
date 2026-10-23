@@ -44,7 +44,8 @@ zoneOffre.addEventListener("click", async e => {
     e.target.disabled = false;
   }
 });
-// Démarrage, en mode comptes seulement (en mode gratuit, js/mode-site.js renvoie cette page vers l'accueil, mais pas immédiatement).
+// Démarrage, en mode comptes seulement (en mode gratuit, js/mode-site.js renvoie cette page vers l'accueil, mais pas immédiatement),
+// et seulement si le paiement est actif (coupé, js/mode-site.js renvoie cette page vers compte.html).
 if (modeSite(location.hostname) === "comptes") {
-  afficherOffre();
+  if (CONFIG_COMPTE.paiementActif !== false) afficherOffre();
 }

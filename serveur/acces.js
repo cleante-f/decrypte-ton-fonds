@@ -6,14 +6,20 @@
  * Le cookie « dtf_session » contient le jeton d'accès Supabase ; c'est Supabase qui vérifie sa signature en exécutant
  * droit_acces() avec ce jeton (un jeton faux, expiré ou révoqué est refusé). Décision gardée 60 s par jeton.
  * Adresse et clé publique de Supabase : variables de Cloudflare si elles existent, sinon celles de js/config-compte.js.
- * Ce contrôle ne vaut qu'en mode « comptes » (aperçu « comptes » de Cloudflare, localhost) : sur toute autre adresse
- * (adresse principale de Cloudflare, adresses inconnues), le simulateur est libre et tout passe (règle : js/mode-site.js).
+ * Ce contrôle ne vaut qu'en mode « comptes » (domaine decrypte-ton-fonds.fr, aperçu « comptes » de Cloudflare, localhost) :
+ * sur toute autre adresse (adresse principale de Cloudflare, adresses inconnues), le simulateur est libre et tout passe
+ * (règle : js/mode-site.js).
+ * Paiement coupé (CONFIG_COMPTE.paiementActif = false, ou paiement_actif = false dans la réponse de droit_acces) : comptes gratuits.
+ * Sans compte, le simulateur mène à la création de compte (retour au simulateur ensuite), jamais à l'abonnement ;
+ * abonnement.html et cgv.html renvoient vers compte.html.
  */
 import "../js/mode-site.js";   // pose globalThis.modeSite (la même règle que dans les pages)
 
 export const CHEMINS_PROTEGES = ["/simulateur", "/simulateur.html", "/js/simulateur.js", "/js/projection.js", "/js/graphiques-simu.js",
   "/js/contexte-fonds.js", "/data/contexte.js"];
 const PROTEGES = new Set(CHEMINS_PROTEGES.map(c => c.toLowerCase()));
+// Pages qui n'existent que si le paiement est actif (forme canonique : voir cheminCanonique)
+const PAGES_PAYANTES = new Set(["/abonnement", "/abonnement.html", "/cgv", "/cgv.html"]);
 const DUREE_DECISION = 60;
 
 // Forme comparable d'une adresse : décodée (plusieurs fois au besoin), « \ » lu comme « / », sans « . », « .. »,
@@ -68,11 +74,14 @@ const texte = (corps, statut, entetes = {}) =>
   new Response(corps, { status: statut, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...entetes } });
 const vers = (url, chemin) => new Response(null, { status: 302, headers: { Location: new URL(chemin, url).href, "Cache-Control": "no-store" } });
 
-export async function controlerAcces(requete, env, suivant, { fetchImpl = fetch, cache = null } = {}) {
+// paiementActif : réglage du site (js/config-compte.js, importé par functions/_middleware.js) ; actif s'il manque.
+export async function controlerAcces(requete, env, suivant,
+  { fetchImpl = fetch, cache = null, paiementActif = globalThis.CONFIG_COMPTE?.paiementActif !== false } = {}) {
   const url = new URL(requete.url);
   if (globalThis.modeSite(url.hostname) !== "comptes") return suivant();   // mode gratuit : simulateur libre
   const chemin = cheminCanonique(url.pathname);
   if (chemin === null) return texte("Adresse invalide.", 400);
+  if (!paiementActif && PAGES_PAYANTES.has(chemin)) return vers(url, "/compte.html");
   if (!PROTEGES.has(chemin)) return suivant();
   const estPage = chemin === "/simulateur" || chemin.endsWith(".html");
   const jeton = lireCookie(requete.headers.get("Cookie"), "dtf_session");
@@ -90,6 +99,11 @@ export async function controlerAcces(requete, env, suivant, { fetchImpl = fetch,
     return r;
   }
   if (!estPage) return texte("Accès réservé aux comptes.", 403);
-  if (jeton && !d) return vers(url, `/connexion.html?vue=connexion&retour=${encodeURIComponent(url.pathname + url.search)}`);
-  return vers(url, "/abonnement.html");
+  const retour = encodeURIComponent(url.pathname + url.search);
+  if (jeton && !d) return vers(url, `/connexion.html?vue=connexion&retour=${retour}`);
+  const payant = paiementActif && !(d && d.paiement_actif === false);
+  if (payant) return vers(url, "/abonnement.html");
+  // Paiement coupé : sans compte, création de compte ; connecté sans accès (cas imprévu), Mon compte, jamais la connexion
+  // (déjà connecté, elle renverrait aussitôt ici : boucle)
+  return vers(url, d ? "/compte.html" : `/connexion.html?vue=inscription&retour=${retour}`);
 }

@@ -1,5 +1,5 @@
 // Stripe sans SDK : API REST (formulaires encodés) et vérification de signature des webhooks (HMAC-SHA256, WebCrypto).
-import { json, entetesCors, siteDe, utilisateurDepuisRequete, lireProfil, profilParClient, majProfil, estAbonne } from "./outils.js";
+import { json, entetesCors, siteDe, utilisateurDepuisRequete, lireProfil, profilParClient, majProfil, estAbonne, lirePaiementActif } from "./outils.js";
 
 export function encoderFormulaire(objet, prefixe = "") {
   const morceaux = [];
@@ -78,6 +78,8 @@ export async function creerPaiement(req, env, fetchImpl = fetch) {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   const u = await utilisateurDepuisRequete(req, env, fetchImpl);
   if (!u) return json({ erreur: "non_connecte" }, 401, cors);
+  // Paiement coupé (comptes gratuits) : aucun abonnement ne peut être souscrit, même en appelant la fonction directement
+  if (!(await lirePaiementActif(env, fetchImpl))) return json({ erreur: "paiement_coupe" }, 403, cors);
   const p = await lireProfil(env, u.id, fetchImpl);
   if (!p) return json({ erreur: "profil_absent" }, 404, cors);
   if (estAbonne(p)) return json({ erreur: "deja_abonne" }, 409, cors);

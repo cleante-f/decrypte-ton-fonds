@@ -2,10 +2,15 @@
 // Vérification anti-robot Cloudflare Turnstile, chargée seulement sur cette page et seulement en mode comptes.
 const jetonsCaptcha = new Map();
 const message = document.getElementById("message-compte");
-const retour = (() => {
-  const r = new URLSearchParams(location.search).get("retour") || "";
-  return /^\/?[a-z-]+\.html/.test(r) || r === "/simulateur" ? r.replace(/^\//, "") : "compte.html";   // chemins du site seulement
-})();
+// Adresse de retour après connexion : une page du site seulement (jamais une autre adresse, pour qu'un lien piégé ne renvoie pas
+// ailleurs). « page.html » ou l'adresse propre « simulateur » de Cloudflare, avec paramètres (?sim=…) et ancre (#ISIN) éventuels.
+// Le chemin commence par une lettre : ni « // », ni « \ », ni « https: » ou « javascript: » ; le reste ne peut être qu'après ? ou #.
+function retourSur(r) {
+  r = String(r || "");
+  if (/[\\\u0000-\u0020]/.test(r)) return "compte.html";   // barre oblique inverse, espace ou caractère de contrôle : refusé
+  return /^\/?([a-z-]+\.html|simulateur)([?#].*)?$/.test(r) ? r.replace(/^\//, "") : "compte.html";
+}
+const retour = retourSur(new URLSearchParams(location.search).get("retour"));
 
 function afficher(texte, type = "info") {
   message.hidden = !texte;
@@ -45,6 +50,12 @@ function chargerTurnstile() {
   }
 }
 chargerTurnstile();
+// Paiement coupé : pas de CGV à accepter. La case est retirée de la page : simplement cachée, elle resterait obligatoire
+// et bloquerait l'envoi du formulaire. La case « J'ai 18 ans ou plus » reste.
+if (CONFIG_COMPTE.paiementActif === false) {
+  const caseCgv = document.querySelector("#form-inscription [name=cgv]");
+  if (caseCgv) caseCgv.closest("label").remove();
+}
 function captcha(form) {
   const jeton = jetonsCaptcha.get(form.id);
   if (!jeton) throw new Compte.ErreurCompte("captcha_absent", "Patiente une seconde : la vérification anti-robot se charge.");
@@ -94,9 +105,15 @@ if (modeSite(location.hostname) === "comptes") {
     if (r && r.erreur) { afficher(r.erreur, "erreur"); vue("connexion"); return; }
     if (r && r.type === "recovery") { vue("nouveau-mdp"); return; }
     if (r && r.type === "signup") { location.href = "compte.html?bienvenue=1"; return; }
+    const p = new URLSearchParams(location.search);
     if (Compte.session()) {   // déjà connecté (ou session rafraîchissable) : retour direct
-      if (await Compte.jetonValide()) { location.replace(retour); return; }
+      // Arrivée avec vue=connexion et un retour : le serveur (functions/_middleware.js) a refusé le jeton que le navigateur croit
+      // valable (session révoquée…). Sans jeton neuf, on repartirait vers le simulateur, refusé de nouveau : boucle sans fin.
+      // Le jeton est donc renouvelé de force ; si c'est impossible, la session est effacée et le formulaire de connexion affiché.
+      const refuseParServeur = p.get("vue") === "connexion" && p.has("retour");
+      if (await Compte.jetonValide(refuseParServeur)) { location.replace(retour); return; }
+      if (refuseParServeur) await Compte.deconnecter();
     }
-    vue(new URLSearchParams(location.search).get("vue") === "inscription" ? "inscription" : "connexion");
+    vue(p.get("vue") === "inscription" ? "inscription" : "connexion");
   })();
 }

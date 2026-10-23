@@ -58,13 +58,13 @@ test("retirerBlocs : retire l'élément et tout son contenu, en suivant l'imbric
   assert.equal(retirerBlocs('<p xdata-seulement="comptes">a</p>', "data-seulement", "comptes"), '<p xdata-seulement="comptes">a</p>');
 });
 
-test("texte visible en mode gratuit : ni compte, ni prestataire de paiement, ni valeur à compléter, ni adresse e-mail", () => {
+test("texte visible en mode gratuit : ni compte, ni prestataire de paiement, ni valeur à compléter, aucune autre adresse e-mail que celle du site", () => {
   for (const nom of ["index", "decrypte", "performances", "simulateur", "confidentialite", "mentions-legales"]) {
     const html = enGratuit(nom);
     assert.ok(!html.includes("[["), `${nom} : valeur [[…]] visible en mode gratuit`);
     for (const mot of ["supabase", "stripe", "brevo", "dtf_session", "turnstile"])
       assert.ok(!html.toLowerCase().includes(mot), `${nom} : « ${mot} » visible en mode gratuit`);
-    assert.doesNotMatch(html, /mailto:[^"'<>\s]*@/i, `${nom} : adresse e-mail visible en mode gratuit`);
+    for (const m of html.matchAll(/mailto:([^"'<>\s]*)/gi)) assert.equal(m[1], "contact@decrypte-ton-fonds.fr", `${nom} : seule l'adresse de contact du site est visible`);
   }
 });
 
@@ -93,8 +93,8 @@ test("confidentialité en mode gratuit : services contactés, stockage, contact 
   for (const attendu of ["geco.amf-france.org", "data-api.ecb.europa.eu", "aucun cookie", "Tes réglages des alertes", "Copies de données publiques",
     "articles 15 à 21", "article 77"]) assert.ok(visible.includes(attendu), attendu);
   for (const absent of ["compte-session-v1", "Mémoriser mon plan", "Ton plan du simulateur"]) assert.ok(!visible.includes(absent), absent);
-  assert.ok(html.includes('href="https://github.com/cleante-f/decrypte-ton-fonds/issues"'), "lien vers la page GitHub du site absent");
-  assert.ok(enGratuit("mentions-legales").includes('href="https://github.com/cleante-f/decrypte-ton-fonds/issues"'), "mentions légales : contact absent");
+  assert.ok(html.includes('href="mailto:contact@decrypte-ton-fonds.fr"'), "adresse de contact absente");
+  assert.ok(enGratuit("mentions-legales").includes('href="mailto:contact@decrypte-ton-fonds.fr"'), "mentions légales : contact absent");
 });
 
 test("confidentialité : bouton d'effacement, sources des serveurs et liens externes communs aux deux modes", () => {
@@ -113,8 +113,8 @@ test("un seul hébergeur visible en mode gratuit", () => {
   }
 });
 
-test("dates de mise à jour (confidentialité : 22 octobre 2026, mentions légales : 7 octobre 2026), communes aux deux modes", () => {
-  for (const [nom, date] of [["confidentialite", "22 octobre 2026"], ["mentions-legales", "7 octobre 2026"]])
+test("dates de mise à jour (23 octobre 2026), communes aux deux modes", () => {
+  for (const [nom, date] of [["confidentialite", "23 octobre 2026"], ["mentions-legales", "23 octobre 2026"]])
     assert.ok(texte(communATous(nom)).includes(`Page mise à jour le ${date}.`), nom);
 });
 
@@ -163,4 +163,63 @@ test("pages de compte en mode comptes : tout le contenu de <main> dans un seul b
   };
   for (const [nom, attendus] of Object.entries(reperes))
     for (const attendu of attendus) assert.ok(contenuMain(enComptes(nom)).includes(attendu), `${nom} : « ${attendu} » absent en mode comptes`);
+});
+
+// ---- Comptes gratuits (plan du 23/10/2026) : textes visibles sur le domaine (mode comptes) quand le paiement est coupé ----
+
+const PIED_CGV = '<span data-seulement="comptes"><a href="cgv.html">CGV</a> · </span>';   // caché par mode-site.js et le CSS
+const visibleCoupe = nom => {
+  let html = lirePage(nom).replace(/<head>[\s\S]*?<\/head>/, "");
+  html = retirerBlocs(retirerBlocs(html, "data-seulement", "gratuit"), "data-si-paiement", "actif").split(PIED_CGV).join("");
+  return html;
+};
+const visibleActif = nom => retirerBlocs(retirerBlocs(lirePage(nom), "data-seulement", "gratuit"), "data-si-paiement", "coupe");
+const PAYANT = /abonn|\bcgv\b|conditions générales de vente|offerte|stripe|\[\[PRIX\]\]|€ par mois|3 simulations/i;
+
+test("paiement coupé : aucun texte payant visible sur les pages du site (hors pages légales, tâche 3)", () => {
+  for (const nom of ["index", "decrypte", "performances", "simulateur", "connexion", "compte", "alertes-desactivees"]) {
+    const html = visibleCoupe(nom);
+    const m = html.replace(/<[^>]+>/g, " ").match(PAYANT) || html.match(/href="(?:\.\.\/)?(?:cgv|abonnement)\.html"/);
+    assert.equal(m, null, `${nom} : « ${m && m[0]} » visible avec le paiement coupé`);
+  }
+});
+
+test("paiement actif : textes d'aujourd'hui toujours là (pastille, inscription)", () => {
+  assert.ok(visibleActif("index").includes(">3 simulations offertes<"));
+  const connexion = visibleActif("connexion");
+  assert.ok(connexion.includes("<strong>3 simulations offertes</strong>"));
+  assert.match(connexion, /<input type="checkbox" name="cgv" required>/);
+  assert.match(connexion, /<input type="checkbox" name="majeur" required>/);
+});
+
+test("inscription, paiement coupé : case « majeur » gardée, case CGV absente, politique de confidentialité citée", () => {
+  const html = visibleCoupe("connexion");
+  const form = html.match(/<form id="form-inscription"[\s\S]*?<\/form>/)[0];
+  assert.match(form, /<input type="checkbox" name="majeur" required>/);
+  assert.doesNotMatch(form, /name="cgv"/);
+  assert.match(form, /href="confidentialite\.html"/);
+  // La case CGV est dans un élément data-si-paiement="actif" que connexion.js retire (cachée, elle bloquerait l'envoi)
+  assert.match(lirePage("connexion"), /<label class="case" data-si-paiement="actif"><input type="checkbox" name="cgv" required>/);
+});
+
+test("pages légales, paiement coupé : rien de payant, pas de valeur à compléter, adresse du site et services d'un compte décrits", () => {
+  for (const nom of ["confidentialite", "mentions-legales"]) {
+    const html = visibleCoupe(nom);
+    const visible = texte(html);
+    assert.ok(!html.includes("[["), `${nom} : valeur [[…]] visible avec le paiement coupé`);
+    assert.doesNotMatch(visible, /abonn|\bcgv\b|conditions générales de vente|offerte|stripe|facture/i, `${nom} : texte payant visible`);
+    for (const m of html.matchAll(/mailto:([^"'<>\s]*)/gi)) assert.equal(m[1], "contact@decrypte-ton-fonds.fr", `${nom} : seule l'adresse de contact du site est visible`);
+    assert.ok(html.includes("mailto:contact@decrypte-ton-fonds.fr"), `${nom} : adresse de contact absente`);
+    assert.ok(visible.includes("decrypte-ton-fonds.fr"), `${nom} : adresse du site absente`);
+    assert.ok(visible.includes("gratuit"), `${nom} : « gratuit » absent`);
+  }
+  const visible = texte(visibleCoupe("confidentialite"));
+  for (const attendu of ["Simulations enregistrées", "Liste de suivi", "Préférences d'alerte", "Brevo", "Supabase", "Turnstile", "GitHub Actions", "dtf_session", "Télécharger mes données"])
+    assert.ok(visible.includes(attendu), `confidentialité (paiement coupé) : « ${attendu} » absent`);
+});
+
+test("pages légales, paiement actif : Stripe, abonnement et valeurs à compléter toujours là", () => {
+  const conf = texte(visibleActif("confidentialite"));
+  for (const attendu of ["Stripe", "Abonnement : état", "accepter les CGV", "simulations offertes"]) assert.ok(conf.includes(attendu), `confidentialité : « ${attendu} »`);
+  assert.ok(visibleActif("mentions-legales").includes("[[SIRET]]"), "mentions légales : [[SIRET]]");
 });

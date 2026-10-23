@@ -7,7 +7,16 @@ function annoncer(texte, erreur) { msg.hidden = !texte; msg.textContent = texte 
 const protege = fn => async e => { try { await fn(e); } catch (err) { annoncer(err.message, true); } };
 const action = fn => protege(e => { e.preventDefault(); return fn(e); });
 
+// Paiement coupé (réglage du site, ou base : champ paiement_actif de droit_acces) : comptes gratuits, simulateur ouvert,
+// ni simulations offertes ni abonnement, et pas de bouton du portail Stripe (même pour un ancien abonné) : dans cet état,
+// la page Confidentialité ne mentionne pas Stripe, donc la page ne doit pas y mener.
+const PAIEMENT_SITE = CONFIG_COMPTE.paiementActif !== false;
 function blocAcces(d) {
+  if (!PAIEMENT_SITE || d.paiement_actif === false) {
+    return `<h2>Compte gratuit</h2>
+      <p>Avec ton compte, le simulateur est ouvert : tes simulations sont enregistrées ici, retrouvables sur tous tes appareils.</p>
+      <p class="actions-compte"><a class="btn" href="simulateur.html">Lancer une simulation</a></p>`;
+  }
   if (d.abonne) {
     return `<h2>Abonnement actif</h2>
       <p>${d.abonnement_statut === "resilie_fin_periode" ? `Résilié : ton accès reste ouvert jusqu'au <strong>${dateCourte(d.abonnement_fin)}</strong>.`
@@ -28,7 +37,7 @@ function blocAcces(d) {
 function ligneSimulation(s) {
   return `<li data-id="${esc(s.id)}">
     <a href="simulateur.html?sim=${encodeURIComponent(s.id)}#${encodeURIComponent(s.fonds)}"><strong>${esc(s.nom)}</strong></a>
-    <small>${esc(s.fonds)} · modifiée le ${dateCourte(s.maj_le)}${s.offerte ? " · offerte" : ""}</small>
+    <small>${esc(s.fonds)} · modifiée le ${dateCourte(s.maj_le)}${s.offerte && PAIEMENT_SITE ? " · offerte" : ""}</small>
     <span class="actions-ligne"><button type="button" class="lien-bouton" data-renommer>Renommer</button>
       <button type="button" class="lien-bouton" data-supprimer-sim>Supprimer</button></span></li>`;
 }
@@ -110,7 +119,7 @@ document.addEventListener("click", protege(async e => {
     const nom = prompt("Nouveau nom de la simulation :", li.querySelector("strong").textContent);
     if (nom && nom.trim()) { await Compte.renommerSimulation(li.dataset.id, nom.trim()); await rafraichirEspace(); }
   }
-  if (li && e.target.matches("[data-supprimer-sim]") && confirm("Supprimer cette simulation ? Elle ne sera pas rendue comme simulation offerte.")) {
+  if (li && e.target.matches("[data-supprimer-sim]") && confirm(PAIEMENT_SITE ? "Supprimer cette simulation ? Elle ne sera pas rendue comme simulation offerte." : "Supprimer cette simulation ?")) {
     await Compte.supprimerSimulation(li.dataset.id); await rafraichirEspace();
   }
 }));
@@ -136,7 +145,8 @@ document.getElementById("exporter").addEventListener("click", action(async () =>
 }));
 document.getElementById("deconnecter").addEventListener("click", action(async () => { await Compte.deconnecter(); location.href = "index.html"; }));
 document.getElementById("supprimer").addEventListener("click", action(async () => {
-  if (!confirm("Supprimer définitivement ton compte et tes simulations ? Un abonnement en cours sera arrêté immédiatement, sans remboursement de la période entamée.")) return;
+  if (!confirm(PAIEMENT_SITE ? "Supprimer définitivement ton compte et tes simulations ? Un abonnement en cours sera arrêté immédiatement, sans remboursement de la période entamée."
+    : "Supprimer définitivement ton compte et tes simulations ?")) return;
   await Compte.fonction("supprimer-compte");
   await Compte.deconnecter();
   location.href = "index.html?compte=supprime";
@@ -146,7 +156,8 @@ document.getElementById("supprimer").addEventListener("click", action(async () =
 // sans session, renvoi vers la connexion ; puis lecture de l'accès, des simulations et de l'adresse e-mail.
 if (modeSite(location.hostname) === "comptes") {
   if (!Compte.session()) location.replace("connexion.html?vue=connexion&retour=compte.html");
-  if (new URLSearchParams(location.search).get("bienvenue")) annoncer("Bienvenue ! Ton compte est activé : tes 3 simulations offertes t'attendent.");
+  if (new URLSearchParams(location.search).get("bienvenue")) annoncer(PAIEMENT_SITE ? "Bienvenue ! Ton compte est activé : tes 3 simulations offertes t'attendent."
+    : "Bienvenue ! Ton compte est activé : le simulateur t'attend.");
   rafraichirEspace().catch(err => { if (err.code === "non_connecte") location.replace("connexion.html?vue=connexion&retour=compte.html"); else annoncer(err.message, true); });
   // Fonds suivis et alertes : à part, pour qu'une erreur ici ne cache pas le reste de la page
   rafraichirSuivis().catch(err => { document.getElementById("liste-suivis").innerHTML = `<li class="note-erreur">${esc(err.message)}</li>`; });

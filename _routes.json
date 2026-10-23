@@ -9,6 +9,8 @@
     "/js/cours.js", "/js/createur.js", "/js/fiche-auto.js", "/js/geco.js", "/js/glossaire.js", "/js/infobulles.js",
     "/js/inventaire.js", "/js/marches.js", "/js/mode-site.js", "/js/nav.js", "/js/outils.js", "/js/performances.js", "/js/radiographie.js", "/js/style.js", "/js/zones.js", "/js/etats-unis.js",
     "/js/vendor/pdfjs/pdf.min.js", "/js/vendor/pdfjs/pdf.worker.min.js",
-    "/fonts/IBMPlexSans-Regular-Latin1.woff2", "/fonts/IBMPlexSans-Medium-Latin1.woff2", "/fonts/IBMPlexSans-SemiBold-Latin1.woff2"
+    "/fonts/IBMPlexSans-Regular-Latin1.woff2", "/fonts/IBMPlexSans-Medium-Latin1.woff2", "/fonts/IBMPlexSans-SemiBold-Latin1.woff2",
+    "/robots.txt", "/sitemap.xml", "/sitemap-1.xml", "/data/resumes.js",
+    "/fonds/*", "/classements/*", "/data/cours/*", "/data/etats-unis/*"
   ]
 }

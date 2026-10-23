@@ -74,6 +74,11 @@ html:not([data-site="comptes"]) [data-seulement="comptes"] { display: none !impo
 html[data-site="comptes"] [data-seulement="gratuit"] { display: none !important; }
 html[data-heberge-par="cloudflare"] [data-si-hebergeur="github"] { display: none !important; }
 html:not([data-heberge-par="cloudflare"]) [data-si-hebergeur="cloudflare"] { display: none !important; }
+/* Paiement (CONFIG_COMPTE.paiementActif) : mode-site.js marque <html data-paiement="actif|coupe"> une fois la page lue ;
+   avant, aucune des deux versions n'est montrée. Le lien CGV du pied de page n'apparaît qu'avec le paiement actif. */
+html:not([data-paiement="actif"]) [data-si-paiement="actif"] { display: none !important; }
+html:not([data-paiement="coupe"]) [data-si-paiement="coupe"] { display: none !important; }
+html:not([data-paiement="actif"]) .liens-pied [data-seulement="comptes"]:has(> a[href$="cgv.html"]) { display: none !important; }
 
 .site-header {
   display: flex; align-items: center; gap: 12px 28px;

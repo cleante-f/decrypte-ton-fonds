@@ -34,9 +34,8 @@ import { entetesService } from "../supabase/functions/_partage/outils.js";
 const RACINE = dirname(dirname(fileURLToPath(import.meta.url)));
 
 // Adresse du site dans les liens des e-mails. Les comptes (et donc les alertes) n'existent pour l'instant que sur l'aperçu
-// Cloudflare (mode comptes) ; les pages des fonds et la fiche (decrypte.html#<clé>) s'ouvrent aussi sur GitHub Pages.
-// À remplacer par l'adresse du site en mode comptes au moment de la bascule (domaine decrypte-ton-fonds.fr).
-export const BASE_SITE = "https://cleante-f.github.io/decrypte-ton-fonds/";
+// Cloudflare (mode comptes) ; les pages des fonds et la fiche (decrypte.html#<clé>) s'ouvrent sur l'adresse officielle du site.
+export const BASE_SITE = "https://decrypte-ton-fonds.fr/";
 const EXPEDITEUR = { email: "contact@decrypte-ton-fonds.fr", name: "Décrypte ton fonds" };
 const SEUILS_BAISSE = [5, 10, 20];
 const JOURS_MOIS = 30;            // baisse sur un mois : valeur la plus récente contre la dernière valeur au moins 30 jours avant

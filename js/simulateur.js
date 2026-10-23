@@ -1808,13 +1808,16 @@ if (SIMU_GRATUIT) {
   // Mode gratuit : pas de compte. Un ancien lien « ?sim=… » est ignoré (le fonds reste dans le #), et attendreAbonnement n'est pas appelé.
   afficherDepuisAdresse();
 } else if (!Compte.session()) {
-  // Défense en profondeur : sur le site en ligne, le serveur a déjà renvoyé vers abonnement.html
-  location.replace("abonnement.html");
+  // Défense en profondeur : sur le site en ligne, le serveur a déjà renvoyé vers la création de compte (paiement coupé)
+  // ou vers abonnement.html (paiement actif)
+  location.replace(CONFIG_COMPTE.paiementActif === false
+    ? `connexion.html?vue=inscription&retour=${encodeURIComponent("simulateur.html" + location.search + location.hash)}`
+    : "abonnement.html");
 } else {
   const simDemandee = new URLSearchParams(location.search).get("sim");
   if (simDemandee) ouvrirSimulationEnregistree(simDemandee).catch(err => { zoneResultats.innerHTML = `<p class="non-dispo carte">${esc(err.message)}</p>`; });
   else afficherDepuisAdresse();
-  if (new URLSearchParams(location.search).get("abonnement") === "ok") attendreAbonnement();
+  if (CONFIG_COMPTE.paiementActif !== false && new URLSearchParams(location.search).get("abonnement") === "ok") attendreAbonnement();
 }
 
 // Retour de Stripe : le webhook peut arriver quelques secondes après la redirection

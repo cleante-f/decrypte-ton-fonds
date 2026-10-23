@@ -3,7 +3,8 @@
 Site statique (HTML + CSS + JavaScript, sans framework) qui explique un fonds d'investissement
 (OPCVM, SICAV, FCP, ETF) : où est investi l'argent, les risques et les pièges, et ce que pourrait devenir un investissement.
 
-**Site en ligne : https://cleante-f.github.io/decrypte-ton-fonds/**
+**Site en ligne : https://decrypte-ton-fonds.fr/** (Cloudflare Pages, branche `main`). Copie de secours : https://cleante-f.github.io/decrypte-ton-fonds/ (GitHub Pages),
+qui renvoie vers le domaine quand `REDIRIGER_VERS_DOMAINE` vaut `true` dans `js/mode-site.js`.
 
 ## Lancer le site
 
@@ -44,11 +45,11 @@ Un seul code sert deux sites. Le navigateur choisit le mode d'après l'adresse d
 
 | Mode | Adresses | Ce que voit le visiteur |
 |---|---|---|
-| **Comptes** | celles de la liste `HOTES_COMPTES` : `comptes.decrypte-ton-fonds.pages.dev` (aperçu Cloudflare) et `localhost` | Pages de compte, bouton « Se connecter », simulateur réservé aux comptes (3 simulations offertes, puis abonnement) |
+| **Comptes** | celles de la liste `HOTES_COMPTES` : le domaine `decrypte-ton-fonds.fr` (et son `www`), `comptes.decrypte-ton-fonds.pages.dev` (aperçu Cloudflare) et `localhost` | Pages de compte, bouton « Se connecter », simulateur réservé aux comptes. Paiement coupé (état actuel) : comptes **gratuits** ; paiement actif : 3 simulations offertes, puis abonnement (voir « Comptes gratuits ») |
 | **Gratuit** | toute autre adresse : GitHub Pages (`cleante-f.github.io`), adresse principale de Cloudflare (`decrypte-ton-fonds.pages.dev`), aperçus par commit (`abc123.decrypte-ton-fonds.pages.dev`), `127.0.0.1`, adresse inconnue, fichier ouvert directement | Même design et même contenu, mais simulateur libre et sans aucune trace de compte |
 
 ```js
-const HOTES_COMPTES = ["comptes.decrypte-ton-fonds.pages.dev", "localhost"];   // js/mode-site.js : la seule liste des adresses en mode comptes
+const HOTES_COMPTES = ["decrypte-ton-fonds.fr", "www.decrypte-ton-fonds.fr", "comptes.decrypte-ton-fonds.pages.dev", "localhost"];   // js/mode-site.js : la seule liste des adresses en mode comptes
 ```
 
 - `modeSite(hote)` renvoie `"comptes"` si l'adresse est dans la liste, sinon `"gratuit"`. Les majuscules, les espaces autour et un point
@@ -86,6 +87,43 @@ sont dans `css/style.css` (bloc « Bascule gratuit / comptes »). Une fois la pa
 - Les pages légales contiennent les deux versions du texte dans leur code source ; sans JavaScript, seule la version gratuite s'affiche.
 - Une adresse oubliée dans la liste reste en mode gratuit : sans danger, puisqu'aucune fonction de compte n'y est active.
 
+## Comptes gratuits (decrypte-ton-fonds.fr)
+
+Depuis le 23/10/2026, le domaine `decrypte-ton-fonds.fr` est en mode comptes **avec le paiement coupé** : créer un compte est gratuit, et il donne
+accès au simulateur sans limite, aux simulations enregistrées, à la liste de suivi et aux alertes e-mail. Aucune donnée de paiement n'est demandée
+(plus de Stripe, d'abonnement, de CGV ni de « simulations offertes » à l'écran). Le code de l'abonnement reste en place, dormant.
+GitHub Pages (`cleante-f.github.io`) et l'adresse principale `decrypte-ton-fonds.pages.dev` restent en mode gratuit, sans compte.
+
+**Les deux interrupteurs du paiement** : ils doivent toujours dire la même chose.
+- `CONFIG_COMPTE.paiementActif` dans `js/config-compte.js` (côté site : textes, pages, contrôle d'accès de Cloudflare). Valeur actuelle : `false`.
+- `reglages_site.paiement_actif` dans Supabase (côté base : `droit_acces()`, fonction de paiement). Valeur actuelle : `false`.
+  La base est la même pour le domaine et pour l'aperçu `comptes.decrypte-ton-fonds.pages.dev` : l'aperçu suit donc le même réglage.
+
+Pour changer la base (éditeur SQL de Supabase, ou clé « service role » ; jamais depuis le navigateur) :
+```sql
+update public.reglages_site set paiement_actif = true;   -- false pour recouper le paiement
+```
+Une table `reglages_site` absente ou sans ligne vaut « paiement actif » (comme `paiement_actif()` en SQL).
+Texte du site : les éléments `data-si-paiement="actif"` ou `data-si-paiement="coupe"` ne s'affichent que dans l'état correspondant
+(`<html data-paiement="…">`, posé par `js/mode-site.js`) ; `confidentialite.html` et `mentions-legales.html` ont les deux versions.
+
+**Avant de rallumer le paiement** :
+1. Ajouter l'acceptation **explicite** des CGV à l'inscription (la case CGV de `connexion.html` est déjà prévue en `data-si-paiement="actif"` ;
+   vérifier qu'elle est bien envoyée à l'inscription), et que les comptes déjà créés gratuitement acceptent les CGV avant leur premier achat.
+2. Compléter les valeurs `[[…]]` des textes légaux (`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`).
+3. Passer `paiementActif` à `true` dans `js/config-compte.js` ET exécuter la commande SQL ci-dessus, puis publier.
+
+**À faire par l'utilisateur** :
+1. Domaine `decrypte-ton-fonds.fr` relié à Cloudflare Pages : fait.
+2. Cloudflare Turnstile : créer un widget pour `decrypte-ton-fonds.fr` ; la **clé de site** (publique) va dans `js/config-compte.js`,
+   la **clé secrète** dans Supabase → Authentication → Attack Protection (captcha, fournisseur Turnstile). Jamais dans `.env`.
+3. Supabase → Authentication → URL Configuration : *Site URL* `https://decrypte-ton-fonds.fr` et *Redirect URLs* `https://decrypte-ton-fonds.fr/**`
+   (en gardant l'aperçu `https://comptes.decrypte-ton-fonds.pages.dev/**` tant qu'il sert).
+4. Google Search Console : voir « À faire par l'utilisateur » de la section « Pages des fonds pour Google » (propriété « Domaine », sitemap).
+5. Les adresses autorisées à appeler les fonctions (`ORIGINES` de `.github/workflows/supabase.yml`) commencent par `https://decrypte-ton-fonds.fr` :
+   la première sert de lien vers le site dans les e-mails et de redirection après une désinscription. Le workflow les applique au prochain envoi
+   touchant `supabase/**` ou à un lancement manuel (« Run workflow »).
+
 **Au lancement payant** : ajouter le nouveau domaine à `HOTES_COMPTES` (la seule liste des adresses en mode comptes), ajouter aussi son adresse
 EN PREMIÈRE position de `ORIGINES` dans `.github/workflows/supabase.yml` (adresses autorisées à appeler les fonctions Supabase ; la première sert
 de lien vers le site dans les e-mails, elle doit donc être en mode comptes), retirer le `noindex` de `cgv.html` et `abonnement.html`
@@ -93,8 +131,8 @@ de lien vers le site dans les e-mails, elle doit donc être en mode comptes), re
 (`confidentialite.html`, `mentions-legales.html`, `cgv.html`, `js/config-compte.js`). Le contrôle avant publication admet les `[[…]]` seulement
 dans les pages de compte, dans `js/config-compte.js` et dans les éléments `data-seulement="comptes"`.
 
-**Essayer les deux modes en local** : servir le site sur un port (par exemple 8770). `http://127.0.0.1:8770/` est en mode gratuit,
-`http://localhost:8770/` en mode comptes. Les tests (`node --test "tests/*.test.mjs"`) vérifient la règle de bascule, le contrôle d'accès,
+**Essayer les deux modes en local** : servir le site sur un port (par exemple 8771). `http://127.0.0.1:8771/` est en mode gratuit,
+`http://localhost:8771/` en mode comptes. Les tests (`node --test "tests/*.test.mjs"`) vérifient la règle de bascule, le contrôle d'accès,
 le marquage des pages et les textes de la version gratuite.
 
 ## Le simulateur (méthode)
@@ -424,12 +462,19 @@ générées par `scripts/construire_pages.mjs`, donnent donc à chaque fonds une
 - **Sitemaps** : `sitemap.xml` est un index qui renvoie vers `sitemap-N.xml`, de 50 000 adresses au plus chacun.
 - **Pages dans un sous-dossier** : `js/mode-site.js` fixe `RACINE_SITE` (`""` à la racine, `"../"` dans `fonds/` et `classements/`) ;
   les liens et les scripts des pages rangées dans un dossier commencent par ce préfixe.
-- **Pas de `robots.txt`** : à la racine de `github.io` on ne peut pas en publier un pour ce projet ; le sitemap est donc déclaré dans la Search Console.
+- **Adresse officielle** : `https://decrypte-ton-fonds.fr/` (`BASE` dans `scripts/construire_pages.mjs`, `DOMAINE_SITE` dans `js/mode-site.js`,
+  `BASE_SITE` dans `scripts/alertes.mjs`) : adresses canoniques, sitemap, `robots.txt` (écrit par `construire_pages.mjs`) et liens des e-mails.
+  Les pages servies par GitHub Pages désignent donc le domaine comme leur adresse canonique.
+- **Quota des Functions de Cloudflare** (100 000 appels par jour en gratuit) : `_routes.json` fait passer toutes les adresses par le contrôle d'accès,
+  sauf des fichiers publics nommés exactement et les dossiers publics `fonds/`, `classements/`, `data/cours/`, `data/etats-unis/` (aucun fichier protégé ;
+  Cloudflare ne résout pas une adresse déguisée comme `/fonds/%2e%2e/simulateur.html` : il répond la page par défaut). Vérifié par `tests/acces.test.mjs`.
 
 **À faire par l'utilisateur (gratuit)** :
-1. Créer une propriété « Préfixe d'URL » dans Google Search Console pour `https://cleante-f.github.io/decrypte-ton-fonds/`.
-2. Choisir la vérification par balise HTML et coller la valeur fournie dans `<meta name="google-site-verification" content="">` de `index.html`, puis publier.
-3. Cliquer sur « Vérifier », puis soumettre `sitemap.xml` (menu « Sitemaps »). L'indexation prend ensuite plusieurs semaines.
+1. Cloudflare → Workers & Pages → projet `decrypte-ton-fonds` → Domaines personnalisés : ajouter `decrypte-ton-fonds.fr` et `www.decrypte-ton-fonds.fr` ;
+   puis, sur le domaine, Règles → modèle « Redirect from WWW to root ».
+2. Google Search Console : propriété « Domaine » `decrypte-ton-fonds.fr`, vérifiée par un enregistrement TXT chez Cloudflare (sans toucher aux TXT de Brevo) ;
+   puis soumettre `https://decrypte-ton-fonds.fr/sitemap.xml` (menu « Sitemaps »). L'indexation prend ensuite plusieurs semaines.
+3. Quand le domaine répond : passer `REDIRIGER_VERS_DOMAINE` à `true` dans `js/mode-site.js` et publier (GitHub Pages renvoie alors vers le domaine).
 
 ## Liste de suivi et alertes e-mail (mode comptes)
 
@@ -477,7 +522,6 @@ Sans ces secrets, la tâche s'arrête avec un avertissement et n'envoie rien.
 - créer le secret `ALERTES_SECRET` sur GitHub, puis lancer une fois le workflow `supabase.yml` (il le recopie dans Supabase) ;
 - suivi des ouvertures et des clics de Brevo : impossible à couper dans l'offre gratuite (liens par `sendibt2.com` / `sendibt3.com`) ;
   `confidentialite.html` (version comptes) le dit. À couper si l'offre change, puis mettre la page à jour ;
-- au passage au domaine des comptes, changer `BASE_SITE` dans `scripts/alertes.mjs` (adresse utilisée dans les liens des e-mails).
 
 **Limites à connaître** :
 - l'alerte « nouveau DIC » (et celles de frais et de risque, qui en dépendent) ne marche que si GECO publie un DIC pour le fonds ;
@@ -558,7 +602,7 @@ le fichier ne serait pas chargé chez les visiteurs équipés d'un bloqueur et l
 | `scripts/construire_pages.mjs` | Génère `fonds/*.html`, `classements/*.html`, `sitemap.xml` et `sitemap-N.xml` |
 | `fonds/` / `classements/` / `sitemap*.xml` | Pages fixes des fonds, classements et plans du site pour Google (générés, voir « Pages des fonds pour Google ») |
 | `.github/workflows/resumes.yml` | Tâche hebdomadaire des résumés et des pages (lundi, 01 h 13 UTC) ; pages seules à chaque envoi sur `main` qui touche l'annuaire, le gabarit ou leur code |
-| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains), `alternatives.test.mjs` et `construire-alternatives.test.mjs` (alternatives moins chères : choix, bloc, script de construction), `radiographie.test.mjs` (radiographie Mon contrat : exposition cumulée, doublons, frais en euros), `pdf-securite.test.mjs` (pdf.js lancé avec `isEvalSupported: false`), `lecture-dic.test.mjs` (lecture d'un DIC), `construire-resumes.test.mjs` (choix des fonds à lire, garde-fous), `pages-fonds.test.mjs` (page d'un fonds, classements, sitemaps) et `pages-site.test.mjs` (pages fixes : liens, préfixe `RACINE_SITE`, scripts). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase de test (à lancer à part : `python3 -m unittest tests/test_supabase.py -v`). Vrais extraits des sources dans `tests/donnees/` |
+| `tests/` | Tests sans réseau, tous lancés par `node --test "tests/*.test.mjs"` : `mode-site.test.mjs` (règle de bascule, marquage de `<html>`, renvoi des pages de compte, attribut `hidden`), `acces.test.mjs` (contrôle d'accès de Cloudflare), `pages.test.mjs` (en-tête, pied de page, textes, éléments réservés au mode comptes), `textes-gratuits.test.mjs` (texte visible dans chaque mode : pages légales, pages de compte), `pages-compte.test.mjs` (pages du compte, démarrage de leurs scripts en mode comptes seulement), `compte.test.mjs` (`js/compte.js`), `comptes.test.mjs` (suppression de compte, avertissement d'inactivité), `stripe.test.mjs` (paiement Stripe), `couleurs.test.mjs` (palette, contrastes, police), `simulateur-fiscalite.test.mjs` (fiscalité du simulateur), `sources-officielles.test.mjs` (sources officielles), `zones.test.mjs` (annuaire par zone), `etats-unis.test.mjs` (fonds américains dans le navigateur), `fiche-etats-unis.test.mjs` (fiche d'un fonds américain), `fiche-registres-ue.test.mjs` (registre de l'ESMA : fiche d'un fonds européen du registre, alertes des FIA étrangers de GECO, lignes d'autorité et de pays des fonds européens, alertes, ouverture dans Performances et Simulateur), `performances-simulateur-etats-unis.test.mjs` (Performances et simulateur pour les fonds américains), `alternatives.test.mjs` et `construire-alternatives.test.mjs` (alternatives moins chères : choix, bloc, script de construction), `radiographie.test.mjs` (radiographie Mon contrat : exposition cumulée, doublons, frais en euros), `pdf-securite.test.mjs` (pdf.js lancé avec `isEvalSupported: false`), `lecture-dic.test.mjs` (lecture d'un DIC), `construire-resumes.test.mjs` (choix des fonds à lire, garde-fous), `pages-fonds.test.mjs` (page d'un fonds, classements, sitemaps) et `pages-site.test.mjs` (pages fixes : liens, préfixe `RACINE_SITE`, scripts). En Python : `test_sources_officielles.py` (`python3 tests/test_sources_officielles.py -v`), `test_etats_unis.py` (`python3 tests/test_etats_unis.py -v`, fonds américains : listes, N-PORT, rendements, frais, conversion en euros) et `test_registres_ue.py` (`python3 tests/test_registres_ue.py -v`, registre de l'ESMA), sans réseau, et `test_supabase.py`, qui appelle le vrai projet Supabase, celui qui contient les **vrais comptes** du site (base partagée) : il refuse de démarrer sans `TESTS_SUPABASE=oui-base-des-comptes` (à lancer à part : `TESTS_SUPABASE=oui-base-des-comptes python3 -m unittest tests/test_supabase.py -v`), ne touche qu'à ses comptes jetables `test-…@example.com` (supprimés à la fin) et n'affiche jamais l'adresse d'un autre compte ; les tests qui changent l'interrupteur paiement, visible par tous les visiteurs, sont ignorés sauf avec `TESTS_PAIEMENT=oui` en plus. Vrais extraits des sources dans `tests/donnees/` |
 
 ## Feuille de route
 

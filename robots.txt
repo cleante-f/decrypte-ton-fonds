@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://decrypte-ton-fonds.fr/sitemap.xml
