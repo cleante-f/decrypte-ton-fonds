@@ -379,6 +379,6 @@ test("confidentialité, version gratuite : pas de decrypte-ton-fonds.fr (adresse
   const html = lire("confidentialite.html");
   const gratuit = blocsVersion(html, "gratuit");
   assert.ok(gratuit.length >= 3);
-  for (const bloc of gratuit) assert.doesNotMatch(bloc, /decrypte-ton-fonds\.fr/);
+  for (const bloc of gratuit) assert.doesNotMatch(bloc.replaceAll("contact@decrypte-ton-fonds.fr", ""), /decrypte-ton-fonds\.fr/);   // l'adresse de contact vaut pour tous les modes
   assert.match(html, /<!-- Deux versions : data-seulement="comptes" \(decrypte-ton-fonds\.fr et www, aperçu des comptes, localhost\b/);
 });

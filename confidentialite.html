@@ -31,10 +31,10 @@
     <h1>Confidentialité</h1>
     <div data-seulement="comptes">
       <p class="sous-titre">En bref : sans compte, rien n'est enregistré sur un serveur. Avec un compte, nous gardons seulement ce qu'il faut pour le faire fonctionner.
-        Un seul cookie, strictement nécessaire à la connexion. Aucune mesure d'audience sur le site, aucune publicité (Brevo, qui envoie nos e-mails, note leurs ouvertures et clics : voir plus bas).</p>
+        Un seul cookie, strictement nécessaire à la connexion. Une mesure d'audience anonyme et sans cookie (Cloudflare Web Analytics), aucune publicité (Brevo, qui envoie nos e-mails, note leurs ouvertures et clics : voir plus bas).</p>
     </div>
     <div data-seulement="gratuit">
-      <p class="sous-titre">En bref : pas de compte, pas de cookie, pas de mesure d'audience, pas de publicité. Tes recherches et tes simulations sont calculées dans ton navigateur et ne nous sont jamais envoyées.</p>
+      <p class="sous-titre">En bref : pas de compte, pas de cookie, <span data-si-hebergeur="github">pas de mesure d'audience</span><span data-si-hebergeur="cloudflare">une mesure d'audience anonyme et sans cookie (Cloudflare Web Analytics)</span>, pas de publicité. Tes recherches et tes simulations sont calculées dans ton navigateur et ne nous sont jamais envoyées.</p>
     </div>
 
     <section class="carte">
@@ -42,21 +42,17 @@
       <div data-seulement="comptes">
         <p data-si-paiement="actif">« Décrypte ton fonds » est édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>, directeurs de la publication.
           L'abonnement est vendu par la micro-entreprise indiquée dans les <a href="mentions-legales.html">mentions légales</a>, responsable des traitements décrits ci-dessous.</p>
-        <p data-si-paiement="actif"><strong>Nous contacter</strong> (questions, demandes sur tes données) : <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</p>
+        <p data-si-paiement="actif"><strong>Nous contacter</strong> (questions, demandes sur tes données) : <a href="mailto:contact@decrypte-ton-fonds.fr">contact@decrypte-ton-fonds.fr</a>.</p>
         <p data-si-paiement="coupe">« Décrypte ton fonds » (<span translate="no">decrypte-ton-fonds.fr</span>) est un site gratuit, édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>,
           directeurs de la publication et responsables des traitements décrits ci-dessous. Les comptes sont gratuits : rien n'y est vendu et aucune donnée de paiement n'est demandée.</p>
         <p data-si-paiement="coupe"><strong>Nous contacter</strong> (questions, demandes sur tes données) : depuis « Mon compte », tu peux télécharger tes données et supprimer ton compte toi-même.
-          Pour toute autre demande, ouvre un ticket sur la
-          <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a> (bouton « New issue », compte GitHub gratuit nécessaire).
-          Les tickets sont publics : n'y écris pas d'informations personnelles (ni ton adresse e-mail).</p>
+          Pour toute autre demande, écris-nous à <a href="mailto:contact@decrypte-ton-fonds.fr">contact@decrypte-ton-fonds.fr</a>.</p>
         <p><strong>Hébergeur</strong> : Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis.</p>
       </div>
       <div data-seulement="gratuit">
         <p>« Décrypte ton fonds » est un site personnel et gratuit, édité par <strong>Cléante Aupetit</strong> et <strong>Maëlys Richard</strong>,
           directeurs de la publication et responsables des traitements décrits ci-dessous. Rien n'y est vendu.</p>
-        <p><strong>Nous contacter</strong> (questions, demandes sur tes données) : ouvre un ticket sur la
-          <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a> (bouton « New issue », compte GitHub gratuit nécessaire).
-          Les tickets sont publics : n'y écris pas d'informations personnelles.</p>
+        <p><strong>Nous contacter</strong> (questions, demandes sur tes données) : <a href="mailto:contact@decrypte-ton-fonds.fr">contact@decrypte-ton-fonds.fr</a>.</p>
         <p data-si-hebergeur="github"><strong>Hébergeur</strong> : GitHub, Inc. (service GitHub Pages), 88 Colin P. Kelly Jr. St., San Francisco, CA 94107, États-Unis.</p>
         <p data-si-hebergeur="cloudflare"><strong>Hébergeur</strong> : Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, États-Unis.</p>
       </div>
@@ -118,6 +114,11 @@
             <tr><th scope="row">Cloudflare (hébergeur) <small>(decrypte-ton-fonds.fr, decrypte-ton-fonds.pages.dev ; challenges.cloudflare.com)</small></th>
               <td>Envoyer les pages du site, contrôler l'accès au simulateur, vérifier que tu n'es pas un robot (Turnstile) à l'inscription et à la connexion.</td>
               <td>À chaque visite ; Turnstile seulement sur la page de connexion</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
+            <tr><th scope="row">Cloudflare Web Analytics <small>(static.cloudflareinsights.com, cloudflareinsights.com)</small></th>
+              <td>Compter les visites de façon anonyme : page vue, page d'où tu viens, type de navigateur et d'appareil, pays, temps de chargement.
+                Aucun cookie ni stockage dans ton navigateur, pas de suivi d'une visite à l'autre ; Cloudflare indique ne pas conserver ton adresse IP pour ce service.
+                Nous ne voyons que des totaux. Un bloqueur de publicité peut l'empêcher, sans gêner le site.</td>
+              <td>À chaque page</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
             <tr><th scope="row">Supabase <small>(&lt;identifiant&gt;.supabase.co)</small></th><td>Comptes, simulations enregistrées, fonds suivis et préférences d'alerte<span data-si-paiement="actif">, état de l'abonnement</span>.</td>
               <td>Quand tu crées ton compte, te connectes ou es connecté, ou quand tu cliques sur le lien de désinscription d'un e-mail d'alerte</td><td>Serveurs dans l'Union européenne ; société américaine (clauses contractuelles types)</td></tr>
             <tr data-si-paiement="actif"><th scope="row">Stripe <small>(checkout.stripe.com, billing.stripe.com)</small></th><td>Paiement de l'abonnement, factures, résiliation.</td>
@@ -146,6 +147,11 @@
             <tr data-si-hebergeur="cloudflare"><th scope="row">Cloudflare (hébergeur) <small>(decrypte-ton-fonds.pages.dev)</small></th><td>Envoyer les pages du site.</td>
               <td>À chaque visite</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis).
                 <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Politique de Cloudflare</a></td></tr>
+            <tr data-si-hebergeur="cloudflare"><th scope="row">Cloudflare Web Analytics <small>(static.cloudflareinsights.com, cloudflareinsights.com)</small></th>
+              <td>Compter les visites de façon anonyme : page vue, page d'où tu viens, type de navigateur et d'appareil, pays, temps de chargement.
+                Aucun cookie ni stockage dans ton navigateur, pas de suivi d'une visite à l'autre ; Cloudflare indique ne pas conserver ton adresse IP pour ce service.
+                Nous ne voyons que des totaux. Un bloqueur de publicité peut l'empêcher, sans gêner le site.</td>
+              <td>À chaque page</td><td>États-Unis et réseau mondial (cadre de protection des données UE–États-Unis)</td></tr>
             <tr><th scope="row">AMF, base GECO <small>(geco.amf-france.org)</small></th><td>Lire les données officielles d'un fonds : valeurs liquidatives, documents, rapports.</td><td>Quand tu consultes un fonds</td><td>France</td></tr>
             <tr><th scope="row">Banque centrale européenne <small>(data-api.ecb.europa.eu)</small></th><td>Lire des taux d'intérêt et de change pour les calculs.</td><td>Analyse d'un fonds, performances, simulateur</td><td>Union européenne</td></tr>
           </tbody>
@@ -196,14 +202,14 @@
       <div data-seulement="comptes">
         <p>Tu peux accéder à tes données, les rectifier, les effacer, t'opposer à leur traitement, en demander la limitation ou les récupérer (RGPD, articles 15 à 21).
           Depuis « Mon compte » : <strong>Télécharger mes données</strong> (fichier JSON), <strong>Supprimer mon compte</strong>, changer d'adresse e-mail.
-          <span data-si-paiement="actif">Pour toute autre demande, écris-nous à <a href="mailto:[[EMAIL_CONTACT]]">[[EMAIL_CONTACT]]</a>.</span>
-          <span data-si-paiement="coupe">Pour toute autre demande, ouvre un ticket sur la <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a> (sans y écrire d'informations personnelles).</span></p>
+          <span data-si-paiement="actif">Pour toute autre demande, écris-nous à <a href="mailto:contact@decrypte-ton-fonds.fr">contact@decrypte-ton-fonds.fr</a>.</span>
+          <span data-si-paiement="coupe">Pour toute autre demande, écris-nous à <a href="mailto:contact@decrypte-ton-fonds.fr">contact@decrypte-ton-fonds.fr</a>.</span></p>
       </div>
       <div data-seulement="gratuit">
         <p>Tu peux demander l'accès à tes données, leur rectification ou leur effacement, t'opposer à leur traitement ou en demander la limitation (RGPD, articles 15 à 21).
           Nous ne détenons aucune donnée te concernant sur un serveur. Les données de ton navigateur s'effacent avec le bouton ci-dessus ; pour les journaux de connexion,
           adresse-toi à <span data-si-hebergeur="github">GitHub</span><span data-si-hebergeur="cloudflare">Cloudflare</span>.
-          Pour toute autre demande, ouvre un ticket sur la <a href="https://github.com/cleante-f/decrypte-ton-fonds/issues" target="_blank" rel="noopener">page GitHub du site</a>.</p>
+          Pour toute autre demande, écris-nous à <a href="mailto:contact@decrypte-ton-fonds.fr">contact@decrypte-ton-fonds.fr</a>.</p>
       </div>
       <p>Si tu estimes que tes droits ne sont pas respectés, tu peux adresser une réclamation à la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">cnil.fr</a>), RGPD article 77.</p>
       <p class="source">Page mise à jour le 23 octobre 2026.</p>

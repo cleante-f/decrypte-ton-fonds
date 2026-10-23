@@ -58,13 +58,13 @@ test("retirerBlocs : retire l'élément et tout son contenu, en suivant l'imbric
   assert.equal(retirerBlocs('<p xdata-seulement="comptes">a</p>', "data-seulement", "comptes"), '<p xdata-seulement="comptes">a</p>');
 });
 
-test("texte visible en mode gratuit : ni compte, ni prestataire de paiement, ni valeur à compléter, ni adresse e-mail", () => {
+test("texte visible en mode gratuit : ni compte, ni prestataire de paiement, ni valeur à compléter, aucune autre adresse e-mail que celle du site", () => {
   for (const nom of ["index", "decrypte", "performances", "simulateur", "confidentialite", "mentions-legales"]) {
     const html = enGratuit(nom);
     assert.ok(!html.includes("[["), `${nom} : valeur [[…]] visible en mode gratuit`);
     for (const mot of ["supabase", "stripe", "brevo", "dtf_session", "turnstile"])
       assert.ok(!html.toLowerCase().includes(mot), `${nom} : « ${mot} » visible en mode gratuit`);
-    assert.doesNotMatch(html, /mailto:[^"'<>\s]*@/i, `${nom} : adresse e-mail visible en mode gratuit`);
+    for (const m of html.matchAll(/mailto:([^"'<>\s]*)/gi)) assert.equal(m[1], "contact@decrypte-ton-fonds.fr", `${nom} : seule l'adresse de contact du site est visible`);
   }
 });
 
@@ -93,8 +93,8 @@ test("confidentialité en mode gratuit : services contactés, stockage, contact 
   for (const attendu of ["geco.amf-france.org", "data-api.ecb.europa.eu", "aucun cookie", "Tes réglages des alertes", "Copies de données publiques",
     "articles 15 à 21", "article 77"]) assert.ok(visible.includes(attendu), attendu);
   for (const absent of ["compte-session-v1", "Mémoriser mon plan", "Ton plan du simulateur"]) assert.ok(!visible.includes(absent), absent);
-  assert.ok(html.includes('href="https://github.com/cleante-f/decrypte-ton-fonds/issues"'), "lien vers la page GitHub du site absent");
-  assert.ok(enGratuit("mentions-legales").includes('href="https://github.com/cleante-f/decrypte-ton-fonds/issues"'), "mentions légales : contact absent");
+  assert.ok(html.includes('href="mailto:contact@decrypte-ton-fonds.fr"'), "adresse de contact absente");
+  assert.ok(enGratuit("mentions-legales").includes('href="mailto:contact@decrypte-ton-fonds.fr"'), "mentions légales : contact absent");
 });
 
 test("confidentialité : bouton d'effacement, sources des serveurs et liens externes communs aux deux modes", () => {
@@ -208,7 +208,8 @@ test("pages légales, paiement coupé : rien de payant, pas de valeur à complé
     const visible = texte(html);
     assert.ok(!html.includes("[["), `${nom} : valeur [[…]] visible avec le paiement coupé`);
     assert.doesNotMatch(visible, /abonn|\bcgv\b|conditions générales de vente|offerte|stripe|facture/i, `${nom} : texte payant visible`);
-    assert.doesNotMatch(html, /mailto:/, `${nom} : adresse e-mail visible`);
+    for (const m of html.matchAll(/mailto:([^"'<>\s]*)/gi)) assert.equal(m[1], "contact@decrypte-ton-fonds.fr", `${nom} : seule l'adresse de contact du site est visible`);
+    assert.ok(html.includes("mailto:contact@decrypte-ton-fonds.fr"), `${nom} : adresse de contact absente`);
     assert.ok(visible.includes("decrypte-ton-fonds.fr"), `${nom} : adresse du site absente`);
     assert.ok(visible.includes("gratuit"), `${nom} : « gratuit » absent`);
   }
