@@ -33,7 +33,8 @@ function vue(nom) {
 // Turnstile : un widget par formulaire ; chaque jeton ne sert qu'une fois
 window.captchaPret = () => {
   document.querySelectorAll("[data-captcha]").forEach(zone => {
-    const id = turnstile.render(zone, { sitekey: CONFIG_COMPTE.turnstileCle, language: "fr",
+    const id = turnstile.render(zone, { sitekey: CONFIG_COMPTE.turnstileCle,
+      language: typeof LANGUE === "string" && LANGUE === "en" ? "en" : "fr",
       callback: jeton => jetonsCaptcha.set(zone.closest("form").id, jeton) });
     zone.dataset.widget = id;
   });

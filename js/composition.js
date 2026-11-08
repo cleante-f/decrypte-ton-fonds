@@ -115,7 +115,7 @@ function assemblerComposition(inv, st, part) {
 
   if (inv && inv.document && inv.document.dateEffet) {
     const mois = (Date.now() - new Date(inv.document.dateEffet)) / (30.44 * 864e5);
-    if (mois > 18) c.notes.push({ type: "ancien", texte: `Attention : le dernier inventaire disponible dans GECO date du ${new Date(inv.document.dateEffet).toLocaleDateString("fr-FR")} (il y a ${Math.round(mois / 12 * 10) / 10} ans). La composition a pu changer depuis${st ? " ; l'analyse des rendements ci-dessous, elle, porte sur les 3 dernières années" : ""}.` });
+    if (mois > 18) c.notes.push({ type: "ancien", texte: `Attention : le dernier inventaire disponible dans GECO date du ${new Date(inv.document.dateEffet).toLocaleDateString(globalThis.LOCALE_SITE || "fr-FR")} (il y a ${Math.round(mois / 12 * 10) / 10} ans). La composition a pu changer depuis${st ? " ; l'analyse des rendements ci-dessous, elle, porte sur les 3 dernières années" : ""}.` });
   }
   if (synthetique) c.notes.push({ type: "synthetique", texte: `Le rapport montre un contrat d'échange (swap) représentant environ ${Math.round(inv.swapsPct)} % de l'actif : les titres réellement détenus sont un « panier de substitution » sans rapport avec l'exposition réelle. La répartition affichée vient donc de l'analyse des rendements.` });
   if (fondsDeFonds) c.notes.push({ type: "fonds", texte: `Environ ${Math.round(inv.partFonds)} % de l'actif est placé dans d'autres fonds : les lignes ci-dessous sont des fonds. L'exposition réelle (ce que contiennent ces fonds) est estimée par l'analyse des rendements.` });

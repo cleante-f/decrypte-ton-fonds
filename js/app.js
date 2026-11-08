@@ -21,7 +21,7 @@ const EXEMPLES_REELS = [
 ].filter(([isin]) => annuaireParIsin(isin));
 document.getElementById("exemples").innerHTML =
   // tout le site (annuaire européen et zones) d'après data/resume.js ; à défaut, l'annuaire européen seul
-  `<span>${(typeof RESUME_ANNUAIRE !== "undefined" ? RESUME_ANNUAIRE.total : ANNUAIRE.length).toLocaleString("fr-FR")} fonds référencés. Exemples :</span> ` +
+  `<span>${(typeof RESUME_ANNUAIRE !== "undefined" ? RESUME_ANNUAIRE.total : ANNUAIRE.length).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))} fonds référencés. Exemples :</span> ` +
   EXEMPLES_REELS.map(([isin, nom]) => `<a href="${esc(lienAutreFonds(isin))}" class="chip">${esc(nom)}</a>`).join(" ");
 
 // ---------- Recherche et navigation ----------

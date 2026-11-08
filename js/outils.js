@@ -68,13 +68,18 @@ function serieDepuisCsvBce(texte, jusqua) {
   return { dates, valeurs };
 }
 
+// Format des nombres : LOCALE_SITE (js/langue.js, "fr-FR" ou "en-US") ; "fr-FR" hors du navigateur (scripts Node, tests)
+function localeSite() {
+  return typeof LOCALE_SITE === "string" ? LOCALE_SITE : "fr-FR";
+}
+
 function pct(valeur, decimales = 1) {
   if (valeur === null || valeur === undefined) return "n.d.";
-  return valeur.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales }) + " %";
+  return valeur.toLocaleString(localeSite(), { minimumFractionDigits: decimales, maximumFractionDigits: decimales }) + " %";
 }
 
 function euros(valeur) {
-  return Math.round(valeur).toLocaleString("fr-FR") + " €";
+  return Math.round(valeur).toLocaleString(localeSite()) + " €";
 }
 
 // Les lignes « Autres » ne sont pas un vrai pays ou secteur : on les ignore pour les alertes
@@ -198,7 +203,7 @@ function valeurFinale(capital, tauxAnnuel, annees) {
 // Toutes les clés que le site peut écrire. L'adresse cleante-f.github.io est partagée avec d'autres sites
 // du même compte GitHub : on ne touche jamais aux autres clés.
 const CLE_CACHE_COMPO = "composition-v8-";   // v8 : les lignes gardent leur ISIN (liens vers les fonds détenus)
-const CLES_STOCKAGE_SITE = [/^composition-v\d+-/, /^serie-/, /^longue-v1-/, /^seuils-alertes-v1$/, /^compte-session-v1$/];
+const CLES_STOCKAGE_SITE = [/^composition-v\d+-/, /^serie-/, /^longue-v1-/, /^seuils-alertes-v1$/, /^compte-session-v1$/, /^langue-v1$/];
 
 function clesStockageSite() {
   try { return Object.keys(localStorage).filter(k => CLES_STOCKAGE_SITE.some(re => re.test(k))); } catch (e) { return []; }

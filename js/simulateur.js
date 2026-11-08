@@ -66,7 +66,7 @@ function programmerEnregistrement() {
   minuterieEnregistrement = setTimeout(async () => {
     try {
       await Compte.enregistrerSimulation(S.simulation.id, etatCourant());
-      if (etatEnregistrement) etatEnregistrement.textContent = `Simulation enregistrée dans ton compte à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.`;
+      if (etatEnregistrement) etatEnregistrement.textContent = `Simulation enregistrée dans ton compte à ${new Date().toLocaleTimeString((globalThis.LOCALE_SITE || "fr-FR"), { hour: "2-digit", minute: "2-digit" })}.`;
     } catch (err) {
       if (etatEnregistrement) etatEnregistrement.textContent = err.code === "non_connecte"
         ? "Ta session a expiré : tes derniers changements ne sont pas enregistrés. Reconnecte-toi dans un autre onglet, puis modifie un réglage."
@@ -341,7 +341,7 @@ function libellePartSec(part) {
 // La SEC n'est citée que si sa composition ou ses frais ont servi.
 function sourceProfilType(A) {
   const sec = [A.sourceExpo === "sec" && "composition", A.terSource === "sec" && "frais"].filter(Boolean);
-  return `profil type, faute de rendement publié pour ce fonds${sec.length ? ` ; ${sec.join(" et ")} : SEC (EDGAR)` : ""}`;
+  return (globalThis.t || String)(`profil type, faute de rendement publié pour ce fonds${sec.length ? ` ; ${sec.join(" et ")} : SEC (EDGAR)` : ""}`);
 }
 
 function carteFonds(A, message) {
@@ -363,15 +363,15 @@ function carteFonds(A, message) {
     ${A && A.jumeau ? `<p class="note">Pas d'historique public et gratuit pour cet ETF étranger : la simulation s'appuie sur un fonds français qui suit le <strong>même indice (${esc(A.jumeau.indice)})</strong>, <a href="decrypte.html#${esc(A.jumeau.fonds.isins[0])}">${esc(A.jumeau.fonds.nom)}</a>.${A.terSource === "hypothese" ? " Les frais courants de l'ETF sont une hypothèse modifiable dans les options." : ""}</p>` : ""}
     ${A && A.secIndisponible ? `<p class="non-dispo">Les données de la SEC sur ce fonds n'ont pas pu être chargées : recharge la page pour réessayer.</p>` : ""}
     ${A && A.sourceHistorique === "profil" ? `<p class="note">${A.sec ? "Aucun rendement mensuel dans les données de la SEC pour ce fonds ni historique pour un fonds comparable" : "Aucun historique public pour ce fonds ni pour un fonds comparable"} : la simulation utilise un <strong>profil type</strong> déduit de ${A.sourceExpo === "sec" ? "sa composition déclarée à la SEC" : "sa classification ou de son nom"}. Résultats très approximatifs.</p>` : ""}
-    ${A && A.derniereVL && A.sourceHistorique === "sec" ? `<p class="source">Dernier rendement mensuel utilisé : ${esc(A.derniereVL.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }))} (SEC – N-PORT)${libellePartSec(A.sec.part) ? `, part ${libellePartSec(A.sec.part)}` : ""}${(Date.now() - A.derniereVL) / 864e5 > JOURS_SEC_ANCIEN ? " — <strong>donnée ancienne</strong>" : ""}.</p>`
-    : A && A.derniereVL ? `<p class="source">Dernière valeur liquidative utilisée : ${A.derniereVL.toLocaleDateString("fr-FR")} (AMF – GECO)${(Date.now() - A.derniereVL) / 864e5 > 15 ? " — <strong>donnée ancienne</strong>" : ""}.</p>` : ""}
+    ${A && A.derniereVL && A.sourceHistorique === "sec" ? `<p class="source">Dernier rendement mensuel utilisé : ${esc(A.derniereVL.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "long", year: "numeric" }))} (SEC – N-PORT)${libellePartSec(A.sec.part) ? `, part ${libellePartSec(A.sec.part)}` : ""}${(Date.now() - A.derniereVL) / 864e5 > JOURS_SEC_ANCIEN ? " — <strong>donnée ancienne</strong>" : ""}.</p>`
+    : A && A.derniereVL ? `<p class="source">Dernière valeur liquidative utilisée : ${A.derniereVL.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))} (AMF – GECO)${(Date.now() - A.derniereVL) / 864e5 > 15 ? " — <strong>donnée ancienne</strong>" : ""}.</p>` : ""}
   </article>`;
 }
 
 async function afficherDepuisAdresse() {
   const cle = decodeURIComponent(location.hash.slice(1));
   const numero = ++numeroChargement;
-  if (!cle) { zoneFonds.innerHTML = ""; zoneAssistant.hidden = true; zoneResultats.innerHTML = ""; document.title = "Simulateur · Décrypte ton fonds"; return; }
+  if (!cle) { zoneFonds.innerHTML = ""; zoneAssistant.hidden = true; zoneResultats.innerHTML = ""; document.title = (globalThis.t || String)("Simulateur · Décrypte ton fonds"); return; }
   // Un fonds d'une autre zone (États-Unis…) charge d'abord sa liste
   if (zoneDeCle(cle) !== "europe") zoneFonds.innerHTML = `<div class="carte"><p class="chargement">Chargement du fonds…</p></div>`;
   let entree;
@@ -385,7 +385,7 @@ async function afficherDepuisAdresse() {
   if (numero !== numeroChargement) return;
   if (!entree) { zoneFonds.innerHTML = afficherListe(cle, []); return; }
   const isin = entree.isins.includes(cle) ? cle : entree.isins[0];
-  document.title = `${entree.nom} · Simulateur`;
+  document.title = (globalThis.t || String)(`${entree.nom} · Simulateur`);
   S.fonds = null; S.calc = null; S.chargement = { entree, isin }; S.planOuvert = false;
   S.comparaisons = []; S.portefeuille = { lignes: [], calc: null }; S.contrat = { lignes: [], calc: null, enCours: false };
   if (!S.restauration) S.simulation = null;   // un nouveau fonds n'hérite pas de la simulation précédente
@@ -403,7 +403,7 @@ async function afficherDepuisAdresse() {
     if (A.promesseCompo) A.promesseCompo.then(() => { if (S.fonds === A && S.lance && S.mode === "contexte") rendreResultats(); });
   } catch (err) {
     if (numero !== numeroChargement) return;
-    zoneFonds.innerHTML = carteFonds(null) + `<p class="non-dispo">Simulation impossible pour ce fonds : ${esc(err.message)}.</p>`;
+    zoneFonds.innerHTML = carteFonds(null) + `<p class="non-dispo">Simulation impossible pour ce fonds : ${esc((globalThis.t || String)(err.message))}.</p>`;
   }
 }
 
@@ -415,18 +415,18 @@ function champNombre(champ, valeur, attributs = "") {
 function puces(champ, valeurs, courant, format) {
   return `<div class="puces" role="group">${valeurs.map(v => `<button type="button" class="puce" data-puce="${champ}" data-valeur="${v}" aria-pressed="${String(Number(courant) === v)}">${format(v)}</button>`).join("")}</div>`;
 }
-const LIBELLE_FREQUENCE = { 1: "par mois", 3: "par trimestre", 12: "par an" };
+const LIBELLE_FREQUENCE = { 1: (globalThis.t || String)("par mois"), 3: (globalThis.t || String)("par trimestre"), 12: (globalThis.t || String)("par an") };
 
 function etapeCapital() {
   return `<h2 class="question">Combien souhaites-tu investir au départ ?</h2>
     <label class="champ-montant"><span class="sr-only">Capital initial en euros</span>${champNombre("capital", S.plan.capital, 'min="0" step="any"')}<span>€</span></label>
-    ${puces("capital", [0, 1000, 5000, 10000, 50000], S.plan.capital, v => v.toLocaleString("fr-FR") + " €")}
+    ${puces("capital", [0, 1000, 5000, 10000, 50000], S.plan.capital, v => v.toLocaleString((globalThis.LOCALE_SITE || "fr-FR")) + " €")}
     <p class="aide">Tu peux mettre 0 si tu préfères investir seulement de façon régulière.</p>`;
 }
 function etapeVersement() {
   return `<h2 class="question">Combien souhaites-tu investir ${S.plan.frequence == 1 ? "chaque mois" : S.plan.frequence == 3 ? "chaque trimestre" : "chaque année"} ?</h2>
     <label class="champ-montant"><span class="sr-only">Versement régulier en euros</span>${champNombre("versement", S.plan.versement, 'min="0" step="any"')}<span>€</span></label>
-    ${puces("versement", [0, 100, 300, 500, 1000], S.plan.versement, v => v.toLocaleString("fr-FR") + " €")}
+    ${puces("versement", [0, 100, 300, 500, 1000], S.plan.versement, v => v.toLocaleString((globalThis.LOCALE_SITE || "fr-FR")) + " €")}
     <div class="ligne-options">
       <label>Fréquence <select data-champ="frequence">${[1, 3, 12].map(f => `<option value="${f}"${Number(S.plan.frequence) === f ? " selected" : ""}>${f === 1 ? "mensuelle" : f === 3 ? "trimestrielle" : "annuelle"}</option>`).join("")}</select></label>
       <label>Augmenter mes versements de ${champNombre("augmentation", S.plan.augmentation, 'min="0" max="20" step="0.5" class="court"')} % par an</label>
@@ -465,9 +465,9 @@ function optionsAvancees() {
   return `<details class="options-avancees"${S.optionsOuvertes ? " open" : ""}>
     <summary>Options avancées : inflation, frais, fiscalité</summary>
     <div class="grille-options">
-      <label>Inflation (% par an) ${champNombre("inflation", p.inflation ?? "", `step="0.1" placeholder="${String(infl).replace(".", ",")}"`)}
+      <label>Inflation (% par an) ${champNombre("inflation", p.inflation ?? "", `step="0.1" placeholder="${globalThis.LANGUE === "en" ? String(infl) : String(infl).replace(".", ",")}"`)}
         <small>Par défaut : ${pct(infl)} = inflation attendue à long terme par les prévisionnistes de la BCE${indicateurCtx("anticipations_inflation") ? ` (enquête ${esc(indicateurCtx("anticipations_inflation").date.replace("-Q", " T"))})` : ""}.</small></label>
-      <label>${terme("frais_courants", "Frais courants du fonds")} (% par an) ${champNombre("fraisCourants", p.fraisCourants ?? "", `step="0.01" placeholder="${A ? String(Math.round(A.ter * 100) / 100).replace(".", ",") : ""}"`)}
+      <label>${terme("frais_courants", "Frais courants du fonds")} (% par an) ${champNombre("fraisCourants", p.fraisCourants ?? "", `step="0.01" placeholder="${A ? (globalThis.LANGUE === "en" ? String(Math.round(A.ter * 100) / 100) : String(Math.round(A.ter * 100) / 100).replace(".", ",")) : ""}"`)}
         <small>${A ? (A.terSource === "dic" ? `Lus dans le DIC : ${pct(A.ter, 2)}.` : A.terSource === "sec" ? `Lus dans le prospectus déposé à la SEC : ${pct(A.ter, 2)}.` : `Non disponibles : hypothèse de ${pct(A.ter, 2)}, à vérifier dans ${documentDesFrais([{ entree: A.entree, A }])}.`) : ""}</small></label>
       <label>${terme("frais_entree", "Frais d'entrée")} (% de chaque versement) ${champNombre("entree", p.entree, 'step="0.1" min="0"')}
         <small>${A && A.entreeMax ? `${A.terSource === "sec" ? "Le prospectus déposé à la SEC" : "Le DIC"} prévoit jusqu'à ${pct(A.entreeMax)} : souvent nuls en ligne.` : "Souvent nuls pour un ETF."}</small></label>
@@ -698,7 +698,7 @@ function repereLivretSimu(C) {
 }
 
 // Effet de l'enveloppe choisie, rendu visible en tête (les gros chiffres restent avant impôts)
-const NOMS_ENVELOPPES = { cto: "compte-titres", pea: "PEA", av: "assurance-vie", pee: "PEE" };
+const NOMS_ENVELOPPES = { cto: (globalThis.t || String)("compte-titres"), pea: "PEA", av: (globalThis.t || String)("assurance-vie"), pee: "PEE" };
 function notesFiscales(C) {
   const fisc = C.P.fiscalite, s = C.scen.central;
   if (!fisc) return "";
@@ -832,7 +832,7 @@ function panneauProjection() {
   <section class="carte carte-graphique-simu">
     <div class="entete-graphique">
       <div><h2>Évolution possible de ton investissement</h2>
-        <p class="aide">${HYPOTHESES_DEFAUT.trajectoires.toLocaleString("fr-FR")} trajectoires simulées. Passe la souris (ou le doigt) sur le graphique : chaque ${C.res.pas === 1 ? "mois" : "année"} affiche le détail.</p></div>
+        <p class="aide">${HYPOTHESES_DEFAUT.trajectoires.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))} trajectoires simulées. Passe la souris (ou le doigt) sur le graphique : chaque ${C.res.pas === 1 ? "mois" : "année"} affiche le détail.</p></div>
       <div class="bascules">
         <button type="button" class="bascule" data-vue="reel" aria-pressed="${S.vue.reel}">Après inflation</button>
         <button type="button" class="bascule" data-vue="exemples" aria-pressed="${S.vue.exemples}">Trajectoires</button>
@@ -871,7 +871,7 @@ function panneauProjection() {
 
   <section class="carte">
     <h2>L'impact des frais</h2>
-    <p class="aide">Scénario central, mêmes rendements de marché. Frais pris en compte : frais courants ${pct(P.frais.courants, 2)} / an${P.frais.garde ? `, frais de contrat ${pct(P.frais.garde, 2)} / an` : ""}${P.frais.entree ? `, entrée ${pct(P.frais.entree, 1)}` : ""}${P.frais.courtageFixe || P.frais.courtagePct ? `, courtage ${P.frais.courtageFixe ? euros(P.frais.courtageFixe) : ""}${P.frais.courtagePct ? " " + pct(P.frais.courtagePct, 2) : ""} par ordre` : ""}${P.frais.change ? `, change ${pct(P.frais.change, 2)}` : ""}. Le coût total inclut ce que ces sommes auraient elles-mêmes rapporté.</p>
+    <p class="aide">Scénario central, mêmes rendements de marché. Frais pris en compte : ${(globalThis.t || String)(`frais courants ${pct(P.frais.courants, 2)} / an`)}${P.frais.garde ? (globalThis.t || String)(`, frais de contrat ${pct(P.frais.garde, 2)} / an`) : ""}${P.frais.entree ? (globalThis.t || String)(`, entrée ${pct(P.frais.entree, 1)}`) : ""}${P.frais.courtageFixe || P.frais.courtagePct ? (globalThis.t || String)(`, courtage ${P.frais.courtageFixe ? euros(P.frais.courtageFixe) : ""}${P.frais.courtagePct ? " " + pct(P.frais.courtagePct, 2) : ""} par ordre`) : ""}${P.frais.change ? (globalThis.t || String)(`, change ${pct(P.frais.change, 2)}`) : ""}. Le coût total inclut ce que ces sommes auraient elles-mêmes rapporté.</p>
     <div class="frais-grille">${frais}</div>
   </section>
 
@@ -885,7 +885,7 @@ function panneauProjection() {
 
   <section class="carte">
     <h2>${terme("monte_carlo", "Simulation Monte Carlo")} : la répartition des résultats</h2>
-    <p>Au lieu d'une seule trajectoire, on en simule ${HYPOTHESES_DEFAUT.trajectoires.toLocaleString("fr-FR")}. Chacune enchaîne des périodes de 12 mois tirées au hasard dans l'historique du fonds
+    <p>Au lieu d'une seule trajectoire, on en simule ${HYPOTHESES_DEFAUT.trajectoires.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))}. Chacune enchaîne des périodes de 12 mois tirées au hasard dans l'historique du fonds
       (bonnes et mauvaises années, krachs et rebonds), recalées sur le rendement et la volatilité retenus. On regarde ensuite comment les résultats se répartissent.</p>
     <div class="graphique-simu" id="graphique-histo" tabindex="0" aria-label="Répartition des valeurs finales"></div>
     <div class="rangs">${[["10 %", 0.1], ["25 %", 0.25], ["50 %", 0.5], ["75 %", 0.75], ["90 %", 0.9]].map(([n, p]) => `<div><span>${n} des simulations en dessous de</span><strong>${eurosEstimes(quantileTrie(Float64Array.from(C.finales).sort(), p))}</strong></div>`).join("")}</div>
@@ -894,13 +894,13 @@ function panneauProjection() {
 
   <section class="carte">
     <h2>Ton niveau de risque accepté : ${esc(profil.nom)}</h2>
-    <p class="aide">« ${esc(profil.texte)} » : baisse temporaire supportable jusqu'à environ ${pct(profil.baisseMax * 100, 0)}.</p>
+    <p class="aide">« ${esc((globalThis.t || String)(profil.texte))} » : baisse temporaire supportable jusqu'à environ ${pct(profil.baisseMax * 100, 0)}.</p>
     <ul class="liste-alertes">
       <li class="alerte alerte-${probaDepasse > 0.5 ? "rouge" : probaDepasse > 0.2 ? "orange" : "vert"}">${pastille(probaDepasse > 0.5 ? "alerte" : probaDepasse > 0.2 ? "attention" : "vert")}<div>
         <strong>${pct(probaDepasse * 100, 0)} des simulations connaissent une baisse de plus de ${pct(profil.baisseMax * 100, 0)} en cours de route</strong>
         <p>Baisse maximale en cours de route (du point le plus haut au plus bas) : ${pctSigne(C.baisses.mediane, 0)} dans la moitié des simulations, et ${pctSigne(C.baisses.unSurDix, 0)} ou pire dans 1 cas sur 10.</p></div></li>
-      ${sri ? `<li class="alerte alerte-${sri > profil.sriMax ? "orange" : "vert"}">${pastille(sri > profil.sriMax ? "attention" : "vert")}<div><strong>Indicateur de risque du fonds : ${sri}/7${sri > profil.sriMax ? ` (au-dessus du niveau habituel pour un profil ${profil.nom.toLowerCase()}, ${profil.sriMax}/7 au plus)` : ""}</strong>
-        <p>Profil habituellement associé : ${esc(PROFILS_SRI[sri])}.</p></div></li>` : ""}
+      ${sri ? `<li class="alerte alerte-${sri > profil.sriMax ? "orange" : "vert"}">${pastille(sri > profil.sriMax ? "attention" : "vert")}<div><strong>Indicateur de risque du fonds : ${sri}/7${sri > profil.sriMax ? ` (au-dessus du niveau habituel pour un profil ${(globalThis.t || String)(profil.nom).toLowerCase()}, ${profil.sriMax}/7 au plus)` : ""}</strong>
+        <p>Profil habituellement associé : ${esc((globalThis.t || String)(PROFILS_SRI[sri]))}.</p></div></li>` : ""}
     </ul>
   </section>
 
@@ -919,15 +919,15 @@ function inflationActuelle() {
 }
 
 function periodeFr(d) {
-  if (/^\d{4}-Q\d$/.test(d)) return `${d.slice(6)}e trimestre ${d.slice(0, 4)}`;
-  if (/^\d{4}-\d{2}$/.test(d)) return new Date(Number(d.slice(0, 4)), Number(d.slice(5)) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-  return new Date(d).toLocaleDateString("fr-FR");
+  if (/^\d{4}-Q\d$/.test(d)) return (globalThis.t || String)(`${d.slice(6)}e trimestre ${d.slice(0, 4)}`);
+  if (/^\d{4}-\d{2}$/.test(d)) return new Date(Number(d.slice(0, 4)), Number(d.slice(5)) - 1, 1).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "long", year: "numeric" });
+  return new Date(d).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"));
 }
 
 // Ce que dit l'historique (réel et reconstitué)
 function carteHistorique(A) {
   const h = A.statsH, cmp = A.comportement;
-  const moisFr = m => new Date(Number(m.slice(0, 4)), Number(m.slice(5)) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  const moisFr = m => new Date(Number(m.slice(0, 4)), Number(m.slice(5)) - 1, 1).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "long", year: "numeric" });
   const premierReel = A.comb.mois[A.comb.nbReconstitues];
   const tuiles = [
     ["Perf. annualisée 1 an", h.perf.a1], ["3 ans", h.perf.a3], ["5 ans", h.perf.a5], ["10 ans", h.perf.a10], ["20 ans", h.perf.a20]
@@ -947,7 +947,7 @@ function carteHistorique(A) {
       ${cmp ? `<div class="large"><dt>Selon les conditions de marché (actions mondiales)</dt><dd>Les mois de hausse des marchés, le fonds a fait en moyenne ${pctSigne(cmp.fondsHausse)} (marché : ${pctSigne(cmp.marcheHausse)}) ;
         les mois de baisse, ${pctSigne(cmp.fondsBaisse)} (marché : ${pctSigne(cmp.marcheBaisse)}). Il capte donc environ ${pct(cmp.captureHausse * 100, 0)} des hausses et ${pct(cmp.captureBaisse * 100, 0)} des baisses.</dd></div>` : ""}
     </dl>
-    <p class="source">Données brutes : ${A.sourceHistorique === "sec" ? "rendements mensuels déclarés à la SEC (EDGAR, formulaires N-PORT), convertis en euros au taux de change de la BCE" : A.sourceHistorique === "profil" ? sourceProfilType(A) : "valeurs liquidatives publiées par l'AMF (base GECO)"}${A.referencesUtilisees.length ? ` ; fonds de référence : ${A.referencesUtilisees.map(r => esc(r.nom)).join(", ")}` : ""}. Calculs : ce site, en données mensuelles, du ${esc(moisFr(h.debut))} au ${esc(moisFr(h.fin))}.</p>
+    <p class="source">Données brutes : ${(globalThis.t || String)(A.sourceHistorique === "sec" ? "rendements mensuels déclarés à la SEC (EDGAR, formulaires N-PORT), convertis en euros au taux de change de la BCE" : A.sourceHistorique === "profil" ? sourceProfilType(A) : "valeurs liquidatives publiées par l'AMF (base GECO)")}${A.referencesUtilisees.length ? ` ; fonds de référence : ${A.referencesUtilisees.map(r => esc(r.nom)).join(", ")}` : ""}. Calculs : ce site, en données mensuelles, du ${esc(moisFr(h.debut))} au ${esc(moisFr(h.fin))}.</p>
   </section>`;
 }
 
@@ -955,22 +955,22 @@ function carteHistorique(A) {
 function comprendre(C) {
   const A = C.A, m = A.modele, P = C.P;
   const t = A.taux;
-  const moisFr = x => new Date(Number(x.slice(0, 4)), Number(x.slice(5)) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-  const tauxTexte = (x, nom) => x.defaut ? `${nom} : ${pct(x.valeur, 2)} (valeur par défaut : donnée indisponible)` : `${nom} : ${pct(x.valeur, 2)} au ${dateFr(x.date)}${x.ancien ? " (donnée ancienne)" : ""}`;
+  const moisFr = x => new Date(Number(x.slice(0, 4)), Number(x.slice(5)) - 1, 1).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "long", year: "numeric" });
+  const tauxTexte = (x, nom) => (globalThis.t || String)(x.defaut ? `${nom} : ${pct(x.valeur, 2)} (valeur par défaut : donnée indisponible)` : `${nom} : ${pct(x.valeur, 2)} au ${dateFr(x.date)}${x.ancien ? " (donnée ancienne)" : ""}`);
   const classes = Object.entries(m.classes).filter(([, v]) => v > 0.005)
-    .map(([k, v]) => `${{ actions: "actions", oblig10: "obligations longues", oblig3: "obligations courtes", monetaire: "monétaire" }[k]} ${pct(v * 100, 0)} → ${pct(m.composantes[k] * 100, 1)}`).join(" ; ");
+    .map(([k, v]) => `${(globalThis.t || String)({ actions: "actions", oblig10: "obligations longues", oblig3: "obligations courtes", monetaire: "monétaire" }[k])} ${pct(v * 100, 0)} → ${pct(m.composantes[k] * 100, 1)}`).join(" ; ");
   const ctx = typeof CONTEXTE !== "undefined" ? CONTEXTE : null;
   const livret = repereLivretSimu(C);
   return `<div class="comprendre-contenu">
     <h3>Données utilisées</h3>
     <ul>
-      <li>Historique mensuel ${A.jumeau ? `du fonds jumeau ${esc(A.jumeau.fonds.nom)}` : "du fonds"} : ${A.comb.nbReels} mois réels${A.sourceHistorique === "sec" ? " (rendements déclarés à la SEC, convertis en euros au taux BCE)" : ""}${A.comb.nbReconstitues ? ` et ${A.comb.nbReconstitues} mois reconstitués` : ""}, du ${esc(moisFr(A.comb.mois[0]))} au ${esc(moisFr(A.comb.mois[A.comb.mois.length - 1]))}.
-        ${A.sourceHistorique === "sec" ? `Source : SEC – EDGAR (formulaires N-PORT)${A.derniereVL ? `, dernier rendement mensuel : ${esc(A.derniereVL.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }))}` : ""}.${A.sec.historique.ignores ? " Un ou plusieurs rendements mensuels aberrants déclarés à la SEC ont été écartés." : ""}`
+      <li>Historique mensuel ${(globalThis.t || String)(A.jumeau ? `du fonds jumeau ${esc(A.jumeau.fonds.nom)}` : "du fonds")} : ${A.comb.nbReels} mois réels${A.sourceHistorique === "sec" ? (globalThis.t || String)(" (rendements déclarés à la SEC, convertis en euros au taux BCE)") : ""}${A.comb.nbReconstitues ? (globalThis.t || String)(` et ${A.comb.nbReconstitues} mois reconstitués`) : ""}, du ${esc(moisFr(A.comb.mois[0]))} au ${esc(moisFr(A.comb.mois[A.comb.mois.length - 1]))}.
+        ${(globalThis.t || String)(A.sourceHistorique === "sec" ? `Source : SEC – EDGAR (formulaires N-PORT)${A.derniereVL ? `, dernier rendement mensuel : ${esc(A.derniereVL.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "long", year: "numeric" }))}` : ""}.${A.sec.historique.ignores ? " Un ou plusieurs rendements mensuels aberrants déclarés à la SEC ont été écartés." : ""}`
         : A.sourceHistorique === "profil" ? `Source : ${sourceProfilType(A)}.`
-        : `Source : AMF (GECO)${A.derniereVL ? `, dernière valeur liquidative du ${A.derniereVL.toLocaleDateString("fr-FR")}` : ""}.`}</li>
+        : `Source : AMF (GECO)${A.derniereVL ? `, dernière valeur liquidative du ${A.derniereVL.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))}` : ""}.`)}</li>
       <li>Exposition du fonds : ${A.sourceExpo === "style" ? `analyse des rendements des 3 dernières années (${terme("r2", "R²")} = ${pct(A.st.r2 * 100, 0)})`
         : A.sourceExpo === "sec" ? `inventaire N-PORT du ${dateFr(A.sec.compo.sec.date)} (SEC – EDGAR) : les actions sont réparties selon les zones des titres, les obligations comptées pour moitié à long terme et pour moitié à court terme, les liquidités avec le monétaire`
-        : "profil type déduit de la classification ou du nom (pas d'analyse possible)"} : ${A.expo.map(x => `${esc((FACTEURS.find(f => f.cle === x.cle) || { nom: x.cle }).nom)} ${pct(x.poids, 0)}`).join(", ")}.</li>
+        : "profil type déduit de la classification ou du nom (pas d'analyse possible)"} : ${A.expo.map(x => `${esc((globalThis.t || String)((FACTEURS.find(f => f.cle === x.cle) || { nom: x.cle }).nom))} ${pct(x.poids, 0)}`).join(", ")}.</li>
       <li>Frais : ${A.terSource === "dic" ? `DIC « ${esc(A.dic.document.docName)} » du ${dateFr(A.dic.document.dateEffet)}`
         : A.terSource === "sec" ? `prospectus déposé à la SEC${A.sec.frais.date ? ` (résumé du ${dateFr(A.sec.frais.date)})` : ""}, frais ${A.ter === A.sec.frais.net ? "nets" : "bruts"} de la part ${libellePartSec(A.sec.part)}`
         : "hypothèse (frais non disponibles automatiquement)"}.</li>
@@ -978,19 +978,19 @@ function comprendre(C) {
       <li>Inflation : ${indicateurCtx("anticipations_inflation") ? `enquête de la BCE auprès des prévisionnistes (${esc(periodeFr(indicateurCtx("anticipations_inflation").date))})` : "valeur par défaut de 2 %"}${S.plan.inflation !== null && S.plan.inflation !== "" ? " — remplacée par ta valeur" : ""}.</li>
       ${livret ? `<li>Repère livret : taux moyen des livrets d'épargne des ménages en France (BCE, données de la Banque de France, ${esc(periodeFr(livret.date))}).</li>` : ""}
       ${P.fiscalite ? `<li>Fiscalité : règles françaises 2026, ${esc(FISCALITE_FR.source)} (mise à jour le ${dateFr(FISCALITE_FR.maj)})${P.fiscalite.enveloppe === "pee" ? " ; PEE : fiches service-public « Plan d'épargne entreprise » (vérifiée le 01/01/2026) et « Prélèvements sociaux » (vérifiée le 30/06/2026)" : ""}.</li>` : ""}
-      <li>Dernière mise à jour des données économiques du site : ${ctx ? new Date(ctx.maj).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "indisponible"}.</li>
+      <li>Dernière mise à jour des données économiques du site : ${ctx ? new Date(ctx.maj).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { dateStyle: "long", timeStyle: "short" }) : "indisponible"}.</li>
     </ul>
     <h3>Hypothèses</h3>
     <ul>
       <li><strong>Rendement attendu retenu : ${pct(m.g * 100, 2)} par an</strong> avant frais (rendement composé, qui correspond au scénario central), soit ${pct((m.g - P.frais.courants / 100) * 100, 2)} après frais courants.
         C'est un mélange entre :
         <ul><li>une estimation « de marché » de ${pct(m.gMarche * 100, 2)} (poids ${pct((1 - m.poidsHist) * 100, 0)}) : ${classes}. Actions = taux d'État à 10 ans + prime de risque de ${pct(S.plan.primeActions, 1)} (hypothèse) ;</li>
-          <li>le rendement historique de ${pct(m.gHist * 100, 2)} avant frais (poids ${pct(m.poidsHist * 100, 0)}). Sur ${m.annees.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} ans, la marge d'incertitude de cette moyenne est d'environ ± ${pct(m.erreur * 100, 1)} par an : c'est pourquoi l'historique ne pèse pas davantage. Pour la partie obligataire et monétaire, il pèse encore moins : leur rendement futur dépend surtout des taux actuels.</li></ul></li>
+          <li>le rendement historique de ${pct(m.gHist * 100, 2)} avant frais (poids ${pct(m.poidsHist * 100, 0)}). Sur ${m.annees.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 1 })} ans, la marge d'incertitude de cette moyenne est d'environ ± ${pct(m.erreur * 100, 1)} par an : c'est pourquoi l'historique ne pèse pas davantage. Pour la partie obligataire et monétaire, il pèse encore moins : leur rendement futur dépend surtout des taux actuels.</li></ul></li>
       <li><strong>Volatilité utilisée : ${pct(m.sigma * 100, 1)} par an</strong>, mesurée sur tout l'historique mensuel (crises comprises).</li>
       <li><strong>Inflation utilisée : ${pct(P.inflation, 1)} par an.</strong></li>
       <li><strong>Frais utilisés :</strong> frais courants ${pct(P.frais.courants, 2)} / an${P.frais.garde ? `, frais de contrat ${pct(P.frais.garde, 2)} / an` : ""}, frais d'entrée ${pct(P.frais.entree, 1)}, courtage ${euros(P.frais.courtageFixe)} + ${pct(P.frais.courtagePct, 2)} par ordre, change ${pct(P.frais.change, 2)}.</li>
       <li>Revenus (dividendes, coupons) : environ ${pct(m.rendDividende * 100, 1)} par an, ${P.dividendes.reinvestis ? "réinvestis" : "versés et conservés sans être replacés"}.</li>
-      <li>${HYPOTHESES_DEFAUT.trajectoires.toLocaleString("fr-FR")} trajectoires, blocs de ${HYPOTHESES_DEFAUT.bloc} mois consécutifs tirés dans l'historique. Tirages reproductibles : les mêmes données donnent les mêmes chiffres.</li>
+      <li>${HYPOTHESES_DEFAUT.trajectoires.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))} trajectoires, blocs de ${HYPOTHESES_DEFAUT.bloc} mois consécutifs tirés dans l'historique. Tirages reproductibles : les mêmes données donnent les mêmes chiffres.</li>
       <li>Scénarios : défavorable = 10 % des simulations font moins bien ; central = médiane ; favorable = 10 % font mieux ; tensions = baisse de ${pct(C.scen.tensions.baisse * 100, 0)} pendant les 12 derniers mois (pire baisse sur 12 mois de l'historique du fonds, ou au moins 1,5 fois sa volatilité).</li>
     </ul>
     <h3>Facteurs macroéconomiques pris en compte</h3>
@@ -1083,7 +1083,7 @@ async function majDiversifier() {
   if (!d.choisi) { cible.innerHTML = `<p class="resume">${esc(d.diag.texte)}</p>${d.erreur ? `<p class="non-dispo">${esc(d.erreur)}.</p>` : ""}`; return; }
   const { c, B, m, w } = d.choisi;
   const q = profilDuFonds(B);
-  const moisFr = x => new Date(Number(x.slice(0, 4)), Number(x.slice(5)) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  const moisFr = x => new Date(Number(x.slice(0, 4)), Number(x.slice(5)) - 1, 1).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "long", year: "numeric" });
   const cle = cleEntree(c.entree, c.isin);
   // Lignes du comparatif : [libellé, sans, avec, format, plus bas = mieux]
   const lignes = [
@@ -1104,8 +1104,8 @@ async function majDiversifier() {
     <article class="complement">
       <p class="surtitre">Exemple de fonds complémentaire</p>
       <h3>${esc(c.entree.nom)}</h3>
-      <p>${esc(c.libelle.charAt(0).toUpperCase() + c.libelle.slice(1))} · ${esc(c.isin)} · frais courants ${pct(B.ter, 2)}${B.terSource === "hypothese" ? " (hypothèse)" : ""}</p>
-      <p class="aide">Pourquoi celui-ci ? Parmi ${d.autres.length + 1} fonds compatibles, c'est ${d.autres.length ? "celui qui, en l'ajoutant, aurait le plus réduit les variations de l'ensemble" : "le fonds du même type disponible"} depuis ${esc(moisFr(m.debut))}${d.autres.length ? ` (autres possibilités : ${d.autres.map(x => esc(x.c.libelle)).join(", ")})` : ""}.</p>
+      <p>${esc((globalThis.t || String)(c.libelle.charAt(0).toUpperCase() + c.libelle.slice(1)))} · ${esc(c.isin)} · frais courants ${pct(B.ter, 2)}${B.terSource === "hypothese" ? " (hypothèse)" : ""}</p>
+      <p class="aide">Pourquoi celui-ci ? Parmi ${d.autres.length + 1} fonds compatibles, c'est ${d.autres.length ? "celui qui, en l'ajoutant, aurait le plus réduit les variations de l'ensemble" : "le fonds du même type disponible"} depuis ${esc(moisFr(m.debut))}${d.autres.length ? ` (autres possibilités : ${d.autres.map(x => esc((globalThis.t || String)(x.c.libelle))).join(", ")})` : ""}.</p>
       <div class="actions-fiche">
         <a class="btn-onglet" href="decrypte.html#${esc(cle)}" target="_blank" rel="noopener">Décrypter ce fonds ↗</a>
         <a class="btn-onglet" href="simulateur.html#${esc(cle)}" target="_blank" rel="noopener">Le simuler seul ↗</a>
@@ -1119,7 +1119,7 @@ async function majDiversifier() {
       <div class="comparatif-ligne comparatif-entete" role="row"><span role="columnheader"></span><span role="columnheader">Sans</span><span role="columnheader">Avec</span><span role="columnheader">Effet</span></div>
       ${lignes.map(([nom, sans, avec, f]) => `<div class="comparatif-ligne" role="row"><span role="rowheader">${nom}</span><span role="cell">${f(sans)}</span><span role="cell"><strong>${f(avec)}</strong></span><span role="cell">${effet(sans, avec)}</span></div>`).join("")}
     </div>
-    <p class="aide">Calculé sur l'historique commun des deux fonds, depuis ${esc(moisFr(m.debut))}. Corrélation entre les deux : ${m.corr.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} (plus elle est basse, plus l'un amortit les chutes de l'autre).</p>
+    <p class="aide">Calculé sur l'historique commun des deux fonds, depuis ${esc(moisFr(m.debut))}. Corrélation entre les deux : ${m.corr.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 2 })} (plus elle est basse, plus l'un amortit les chutes de l'autre).</p>
 
     <h3>Les performances passées : sans et avec</h3>
     <p class="aide">10 000 € investis en ${esc(moisAnnee(dateDuMois(b.debut, 0)))}, sur ${dureeTexte(b.mois)}.</p>
@@ -1134,8 +1134,8 @@ async function majDiversifier() {
     <p class="aide">Réduire le risque réduit souvent aussi la performance : c'est un compromis. Performances passées, frais des deux fonds déduits ; elles ne préjugent pas des performances futures.
       Exemple pédagogique, pas un conseil en investissement.</p>`;
   dessinerMedianes(document.getElementById("graphique-diversif"), [
-    { nom: "Sans", ev: { p50: b.sans }, couleur: 0 },
-    { nom: "Avec", ev: { p50: b.avec }, couleur: 1 }
+    { nom: (globalThis.t || String)("Sans"), ev: { p50: b.sans }, couleur: 0 },
+    { nom: (globalThis.t || String)("Avec"), ev: { p50: b.avec }, couleur: 1 }
   ], b.mois, b.debut, Array(b.mois + 1).fill(10000), { passe: true });
 }
 
@@ -1236,7 +1236,7 @@ function majCrise() {
       <div class="tuile"><span>Retour au-dessus du versé</span><strong>${r.pireEcart >= 0 ? "—" : r.moisRetour !== null ? `après ${dureeTexte(r.moisRetour)}` : "pas dans les 5 ans"}</strong></div>
       <div class="tuile"><span>Au bout de ${dureeTexte(r.n)}</span><strong class="${fin >= verseFin ? "hausse" : "baisse"}">${eurosEstimes(fin)}</strong><small>pour ${euros(verseFin)} versés</small></div>
     </div>
-    <p class="aide">${esc(reelTexte)} Continuer à investir pendant la baisse permet d'acheter moins cher : c'est souvent ce qui raccourcit le retour à l'équilibre.</p>`;
+    <p class="aide">${esc((globalThis.t || String)(reelTexte))} Continuer à investir pendant la baisse permet d'acheter moins cher : c'est souvent ce qui raccourcit le retour à l'équilibre.</p>`;
   dessinerCrise(document.getElementById("graphique-crise"), r, debut, avecReel);
 }
 
@@ -1297,7 +1297,7 @@ async function ajouterFonds(cible, cle) {
   try {
     entree = await entreeParCle(cle);
   } catch (err) {
-    if (numero === numeroChargement) alert("Impossible de charger cette liste de fonds : recharge la page.");
+    if (numero === numeroChargement) alert((globalThis.t || String)("Impossible de charger cette liste de fonds : recharge la page."));
     return;
   }
   if (numero !== numeroChargement || !entree) return;   // un autre fonds a été ouvert entre-temps, ou fonds inconnu
@@ -1350,7 +1350,7 @@ function calculComparaison(A) {
 function documentDesFrais(fonds) {
   const sansFrais = fonds.filter(x => x.A && x.A.terSource === "hypothese");
   const americain = sansFrais.some(x => x.entree.source === "S"), autre = sansFrais.some(x => x.entree.source !== "S");
-  return americain && autre ? "le DIC ou le prospectus" : americain ? "le prospectus" : "le DIC";
+  return (globalThis.t || String)(americain && autre ? "le DIC ou le prospectus" : americain ? "le prospectus" : "le DIC");
 }
 
 function panneauComparer() {
@@ -1462,7 +1462,7 @@ function panneauPortefeuille() {
   const pc = S.portefeuille.calc;
   const court = n => n.length > 40 ? n.slice(0, 38) + "…" : n;
   let resultat = "";
-  if (pc && pc.erreur) resultat = `<p class="non-dispo">Simulation impossible : ${esc(pc.erreur)}.</p>`;
+  if (pc && pc.erreur) resultat = `<p class="non-dispo">Simulation impossible : ${esc((globalThis.t || String)(pc.erreur))}.</p>`;
   else if (pc) {
     const C = pc.C, a = pc.analyse, s = C.scen;
     const zones = new Map();
@@ -1499,7 +1499,7 @@ function panneauPortefeuille() {
     <h2>Mon portefeuille</h2>
     <p class="aide">Combine plusieurs fonds avec des poids (total 100 %) et simule l'ensemble avec ton plan (${euros(S.calc.P.capital)} au départ${S.calc.P.versement ? `, ${euros(S.calc.P.versement)} ${LIBELLE_FREQUENCE[S.calc.P.frequence]}` : ""}, ${dureeTexte(S.calc.T)}).</p>
     ${lignes.length ? `<ul class="lignes-portefeuille">${lignes.map((l, i) => `<li>
-      <span class="ligne-nom">${esc(court(l.entree.nom))}<small>${esc(l.isin || "")}${l.enCours ? " · chargement…" : l.erreur ? ` · ${esc(l.erreur)}` : ""}</small></span>
+      <span class="ligne-nom">${esc(court(l.entree.nom))}<small>${esc(l.isin || "")}${l.enCours ? " · chargement…" : l.erreur ? ` · ${esc((globalThis.t || String)(l.erreur))}` : ""}</small></span>
       <label class="ligne-poids"><input type="number" min="0" max="100" step="5" value="${l.poids}" data-poids="${i}" aria-label="Poids de ${esc(l.entree.nom)}"> %</label>
       <button type="button" class="retirer" data-retirer-ligne="${i}" aria-label="Retirer ${esc(l.entree.nom)}">×</button></li>`).join("")}</ul>
       <p id="total-poids" class="${Math.abs(total - 100) > 0.5 ? "baisse" : ""}">Total : ${total} %</p>` : ""}
@@ -1588,7 +1588,7 @@ function alertesContrat(cumul, seuils) {
   // Zones : seulement la part en actions (un contrat prudent en fonds euros ou obligataires de la zone euro n'est pas « concentré »)
   for (const z of cumul.zonesActions || []) {
     const n = niveau(z.poids, seuils.pays);
-    if (n) alertes.push({ niveau: n, titre: `${z.nom} : ${Math.round(z.poids)} % de la part en actions`,
+    if (n) alertes.push({ niveau: n, titre: `${(globalThis.t || String)(z.nom)} : ${Math.round(z.poids)} % de la part en actions`,
       explication: "Une grande partie de tes actions dépend des marchés de cette zone : s'ils baissent, ces fonds baissent ensemble." });
   }
   const horsEuro = cumul.devises.filter(x => x.nom !== "EUR" && x.nom !== CONTRAT_NON_CLASSE).reduce((s, x) => s + x.poids, 0);
@@ -1614,7 +1614,7 @@ function resultatContrat(R) {
   for (const l of R.analyses) {
     if (l.entree.source === "G" || l.entree.source === "N" || l.A.jumeau) sources.add("AMF (GECO)");
     if (l.A.sec) sources.add("SEC (EDGAR)");
-    if (["E", "U", "R"].includes(l.entree.source)) sources.add("ESMA (registres des fonds)");
+    if (["E", "U", "R"].includes(l.entree.source)) sources.add((globalThis.t || String)("ESMA (registres des fonds)"));
   }
   return `${nonAnalyse}${attente}
     <h3>Exposition cumulée</h3>
@@ -1643,7 +1643,7 @@ function resultatContrat(R) {
       : `<p>Total : ${F.auMoins ? "au moins " : ""}<strong>${euros(F.totalAnnuel)} par an</strong>${F.inconnus ? ` (${F.inconnus} fonds aux frais inconnus, hors total)` : ""}.</p>
         ${F.cout10ans ? `<p class="aide">Sur 10 ans, ces frais réduiraient la valeur des fonds aux frais connus d'environ ${euros(F.cout10ans)} (rendement brut supposé : 5 % par an).</p>` : ""}`}
     <p class="aide">Frais courants lus dans le DIC (AMF) ou le prospectus (SEC) ; frais de gestion du contrat non compris.</p>
-    <p class="source">Sources : ${[...sources].join(", ") || "profils types"} selon les fonds ; calculs : ce site.</p>
+    <p class="source">Sources : ${[...sources].join(", ") || (globalThis.t || String)("profils types")} selon les fonds ; calculs : ce site.</p>
     <p class="avertissement-simu">Analyse pédagogique : ce n'est pas un conseil en investissement.</p>`;
 }
 
@@ -1652,7 +1652,7 @@ function panneauContrat() {
   const total = lignes.reduce((s, l) => s + l.montant, 0);
   const court = n => n.length > 40 ? n.slice(0, 38) + "…" : n;
   const fige = C.enCours ? " disabled" : "";   // lignes figées pendant le chargement des analyses
-  const etat = l => l.enCours ? " · chargement…" : l.erreur ? ` · non analysé (${esc(l.erreur)})` : total > 0 && l.montant > 0 ? ` · ${pct(l.montant / total * 100, 0)} du contrat` : "";
+  const etat = l => l.enCours ? " · chargement…" : l.erreur ? ` · non analysé (${esc((globalThis.t || String)(l.erreur))})` : total > 0 && l.montant > 0 ? ` · ${pct(l.montant / total * 100, 0)} du contrat` : "";
   return `<section class="carte">
     <h2>Radiographie de mon contrat</h2>
     <p class="aide">Tes fonds et leurs montants : exposition cumulée, doublons, frais en euros. Saisis les fonds de ton assurance-vie ou de ton PEA (${CONTRAT_MAX_FONDS} au plus) et le montant placé sur chacun.</p>
@@ -1688,7 +1688,7 @@ function panneauContexte() {
   const niveauClasse = n => n === null ? "nd" : ["faible", "modere", "eleve"][n];
   const c = A.compo;
   const titresActu = articles => articles && articles.length ? `<ul class="actus">${articles.slice(0, 3).map(a => `<li><a href="${esc(a.lien)}" target="_blank" rel="noopener">${esc(a.titre)}</a>
-      <small>${esc(a.source)} · ${new Date(a.date).toLocaleDateString("fr-FR")}${a.langue === "en" ? " · en anglais" : ""}</small></li>`).join("")}</ul>`
+      <small>${esc((globalThis.t || String)(a.source))} · ${new Date(a.date).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))}${a.langue === "en" ? " · en anglais" : ""}</small></li>`).join("")}</ul>`
     : `<p class="aide">Aucun titre récent sur ce thème dans nos sources (30 derniers jours).</p>`;
   return `
   <section class="carte">
@@ -1724,7 +1724,7 @@ function panneauContexte() {
     <p class="aide">Tendances auxquelles le fonds est particulièrement exposé. Opportunités et risques sont décrits de façon générale : ce n'est pas une recommandation d'achat ou de vente.</p>
     <div class="themes-techno">${themes.map(t => `<article class="theme-techno">
       <header><h3>${esc(t.nom)}</h3><span class="etiquette">exposition ${esc(t.niveau)}</span></header>
-      <p class="aide">Repéré par : ${t.preuves.slice(0, 4).map(esc).join(" ; ")}.</p>
+      <p class="aide">Repéré par : ${t.preuves.slice(0, 4).map(x => esc((globalThis.t || String)(x))).join(" ; ")}.</p>
       <div class="opp-risque"><div><h4>Opportunité potentielle</h4><p>${esc(t.opportunite)}</p></div><div><h4>Risque potentiel</h4><p>${esc(t.risque)}</p></div></div>
       ${ctx && ctx.actualites && ctx.actualites[t.cle === "tech" ? "ia" : t.cle] ? `<h4>Actualité récente</h4>${titresActu(ctx.actualites[t.cle === "tech" ? "ia" : t.cle].articles)}` : ""}
     </article>`).join("")}</div>
@@ -1738,14 +1738,14 @@ function panneauContexte() {
   <section class="carte">
     <h2>Contexte économique mondial</h2>
     <p>Voici les facteurs actuellement susceptibles d'influencer ce fonds. <strong>Ils ne permettent pas de prédire son évolution</strong> : ils aident à comprendre ce qui peut le faire bouger.</p>
-    ${ctx ? `<p class="aide">Dernière mise à jour : ${majCtx.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}${ctxAncien ? " — <strong>mise à jour automatique en retard : certaines données peuvent être anciennes</strong>" : ""}. Chaque chiffre indique sa date et sa source.</p>` : `<p class="non-dispo">Données économiques indisponibles.</p>`}
+    ${ctx ? `<p class="aide">Dernière mise à jour : ${majCtx.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { dateStyle: "long", timeStyle: "short" })}${ctxAncien ? " — <strong>mise à jour automatique en retard : certaines données peuvent être anciennes</strong>" : ""}. Chaque chiffre indique sa date et sa source.</p>` : `<p class="non-dispo">Données économiques indisponibles.</p>`}
     <div class="indicateurs">${macro.map(({ ind, pourquoi }) => {
       const variation = ind.unAn !== null ? ind.valeur - ind.unAn : null;
       const unite = ind.unite === "%" ? " pt" : "";
       return `<article class="indicateur">
         <header><h3>${esc(ind.nom)}</h3>${miniCourbe(ind.serie)}</header>
-        <p class="indicateur-valeur">${ind.valeur.toLocaleString("fr-FR", { maximumFractionDigits: ind.unite === "%" ? 2 : 4 })}${ind.unite === "%" ? " %" : ""}
-          ${variation !== null ? `<small>${variation > 0 ? "+" : variation < 0 ? "−" : ""}${Math.abs(variation).toLocaleString("fr-FR", { maximumFractionDigits: ind.unite === "%" ? 2 : 4 })}${unite} sur un an</small>` : ""}</p>
+        <p class="indicateur-valeur">${ind.valeur.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: ind.unite === "%" ? 2 : 4 })}${ind.unite === "%" ? " %" : ""}
+          ${variation !== null ? `<small>${variation > 0 ? "+" : variation < 0 ? "−" : ""}${Math.abs(variation).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: ind.unite === "%" ? 2 : 4 })}${unite} sur un an</small>` : ""}</p>
         ${ind.fourchette ? `<p class="aide">Fourchette cible de la Fed : ${pct(ind.fourchette[0], 2)} – ${pct(ind.fourchette[1], 2)}</p>` : ""}
         <p>${esc(pourquoi)}</p>
         <small>${esc(periodeFr(ind.date))} · <a href="${esc(ind.lien)}" target="_blank" rel="noopener">${esc(ind.source)}</a>${donneeAncienne(ind) ? " · <strong>donnée ancienne</strong>" : ""}</small>

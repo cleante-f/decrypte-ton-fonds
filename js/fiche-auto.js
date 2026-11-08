@@ -429,18 +429,18 @@ function identiteRegistres(e, lei, isin) {
 function blocCoursEtranger(cours, fini, etf) {
   if (!cours) return fini ? nonDispo("Aucun cours relevé en euros sur Xetra ou à la Bourse de Francfort pour cette part.") : "";
   const h = cours.historique, n = h.valeurs.length, dernier = h.valeurs[n - 1];
-  const fmt = v => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " €";
+  const fmt = v => v.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " €";
   const evolution = n > 1 ? (dernier / h.valeurs[0] - 1) * 100 : null;
   const s = n > 200 && typeof statistiques === "function" ? statistiques(h) : null;
   return `<h3>${terme("cours_bourse", "Cours en bourse")}</h3>
     ${listeInfos([
-      ["Dernier cours", `${fmt(dernier)} <small>le ${h.dates[n - 1].toLocaleDateString("fr-FR")} (${esc(cours.lieu)})</small>`],
-      evolution !== null && [`Évolution depuis le ${h.dates[0].toLocaleDateString("fr-FR")}`, (evolution > 0 ? "+" : "") + pct(evolution)],
+      ["Dernier cours", `${fmt(dernier)} <small>le ${h.dates[n - 1].toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))} (${esc(cours.lieu)})</small>`],
+      evolution !== null && [`Évolution depuis le ${h.dates[0].toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))}`, (evolution > 0 ? "+" : "") + pct(evolution)],
       s && s.perf.a1 !== null && [terme("performance_annualisee", "Performance") + " 1 an", pct(s.perf.a1)],
       s && s.volatilite.a1 !== null && [terme("volatilite", "Volatilité") + " 1 an", pct(s.volatilite.a1)]
     ])}
     ${n >= 5 ? graphiqueVL(h, "Cours de clôture en bourse") : ""}
-    <p class="note">Historique en construction : le site relève ce cours chaque jour de bourse depuis le ${h.dates[0].toLocaleDateString("fr-FR")}.
+    <p class="note">Historique en construction : le site relève ce cours chaque jour de bourse depuis le ${h.dates[0].toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))}.
       La performance et la volatilité sur 1 an apparaîtront quand l'historique couvrira une année.
       ${etf ? "Le cours d'un ETF suit de près sa valeur liquidative." : "Pour un fonds classique, le prix en bourse est fixé par un intermédiaire spécialiste, au plus près de la dernière valeur liquidative connue."}</p>
     ${source({ document: "Deutsche Börse – cours différés gratuits de Xetra et de la Bourse de Francfort (MiFIR art. 13)", date: cours.maj })}`;
@@ -448,8 +448,8 @@ function blocCoursEtranger(cours, fini, etf) {
 
 function ligneLiquiditeEtranger(liq, e) {
   if (!liq) return null;
-  const montant = liq.montant >= 1 ? `${liq.montant.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} millions d'euros`
-    : `${Math.round(liq.montant * 1000).toLocaleString("fr-FR")} milliers d'euros`;
+  const montant = liq.montant >= 1 ? `${liq.montant.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 1 })} millions d'euros`
+    : `${Math.round(liq.montant * 1000).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))} milliers d'euros`;
   return liq.liquide
     ? { niveau: "faible", texte: `${montant} échangés en moyenne chaque jour en bourse dans l'Union européenne en ${liq.annee} : la part se revend facilement.` }
     : { niveau: e.etf ? "moyen" : "faible", texte: `Seulement ${montant} échangés par jour en bourse en moyenne en ${liq.annee} (part jugée peu liquide par l'ESMA).${e.etf ? " L'écart entre prix d'achat et de vente peut être plus large : préfère les ordres à cours limité." : ""}` };
@@ -636,7 +636,7 @@ function detecterPiegesAuto(e, d) {
     if (dic.sortie > 0) p.push({ niveau: "attention", terme: "frais_sortie", titre: `Frais de sortie jusqu'à ${pct(dic.sortie)}`,
       texte: `Revendre vos parts peut vous coûter jusqu'à ${pct(dic.sortie)} du montant retiré.` });
     if (dic.performance) p.push({ niveau: "attention", terme: "surperformance", titre: "Commission de surperformance",
-      texte: `Extrait du DIC : « ${dic.performance.slice(0, 220)}${dic.performance.length > 220 ? "…" : ""} ». Les bonnes années, elle s'ajoute aux frais annuels.` });
+      texte: `Extrait du DIC : « ${dic.performance.slice(0, 220)}${dic.performance.length > 220 ? "…" : ""} ». Les bonnes années, elle s'ajoute aux frais annuels.`, extraitDic: true });
     if (dic.levier) p.push({ niveau: "attention", terme: "levier", titre: "Effet de levier possible",
       texte: "Le DIC mentionne un effet de levier : les gains comme les pertes peuvent être amplifiés." });
   }
@@ -671,7 +671,7 @@ function detecterPiegesAuto(e, d) {
   // Données de marché
   if (d && d.stats && d.stats.frequence !== "quotidienne") p.push({ niveau: "attention", terme: "liquidite", titre: `Valeur calculée de façon ${d.stats.frequence}`,
     texte: "Vous ne pouvez acheter ou vendre qu'aux dates de calcul de la valeur liquidative, pas n'importe quel jour." });
-  if (d && d.encours && !d.encours.horsEuro && d.encours.montant < 50) p.push({ niveau: "attention", terme: "encours", titre: `Petit fonds : ${d.encours.montant.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M€`,
+  if (d && d.encours && !d.encours.horsEuro && d.encours.montant < 50) p.push({ niveau: "attention", terme: "encours", titre: `Petit fonds : ${d.encours.montant.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 1 })} M€`,
     texte: "Les petits fonds sont plus souvent fermés ou fusionnés, ce qui peut vous obliger à vendre au mauvais moment." });
 
   // Informations
@@ -713,9 +713,9 @@ function graphiqueVL(h, legende = "Valeur liquidative de la part") {
   const pas = Math.max(1, Math.floor(n / 600)); // on allège les longues séries
   for (let i = 0; i < n; i += pas) chemin += (i ? "L" : "M") + x(i).toFixed(1) + " " + y(h.valeurs[i]).toFixed(1);
   chemin += "L" + x(n - 1).toFixed(1) + " " + y(h.valeurs[n - 1]).toFixed(1);
-  const fmt = d => d.toLocaleDateString("fr-FR", { month: "short", year: "numeric" });
+  const fmt = d => d.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "short", year: "numeric" });
   return `<figure class="graphique-vl" data-n="${n}">
-    <figcaption>${esc(legende)}, du ${h.dates[0].toLocaleDateString("fr-FR")} au ${h.dates[n - 1].toLocaleDateString("fr-FR")}</figcaption>
+    <figcaption>${esc(legende)}, du ${h.dates[0].toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))} au ${h.dates[n - 1].toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))}</figcaption>
     <div class="graphique-zone">
       <svg viewBox="0 0 ${L} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(legende)} : évolution">
         <path d="${chemin}" class="ligne-vl" vector-effect="non-scaling-stroke"/>
@@ -723,7 +723,7 @@ function graphiqueVL(h, legende = "Valeur liquidative de la part") {
       </svg>
       <div class="bulle-vl" hidden></div>
     </div>
-    <div class="axe-vl"><span>${fmt(h.dates[0])}</span><span>min ${min.toLocaleString("fr-FR")} · max ${max.toLocaleString("fr-FR")}</span><span>${fmt(h.dates[n - 1])}</span></div>
+    <div class="axe-vl"><span>${fmt(h.dates[0])}</span><span>min ${min.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))} · max ${max.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))}</span><span>${fmt(h.dates[n - 1])}</span></div>
   </figure>`;
 }
 
@@ -740,7 +740,7 @@ function activerGraphiqueVL(racine, h, rang = 0) {
     const xSvg = 4 + (i / (n - 1)) * (640 - 8);
     curseur.setAttribute("x1", xSvg); curseur.setAttribute("x2", xSvg); curseur.setAttribute("visibility", "visible");
     bulle.hidden = false;
-    bulle.textContent = `${h.dates[i].toLocaleDateString("fr-FR")} : ${h.valeurs[i].toLocaleString("fr-FR")}`;
+    bulle.textContent = `${h.dates[i].toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"))} : ${h.valeurs[i].toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))}`;
     bulle.style.left = Math.min(Math.max(0, px * r.width - 60), r.width - 130) + "px";
   };
   const cacher = () => { curseur.setAttribute("visibility", "hidden"); bulle.hidden = true; };
@@ -762,7 +762,7 @@ function blocStyle(st, q) {
     : st.dollar.couche >= 10 ? `<p class="note">Couche « dollar » positive (+${st.dollar.couche} %) : le fonds semble détenir des actifs en dollars en plus de ses actions américaines (obligations ou liquidités en dollars).</p>` : "";
   return `
     <h3>${terme("analyse_style", "Ce que révèlent les rendements")} ${badgeQualite(q)}</h3>
-    <p class="aide">Mélange de références qui reproduit le mieux les variations hebdomadaires du fonds, du ${st.debut.toLocaleDateString ? st.debut.toLocaleDateString("fr-FR") : dateFr(st.debut)} au ${st.fin.toLocaleDateString ? st.fin.toLocaleDateString("fr-FR") : dateFr(st.fin)}
+    <p class="aide">Mélange de références qui reproduit le mieux les variations hebdomadaires du fonds, du ${st.debut.toLocaleDateString ? st.debut.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR")) : dateFr(st.debut)} au ${st.fin.toLocaleDateString ? st.fin.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR")) : dateFr(st.fin)}
       (${st.semaines} semaines, ${terme("r2", "R²")} = ${pct(st.r2 * 100, 0)}, écart résiduel ${pct(st.ecartSuivi)} par an).</p>
     ${barres(st.expositions.map(x => ({ nom: x.nom, poids: x.poids })))}
     ${dollar}`;
@@ -785,7 +785,7 @@ function sectionRepartitionAuto(e, isin, d, dic, docsHtml, srcDic, chargement) {
       inventaire: () => `calculée par nos soins à partir des <strong>${c.inventaire.nbLignes} lignes</strong> de l'${terme("inventaire", "inventaire")} publié dans le ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)}`,
       tableaux: () => `lue dans les tableaux de répartition du ${esc(c.inventaire.document.docTypeLib.toLowerCase())} du ${dateFr(c.inventaire.document.dateEffet)}`,
       style: () => `estimée par l'${terme("analyse_style", "analyse des rendements")} (fiabilité : ${esc(c.qualite ? c.qualite.texte : "n.d.")})`,
-      sec: () => `déclarée par le fonds à la SEC (${terme("n_port", "formulaire N-PORT")}${c.sec.lignes ? `, ${c.sec.lignes.toLocaleString("fr-FR")} lignes` : ""}) au ${dateFr(c.sec.date)}`
+      sec: () => `déclarée par le fonds à la SEC (${terme("n_port", "formulaire N-PORT")}${c.sec.lignes ? `, ${c.sec.lignes.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))} lignes` : ""}) au ${dateFr(c.sec.date)}`
     };
     const methode = methodes[c.principale]();
     const top = (c.top10 || []).slice(0, 10);
@@ -1019,13 +1019,13 @@ function afficherFicheAuto(e, isin, d, chargement) {
       [terme("domicile", "Domiciliation"), esc(PAYS[e.pays] || e.pays || "n.d.")],
       [`Devise${part ? " de la part" : ""}`, esc((part && part.parRefDevCode) || e.devise || esma.devise || "n.d.")],
       e.nature && !estR && ["Forme juridique", esc(e.nature)],   // pour un fonds R, la « nature » est le cadre du registre : ligne « Type (registre européen) »
-      d && d.encours ? [terme("encours", "Encours"), `${d.encours.montant.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} M€ <small>au ${dateFr(d.encours.date)}${d.encours.horsEuro ? ", parts en euros uniquement" : ""}</small>`]
+      d && d.encours ? [terme("encours", "Encours"), `${d.encours.montant.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 0 })} M€ <small>au ${dateFr(d.encours.date)}${d.encours.horsEuro ? ", parts en euros uniquement" : ""}</small>`]
         : e.source === "G" && [terme("encours", "Encours"), chargement ? "chargement…" : "non disponible"],
       e.dateCreation && [e.source === "N" ? "Commercialisé en France depuis" : "Création", dateFr(e.dateCreation)],
       d && d.parts && d.parts.length > 1 && [terme("part", "Parts du fonds"), `${d.parts.length} parts (voir section 6)`],
       estSec && detailSec && detailSec.parts && detailSec.parts.length > 1 && [terme("part", "Parts du fonds"), `${detailSec.parts.length} parts (voir section 6)`],
       estSec && detailSec && detailSec.actif > 0 && [terme("encours", "Actif net"),
-        `${(detailSec.actif / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: detailSec.actif >= 1e7 ? 0 : 1 })} M€ <small>${detailSec.date ? `au ${dateFr(detailSec.date)} ` : ""}(converti au taux BCE de fin de mois)</small>`],
+        `${(detailSec.actif / 1e6).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: detailSec.actif >= 1e7 ? 0 : 1 })} M€ <small>${detailSec.date ? `au ${dateFr(detailSec.date)} ` : ""}(converti au taux BCE de fin de mois)</small>`],
       estSec && detailSec && detailSec.lei && [terme("lei", "Identifiant LEI"), esc(detailSec.lei)],
       e.classification && [terme("classification_amf", "Classification AMF"), `${esc(e.classification)}${CLASSIFICATIONS[e.classification] ? `<br><small>${esc(CLASSIFICATIONS[e.classification])}</small>` : ""}`, true],
       ...esma.lignes
@@ -1122,7 +1122,7 @@ function afficherFicheAuto(e, isin, d, chargement) {
   else {
     const pieges = detecterPiegesAuto(e, d);
     const importants = pieges.filter(p => p.niveau !== "info"), infos = pieges.filter(p => p.niveau === "info");
-    const rendu = p => `<li class="alerte alerte-${p.niveau}">${pastille(p.niveau)}<div><strong>${terme(p.terme, p.titre)}</strong>${p.texte ? `<p>${esc(p.texte)}</p>` : ""}${p.lien ? `<p>${p.lien.type === "fiche" ? "Voir la fiche du fonds détenu" : "Voir la page officielle du fonds détenu"} : ${lienFonds(p.lien, p.lienTexte || "ce fonds")}</p>` : ""}</div></li>`;
+    const rendu = p => `<li class="alerte alerte-${p.niveau}">${pastille(p.niveau)}<div><strong>${terme(p.terme, p.titre)}</strong>${p.texte ? `<p${p.extraitDic ? " data-extrait-dic" : ""}>${esc(p.texte)}</p>` : ""}${p.lien ? `<p>${p.lien.type === "fiche" ? "Voir la fiche du fonds détenu" : "Voir la page officielle du fonds détenu"} : ${lienFonds(p.lien, p.lienTexte || "ce fonds")}</p>` : ""}</div></li>`;
     // Sans DIC (fonds américains), les frais viennent du résumé du prospectus déposé à la SEC (fraisSec, etats-unis.js)
     const avecFraisSec = !dic && (estSec || !!sec);
     const fraisSecLus = !dic && !!sec && aDesFraisSec(sec.frais);

@@ -163,8 +163,8 @@ function performancesAnnuelles(serie) {
 
 // ---------- Mise en forme ----------
 
-const signe = v => (v > 0 ? "+" : "") + v.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
-const dateLongue = d => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const signe = v => (v > 0 ? "+" : "") + v.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
+const dateLongue = d => d.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { day: "numeric", month: "long", year: "numeric" });
 
 function graduationsDates(debut, fin, largeur) {
   const nb = Math.max(2, Math.min(7, Math.floor(largeur / 90)));
@@ -176,7 +176,7 @@ function graduationsDates(debut, fin, largeur) {
   } else {                                             // en mois
     const pasMois = Math.max(1, Math.ceil(jours / 30.44 / nb));
     const d = new Date(debut.getFullYear(), debut.getMonth() + 1, 1);
-    for (; d <= fin; d.setMonth(d.getMonth() + pasMois)) res.push({ d: new Date(d), texte: d.toLocaleDateString("fr-FR", { month: "short", year: jours > 200 ? "2-digit" : undefined }) });
+    for (; d <= fin; d.setMonth(d.getMonth() + pasMois)) res.push({ d: new Date(d), texte: d.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "short", year: jours > 200 ? "2-digit" : undefined }) });
   }
   return res;
 }
@@ -200,7 +200,7 @@ function dessinerGraphique() {
   }
   const legendeMax = document.getElementById("periode-commune");
   if (legendeMax) legendeMax.textContent = ETAT_PERF.periode === "max" && ETAT_PERF.comparaisons.length
-    ? `Période commune à toutes les courbes : depuis le ${debut.toLocaleDateString("fr-FR")}.` : "";
+    ? `Période commune à toutes les courbes : depuis le ${debut.toLocaleDateString(globalThis.LOCALE_SITE || "fr-FR")}.` : "";
   const series = seriesVisibles().map(s => ({ ...s, periode: pointsSurPeriode(s, debut, fin) })).filter(s => s.periode);
   ETAT_PERF.affichees = series;
   if (!series.length) { conteneur.innerHTML = `<p class="vide">Pas de données sur cette période.</p>`; return; }
@@ -219,7 +219,7 @@ function dessinerGraphique() {
   ETAT_PERF.echelle = { X, Y, L, H, m, xDebut, xFin };
 
   const grille = ticks.map(t => `<line class="grille${t === 0 ? " zero" : ""}" x1="${m.g}" x2="${L - m.d}" y1="${Y(t)}" y2="${Y(t)}"/>
-    <text class="axe" x="${m.g - 6}" y="${Y(t) + 4}" text-anchor="end">${t > 0 ? "+" : ""}${t.toLocaleString("fr-FR")} %</text>`).join("");
+    <text class="axe" x="${m.g - 6}" y="${Y(t) + 4}" text-anchor="end">${t > 0 ? "+" : ""}${t.toLocaleString(globalThis.LOCALE_SITE || "fr-FR")} %</text>`).join("");
   const axeX = graduationsDates(xDebut, xFin, L).filter(g => g.d >= xDebut && g.d <= xFin)
     .map(g => `<text class="axe" x="${X(g.d)}" y="${H - 8}" text-anchor="middle">${esc(g.texte)}</text>`).join("");
 
@@ -286,8 +286,8 @@ function majSurvol() {
     lignes.push(`<div class="bulle-ligne"><span class="pastille-serie serie-${s.couleur}"></span><span class="bulle-nom">${esc(s.nomCourt || s.nom)}</span><strong>${signe(pts[j].v)}</strong></div>`);
   });
   bulle.innerHTML = `<div class="bulle-date">${dateLongue(ref.d)}</div>${lignes.join("")}
-    <div class="bulle-valeur">${ETAT_PERF.principal.sec ? `Valeur en euros (base 100) : ${ref.vl.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}`
-      : `Valeur liquidative${ETAT_PERF.principal.jumeau ? " (fonds jumeau)" : ""} : ${ref.vl.toLocaleString("fr-FR")} ${esc(ETAT_PERF.principal.part && ETAT_PERF.principal.part.parRefDevCode || "")}`}</div>`;
+    <div class="bulle-valeur">${ETAT_PERF.principal.sec ? `Valeur en euros (base 100) : ${ref.vl.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 2 })}`
+      : `Valeur liquidative${ETAT_PERF.principal.jumeau ? " (fonds jumeau)" : ""} : ${ref.vl.toLocaleString(globalThis.LOCALE_SITE || "fr-FR")} ${esc(ETAT_PERF.principal.part && ETAT_PERF.principal.part.parRefDevCode || "")}`}</div>`;
   bulle.hidden = false;
   const largeur = bulle.offsetWidth;
   bulle.style.left = Math.min(Math.max(0, x + 14), L - largeur) + "px";
@@ -317,7 +317,7 @@ function majLegendeEtChiffres() {
   if (leg) leg.innerHTML = series.map((s, k) => {
     const pts = s.periode.pts, der = pts[pts.length - 1];
     return `<li><span class="pastille-serie serie-${s.couleur}"></span>
-      <span class="legende-nom">${esc(s.nomCourt || s.nom)}${s.periode.tardiveReelle ? ` <small>(depuis le ${s.periode.depuis.toLocaleDateString("fr-FR")})</small>` : ""}</span>
+      <span class="legende-nom">${esc(s.nomCourt || s.nom)}${s.periode.tardiveReelle ? ` <small>(depuis le ${s.periode.depuis.toLocaleDateString(globalThis.LOCALE_SITE || "fr-FR")})</small>` : ""}</span>
       <strong class="${der.v >= 0 ? "hausse" : "baisse"}">${signe(der.v)}</strong>
       ${k > 0 ? `<button type="button" class="retirer" data-retirer="${esc(s.cle)}" aria-label="Retirer ${esc(s.nom)} de la comparaison">×</button>` : ""}</li>`;
   }).join("");
@@ -413,7 +413,7 @@ function afficherSquelette(entree, isin, principal) {
       : `<p class="note">Performances calculées sur la ${terme("valeur_liquidative", "valeur liquidative")}, frais de gestion déduits.
         ${distribuante ? "<strong>Part distribuante :</strong> les revenus versés ne sont pas inclus, la performance réelle est donc un peu supérieure." : ""}
         Les performances passées ne préjugent pas des performances futures.</p>`}
-      ${principal.corrections && principal.corrections.length ? `<p class="aide">Historique corrigé par ce site : ${principal.corrections.map(c => `${esc(c.type)} le ${c.date.toLocaleDateString("fr-FR")}`).join(", ")} (les valeurs publiées ne sont pas ajustées).</p>` : ""}
+      ${principal.corrections && principal.corrections.length ? `<p class="aide">Historique corrigé par ce site : ${principal.corrections.map(c => `${esc(c.type)} le ${c.date.toLocaleDateString(globalThis.LOCALE_SITE || "fr-FR")}`).join(", ")} (les valeurs publiées ne sont pas ajustées).</p>` : ""}
       <p class="source">${sec
         ? `Source : SEC – EDGAR (formulaires N-PORT), converti en euros (taux BCE)${sec.detail.date ? ` · données du ${dateFr(sec.detail.date)}` : ""}`
         : "Données brutes : valeurs liquidatives publiées par l'AMF (base GECO)"}<span id="sources-bce">${sourcesBce(ETAT_PERF.comparaisons) + sourcesMixtes(principal, ETAT_PERF.comparaisons)}</span>. Calculs : ce site.</p>
@@ -471,7 +471,7 @@ function brancherEvenements() {
     try {
       entree = await entreeParCle(b.dataset.ajouter);
     } catch (err) {
-      if (numero === numeroAffichage) alert("Impossible de charger cette liste de fonds : recharge la page.");
+      if (numero === numeroAffichage) alert((globalThis.t || String)("Impossible de charger cette liste de fonds : recharge la page."));
       return;
     }
     if (numero !== numeroAffichage) return;   // un autre fonds a été ouvert entre-temps
@@ -507,7 +507,7 @@ async function ajouterComparaison(cle, nom, charger) {
     const s = await charger();
     ETAT_PERF.comparaisons.push({ cle, nom, nomCourt: nom.length > 38 ? nom.slice(0, 36) + "…" : nom, dates: s.dates, valeurs: s.valeurs, couleur: couleurLibre(), sec: !!s.sec });
   } catch (err) {
-    alert(`Impossible de charger « ${nom} » : ${err.message}`);
+    { const tr = globalThis.t || String; alert(tr(`Impossible de charger « ${nom} » : ${tr(err.message)}`)); }
   }
   toutMettreAJour();
 }

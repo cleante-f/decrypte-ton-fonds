@@ -140,3 +140,10 @@
     else masquerAutreVersion();
   }
 })();
+
+// Langue du site (bouton FR | EN) : js/langue.js, chargé ici pour être présent sur toutes les pages, y compris les fiches générées.
+// Dans un navigateur seulement (ce fichier est aussi importé par serveur/acces.js) ; document.write garde l'ordre des scripts
+// (js/langue.js doit être lu avant les scripts de la page, qui peuvent appeler t()).
+if (typeof document !== "undefined" && document.currentScript && document.readyState === "loading") {
+  document.write('<script src="' + document.currentScript.src.replace(/mode-site\.js(\?.*)?$/, "langue.js") + '"><\/script>');
+}

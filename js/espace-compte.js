@@ -1,6 +1,9 @@
 // Page compte.html : état de l'accès, simulations enregistrées, fonds suivis, alertes par e-mail, e-mail, mot de passe, export, déconnexion, suppression du compte.
 const msg = document.getElementById("message-compte");
-const dateCourte = iso => (iso ? new Date(iso).toLocaleDateString("fr-FR") : "");
+// Langue (js/langue.js) : formats des dates et textes des fenêtres prompt/confirm ; français si langue.js est absent (tests)
+const localeCompte = () => (typeof LOCALE_SITE === "string" ? LOCALE_SITE : "fr-FR");
+const texteCompte = s => (typeof t === "function" ? t(s) : s);
+const dateCourte = iso => (iso ? new Date(iso).toLocaleDateString(localeCompte()) : "");
 function annoncer(texte, erreur) { msg.hidden = !texte; msg.textContent = texte || ""; msg.className = erreur ? "note note-erreur" : "note"; }
 // « protege » affiche l'erreur éventuelle ; « action » annule en plus l'effet normal (envoi du formulaire).
 // Les clics de toute la page passent par « protege » seulement : sinon plus aucun lien ni bouton d'envoi ne marcherait.
@@ -56,7 +59,8 @@ async function entreeSuivie(cle) {
 async function chargerResumes() {
   try { if (typeof RESUMES === "undefined") await chargerScript("data/resumes.js"); } catch (e) { /* valeurs non affichées */ }
 }
-const dateJma = iso => String(iso).slice(0, 10).split("-").reverse().join("/");
+const dateJma = iso => (localeCompte() === "fr-FR" ? String(iso).slice(0, 10).split("-").reverse().join("/")
+  : new Date(String(iso).slice(0, 10) + "T00:00:00").toLocaleDateString(localeCompte()));
 function valeursSuivi(cle) {
   const r = typeof RESUMES !== "undefined" && RESUMES && RESUMES.fonds && Object.prototype.hasOwnProperty.call(RESUMES.fonds, cle) ? RESUMES.fonds[cle] : null;
   const sansDic = zoneDeCle(cle) !== "europe" ? "Fonds hors GECO (pas de DIC lu)" : "Pas de DIC publié sur GECO";
@@ -116,10 +120,10 @@ document.addEventListener("click", protege(async e => {
   if (suivi && e.target.matches("[data-ne-plus-suivre]")) { await Compte.nePlusSuivre(suivi.dataset.cle); await rafraichirSuivis(); return; }
   const li = e.target.closest("[data-id]");
   if (li && e.target.matches("[data-renommer]")) {
-    const nom = prompt("Nouveau nom de la simulation :", li.querySelector("strong").textContent);
+    const nom = prompt(texteCompte("Nouveau nom de la simulation :"), li.querySelector("strong").textContent);
     if (nom && nom.trim()) { await Compte.renommerSimulation(li.dataset.id, nom.trim()); await rafraichirEspace(); }
   }
-  if (li && e.target.matches("[data-supprimer-sim]") && confirm(PAIEMENT_SITE ? "Supprimer cette simulation ? Elle ne sera pas rendue comme simulation offerte." : "Supprimer cette simulation ?")) {
+  if (li && e.target.matches("[data-supprimer-sim]") && confirm(texteCompte(PAIEMENT_SITE ? "Supprimer cette simulation ? Elle ne sera pas rendue comme simulation offerte." : "Supprimer cette simulation ?"))) {
     await Compte.supprimerSimulation(li.dataset.id); await rafraichirEspace();
   }
 }));
@@ -145,8 +149,8 @@ document.getElementById("exporter").addEventListener("click", action(async () =>
 }));
 document.getElementById("deconnecter").addEventListener("click", action(async () => { await Compte.deconnecter(); location.href = "index.html"; }));
 document.getElementById("supprimer").addEventListener("click", action(async () => {
-  if (!confirm(PAIEMENT_SITE ? "Supprimer définitivement ton compte et tes simulations ? Un abonnement en cours sera arrêté immédiatement, sans remboursement de la période entamée."
-    : "Supprimer définitivement ton compte et tes simulations ?")) return;
+  if (!confirm(texteCompte(PAIEMENT_SITE ? "Supprimer définitivement ton compte et tes simulations ? Un abonnement en cours sera arrêté immédiatement, sans remboursement de la période entamée."
+    : "Supprimer définitivement ton compte et tes simulations ?"))) return;
   await Compte.fonction("supprimer-compte");
   await Compte.deconnecter();
   location.href = "index.html?compte=supprime";

@@ -15,7 +15,7 @@ function terme(cle, texte) {
 }
 
 function dateFr(iso) {
-  return iso ? new Date(iso).toLocaleDateString("fr-FR") : "n.d.";
+  return iso ? new Date(iso).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR")) : "n.d.";
 }
 
 function source(src) {
@@ -219,7 +219,7 @@ function noteZonesIncompletes(reels) {
 function afficherListe(requete, reels, lienDe = null) {
   if (!reels.length) {
     return `<div class="carte"><p>Aucun fonds trouvé pour « ${esc(requete)} ».</p>
-      <p class="aide">L'annuaire européen contient ${ANNUAIRE.length.toLocaleString("fr-FR")} fonds : tous les fonds de droit français (base GECO de l'AMF),
+      <p class="aide">L'annuaire européen contient ${ANNUAIRE.length.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"))} fonds : tous les fonds de droit français (base GECO de l'AMF),
       les fonds étrangers commercialisés en France, et tous les ETF et fonds cotés en bourse dans l'Union européenne. La recherche couvre aussi les autres fonds européens du registre de l'ESMA (Irlande, Luxembourg, Allemagne, Suède…), et les fonds américains déclarés à la SEC.
       Essaie avec l'ISIN, le ticker ou quelques mots du nom.</p>${noteZonesIncompletes(reels)}</div>`;
   }

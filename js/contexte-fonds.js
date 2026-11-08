@@ -274,7 +274,7 @@ function tableauDeBordRisques(A, p, themes, geo) {
       explication: niveau === 2 ? "La valeur du fonds peut fortement varier, à la hausse comme à la baisse, d'une année à l'autre."
         : niveau === 1 ? "Des baisses temporaires notables sont possibles, mais le fonds reste moins agité qu'un fonds 100 % actions."
         : "Les variations de valeur sont faibles.",
-      base: [vol !== null && `volatilité ${pct(vol)} par an`, perte !== null && `pire baisse ${pct(perte, 0)}`, sri && `SRI ${sri}/7`].filter(Boolean).join(" · ") });
+      base: [vol !== null && (globalThis.t || String)(`volatilité ${pct(vol)} par an`), perte !== null && (globalThis.t || String)(`pire baisse ${pct(perte, 0)}`), sri && `SRI ${sri}/7`].filter(Boolean).join(" · ") });
   }
   // Géopolitique
   {
@@ -328,10 +328,10 @@ function tableauDeBordRisques(A, p, themes, geo) {
   // Réglementaire
   {
     const causes = [];
-    if (p.synthetique) causes.push("réplication synthétique (contrat d'échange avec une banque)");
-    if (p.secteurTech >= 25) causes.push("forte exposition aux géants de la tech (antitrust, IA, numérique)");
-    if (p.emergents >= 15 || p.chine >= 5) causes.push("exposition à la Chine et aux émergents");
-    if (/\bPEA\b/i.test(A.entree.nom) && p.usa + p.japon + p.emergents >= 50) causes.push("éligibilité au PEA obtenue par un montage (règles modifiables)");
+    if (p.synthetique) causes.push((globalThis.t || String)("réplication synthétique (contrat d'échange avec une banque)"));
+    if (p.secteurTech >= 25) causes.push((globalThis.t || String)("forte exposition aux géants de la tech (antitrust, IA, numérique)"));
+    if (p.emergents >= 15 || p.chine >= 5) causes.push((globalThis.t || String)("exposition à la Chine et aux émergents"));
+    if (/\bPEA\b/i.test(A.entree.nom) && p.usa + p.japon + p.emergents >= 50) causes.push((globalThis.t || String)("éligibilité au PEA obtenue par un montage (règles modifiables)"));
     const niveau = causes.length >= 2 ? 2 : causes.length ? 1 : 0;
     r.push({ cle: "reglementaire", nom: "Risque réglementaire", niveau,
       explication: niveau ? "Des changements de règles pourraient affecter le fonds ou ses entreprises : " + causes.join(" ; ") + "."
@@ -380,7 +380,7 @@ function diagnosticRisque(A, p) {
     const [zone, part] = Object.entries(zones).sort((a, b) => b[1] - a[1])[0];
     const partRel = part / total;
     if (partRel >= 0.5) return { type: "zone", zone, part, candidats: COMPLEMENTS_PAR_ZONE[zone],
-      texte: `Environ ${Math.round(partRel * 100)} % des actions de ce fonds sont exposées ${A_ZONE[zone]}${zone === "usa" && p.tech >= 15 ? ", dont une bonne part aux grandes valeurs technologiques" : ""} : sa valeur dépend beaucoup d'une seule région. Un fonds du même type (des actions), ${SANS_ZONE[zone]}, répartit ce risque.` };
+      texte: `Environ ${Math.round(partRel * 100)} % des actions de ce fonds sont exposées ${(globalThis.t || String)(A_ZONE[zone])}${zone === "usa" && p.tech >= 15 ? (globalThis.t || String)(", dont une bonne part aux grandes valeurs technologiques") : ""} : sa valeur dépend beaucoup d'une seule région. Un fonds du même type (des actions), ${(globalThis.t || String)(SANS_ZONE[zone])}, répartit ce risque.` };
     return { type: "diversifie", candidats: ["oblig_3_5", "monetaire"],
       texte: "Les actions de ce fonds sont déjà réparties entre plusieurs régions. Pour réduire encore le risque, il faut ajouter un placement plus stable (obligations ou monétaire), au prix d'un rendement attendu plus faible." };
   }

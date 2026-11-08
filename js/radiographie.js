@@ -151,7 +151,7 @@ function fraisContrat(lignes) {
       // Si l'alternative est déjà dans le contrat (même ISIN ou même clé), on le dit : il suffit de regrouper
       const isinAlt = isinDeAlternative(meilleure.cle);
       const dejaDetenue = lignes.some((x, k) => k !== idx && ((x.isin && x.isin === isinAlt) || (x.entree && ((x.entree.isins || []).includes(isinAlt) || x.entree.source + x.entree.cmpId === meilleure.cle))));
-      alternative = { nom: meilleure.nom + (dejaDetenue ? " (déjà dans ton contrat)" : ""), cle: meilleure.cle, frais: meilleure.frais, economieAnnuelle: montant * (frais - meilleure.frais) / 100 };
+      alternative = { nom: meilleure.nom + (dejaDetenue ? (globalThis.t || String)(" (déjà dans ton contrat)") : ""), cle: meilleure.cle, frais: meilleure.frais, economieAnnuelle: montant * (frais - meilleure.frais) / 100 };
     }
     return { frais, coutAnnuel, alternative };
   });

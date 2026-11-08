@@ -10,15 +10,15 @@
 
 function eurosCourt(v) {
   const a = Math.abs(v);
-  if (a >= 1e6) return (v / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " M€";
-  if (a >= 1e4) return Math.round(v / 1e3).toLocaleString("fr-FR") + " k€";
-  if (a >= 1e3) return (v / 1e3).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " k€";
-  return Math.round(v).toLocaleString("fr-FR") + " €";
+  if (a >= 1e6) return (v / 1e6).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 1 }) + " M€";
+  if (a >= 1e4) return Math.round(v / 1e3).toLocaleString((globalThis.LOCALE_SITE || "fr-FR")) + " k€";
+  if (a >= 1e3) return (v / 1e3).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 1 }) + " k€";
+  return Math.round(v).toLocaleString((globalThis.LOCALE_SITE || "fr-FR")) + " €";
 }
 function pctSigne(x, dec = 1) { // x en fraction (0,052 → « +5,2 % »)
   if (x === null || x === undefined || isNaN(x)) return "n.d.";
   const v = x * 100;
-  return (v > 0.05 ? "+" : v < -0.05 ? "−" : "") + Math.abs(v).toLocaleString("fr-FR", { minimumFractionDigits: dec, maximumFractionDigits: dec }) + " %";
+  return (v > 0.05 ? "+" : v < -0.05 ? "−" : "") + Math.abs(v).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { minimumFractionDigits: dec, maximumFractionDigits: dec }) + " %";
 }
 // Les estimations sont arrondies : afficher « 64 021 € » donnerait une fausse impression de précision
 function eurosEstimes(v) {
@@ -28,11 +28,11 @@ function eurosEstimes(v) {
 }
 function eurosSigne(v) { return (v > 0.5 ? "+" : v < -0.5 ? "−" : "") + eurosEstimes(Math.abs(v)); }
 function dateDuMois(debut, t) { const [a, m] = debut.split("-").map(Number); return new Date(a, m - 1 + t, 1); }
-function moisAnnee(d) { return d.toLocaleDateString("fr-FR", { month: "short", year: "numeric" }); }
+function moisAnnee(d) { return d.toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { month: "short", year: "numeric" }); }
 function dureeTexte(mois) {
-  if (mois < 12) return `${mois} mois`;
+  if (mois < 12) return (globalThis.t || String)(`${mois} mois`);
   const a = Math.floor(mois / 12), m = mois % 12;
-  return `${a} an${a > 1 ? "s" : ""}${m ? ` et ${m} mois` : ""}`;
+  return (globalThis.t || String)(`${a} an${a > 1 ? "s" : ""}${m ? ` et ${m} mois` : ""}`);
 }
 
 function echelleValeurs(max, min = 0, cible = 5) {
@@ -348,7 +348,7 @@ function carteCorrelations(noms, corr) {
     <span></span>${noms.map((x, j) => `<span class="corr-entete" title="${esc(x)}">${j + 1}</span>`).join("")}
     ${noms.map((x, i) => `<span class="corr-nom" title="${esc(x)}">${i + 1}. ${esc(x)}</span>${corr[i].map((c, j) => {
       const intensite = Math.min(1, Math.abs(c));
-      return `<span class="corr-case${i === j ? " corr-diag" : ""}" style="--intensite:${intensite.toFixed(2)}" title="Corrélation ${esc(noms[i])} / ${esc(noms[j])} : ${c.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}">${c.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
+      return `<span class="corr-case${i === j ? " corr-diag" : ""}" style="--intensite:${intensite.toFixed(2)}" title="Corrélation ${esc(noms[i])} / ${esc(noms[j])} : ${c.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: 2 })}">${c.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
     }).join("")}`).join("")}
   </div>`;
 }

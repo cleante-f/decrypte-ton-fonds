@@ -33,8 +33,8 @@ function variationMarche(v) {
   return `<span class="${r > 0 ? "hausse" : r < 0 ? "baisse" : ""}">${r > 0 ? "+" : r < 0 ? "−" : ""}${pct(Math.abs(r), 1)}</span>`;
 }
 
-function heureMaj(iso) { return new Date(iso).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }); }
-function jourFr(iso) { return new Date(iso + "T12:00:00").toLocaleDateString("fr-FR"); }
+function heureMaj(iso) { return new Date(iso).toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { dateStyle: "long", timeStyle: "short" }); }
+function jourFr(iso) { return new Date(iso + "T12:00:00").toLocaleDateString(globalThis.LOCALE_SITE || "fr-FR"); }
 
 // État d'un bloc : secours, dernière valeur connue ou indisponible (jamais de page cassée)
 function etatMarches(b, quoi) {
@@ -76,7 +76,7 @@ function blocMarchesDevises(poids, { couvert = false } = {}) {
       <thead><tr><th scope="col">Devise</th><th scope="col">1 € vaut</th><th scope="col">Face à l'euro, sur 1 an</th></tr></thead>
       <tbody>${devises.map(d => { const t = ch.taux[d];
         const effet = t.unAn ? (t.unAn / t.valeur - 1) * 100 : null;   // > 0 : la devise s'est renforcée, un placement dans cette devise vaut plus en euros
-        return `<tr><th scope="row">${esc(NOMS_DEVISES[d] || d)}</th><td>${t.valeur.toLocaleString("fr-FR", { maximumFractionDigits: t.valeur >= 100 ? 2 : 4 })} ${esc(d)}</td><td>${variationMarche(effet === null ? null : Math.round(effet * 100) / 100)}</td></tr>`; }).join("")}</tbody>
+        return `<tr><th scope="row">${esc(NOMS_DEVISES[d] || d)}</th><td>${t.valeur.toLocaleString((globalThis.LOCALE_SITE || "fr-FR"), { maximumFractionDigits: t.valeur >= 100 ? 2 : 4 })} ${esc(d)}</td><td>${variationMarche(effet === null ? null : Math.round(effet * 100) / 100)}</td></tr>`; }).join("")}</tbody>
     </table></div>
     <p class="aide">Taux du ${jourFr(ch.date)}. Quand une devise gagne face à l'euro, les placements dans cette devise valent plus une fois convertis en euros (et inversement).${couvert ? " <strong>Cette part est couverte contre le risque de change</strong> : ces variations la touchent peu." : ""}</p>`;
 
@@ -110,7 +110,7 @@ function blocActusEntreprises(lignes, { titre = "h3", max = 4 } = {}) {
   }
   const avecArticles = trouvees.filter(t => t.e.articles.length).slice(0, max);
   if (!avecArticles.length) return "";
-  const date = iso => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+  const date = iso => new Date(iso).toLocaleDateString((globalThis.LOCALE_SITE || "fr-FR"), { day: "numeric", month: "long" });
   return `<${titre}>Actualités des entreprises détenues</${titre}>
     <p class="aide">Titres récents sur les principales entreprises de ce fonds, choisis automatiquement. Ils informent : ils ne disent pas comment le fonds va évoluer.</p>
     ${etatMarches(a, "les actualités")}

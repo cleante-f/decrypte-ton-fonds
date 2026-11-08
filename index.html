@@ -136,12 +136,12 @@
   <script>
     // Chiffres réels de l'annuaire (mis à jour par scripts/construire_annuaire.py)
     if (typeof RESUME_ANNUAIRE !== "undefined") {
-      const f = n => n.toLocaleString("fr-FR");
+      const f = n => n.toLocaleString(typeof LOCALE_SITE === "string" ? LOCALE_SITE : "fr-FR");
       document.getElementById("nb-total").textContent = f(RESUME_ANNUAIRE.total);
       document.getElementById("nb-francais").textContent = f(RESUME_ANNUAIRE.francais);
       document.getElementById("nb-etf").textContent = f(RESUME_ANNUAIRE.etf);
       document.getElementById("date-maj").textContent =
-        "Liste des fonds mise à jour le " + new Date(RESUME_ANNUAIRE.date).toLocaleDateString("fr-FR") + ".";
+        "Liste des fonds mise à jour le " + new Date(RESUME_ANNUAIRE.date).toLocaleDateString(typeof LOCALE_SITE === "string" ? LOCALE_SITE : "fr-FR") + ".";
     }
   </script>
 </body>
