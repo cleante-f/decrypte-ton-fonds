@@ -170,6 +170,9 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:   # une panne de Deutsche Börse ne doit pas faire échouer la mise à jour quotidienne
-        print(f"Cours indisponibles : {e}", file=sys.stderr)
-        sys.exit(1)
+    except (urllib.error.URLError, RuntimeError, OSError, ValueError) as e:
+        # Panne ou réponse invalide de Deutsche Börse (ex. 14/11/2026 : fichier du jour listé mais « File not found »,
+        # liens signés déjà expirés) : avertissement sans échec (pas d'e-mail d'erreur), rien n'est écrit ;
+        # les passages suivants relisent les jours encore en ligne.
+        print(f"::warning::Cours de Deutsche Börse indisponibles, nouvel essai au prochain passage : {e}")
+        sys.exit(0)
