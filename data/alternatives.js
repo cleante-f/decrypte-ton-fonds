@@ -1,10 +1,10 @@
 /* Généré par scripts/construire_alternatives.mjs — ne pas modifier à la main.
  * Source : AMF – DIC (base GECO). */
 const ALTERNATIVES = {
-  "maj": "2026-10-25",
+  "maj": "2026-11-25",
   "indices": {
     "DAX": [
-      ["FR0010655712","FR0010655712","AMUNDI ETF DAX UCITS ETF DR",0.11,0,1,"2026-04-28"]
+      ["FR0010655712","FR0010655712","AMUNDI ETF DAX UCITS ETF DR",0.11,0,1,"2026-11-02"]
     ],
     "MSCI World": [
       ["FR0014003FW1","FR0014003FW1","Amundi MSCI World Climate Paris Aligned Umweltzeichen UCITS ETF",0.28,0,1,"2026-04-28"]
